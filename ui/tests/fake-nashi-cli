@@ -1,0 +1,183 @@
+#!/usr/bin/env python3
+"""Fake nashi-cli for the UI tests (docs/CLI-PROTOCOL.md).
+
+Behaviour is selected by the arguments:
+  wheel FILE... --json        canned wheel; *.bad -> exit 1; *.slow -> 1 s delay
+  deps --json                 canned deps list
+  convert|tool ID FILE... --json
+      ID "fail"     -> error event + done(failed=1), exit 1
+      ID "slow"     -> progress forever until SIGTERM -> done(cancelled), exit 130
+      ID "stubborn" -> ignores SIGTERM (tests the kill fallback)
+      ID "garbage"  -> a non-JSON line between valid events
+      ID "nodone"   -> exits 3 without a done event, message on stderr
+      ID "slowclean"-> like slow, but on SIGTERM spends ~1 s "cleaning up",
+                       touches $FAKE_CLI_CLEANUP_MARK, then done(cancelled)
+      ID "merge"    -> multi-input: progress/output with index:null
+      ID "qr"       -> output event carrying a decoded-text message
+      otherwise     -> start, progress written in split chunks, output, done
+If $FAKE_CLI_ARGV_LOG is set, argv (one per line) is written there.
+"""
+import json
+import os
+import signal
+import sys
+import time
+
+
+def emit(obj, partial=False):
+    line = json.dumps(obj) + "\n"
+    if partial:
+        mid = len(line) // 2
+        sys.stdout.write(line[:mid])
+        sys.stdout.flush()
+        time.sleep(0.05)
+        sys.stdout.write(line[mid:])
+    else:
+        sys.stdout.write(line)
+    sys.stdout.flush()
+
+
+def wheel(files):
+    if any(f.endswith(".bad") for f in files):
+        print("nashi-cli: cannot inspect file", file=sys.stderr)
+        return 1
+    if any(f.endswith(".slow") for f in files):
+        time.sleep(1.0)
+    ext = files[0].rsplit(".", 1)[-1].lower() if files else ""
+    cat = {"mp4": "video", "png": "image", "jpg": "image"}.get(ext, "unknown")
+    data = {
+        "files": [{"path": f, "ext": f.rsplit(".", 1)[-1], "category": cat} for f in files],
+        "convert": [
+            {"id": "mp3", "title": "MP3", "available": True},
+            {"id": "gif", "title": "GIF", "available": True},
+            {"id": "webm", "title": "WEBM", "available": False, "missing": ["ffmpeg"]},
+        ],
+        "tools": [
+            {"id": "compress", "title": {"en": "Compress", "tr": "Sıkıştır"}, "icon": "archive-insert",
+             "available": True, "needs_editor": False},
+            {"id": "trim", "title": {"en": "Trim", "tr": "Kırp"}, "icon": "edit-cut",
+             "available": True, "needs_editor": True},
+            {"id": "removeMetadata", "title": {"en": "Remove Metadata", "tr": "Meta Veriyi Sil"},
+             "icon": "edit-clear", "available": False, "needs_editor": False, "missing": ["exiftool"]},
+        ],
+        "actions": [
+            {"id": "copy", "title": {"en": "Copy", "tr": "Kopyala"}, "icon": "edit-copy"},
+            {"id": "copyPath", "title": {"en": "Copy Path", "tr": "Yolu Kopyala"}, "icon": "edit-copy"},
+            {"id": "terminal", "title": {"en": "Open Terminal", "tr": "Terminal Aç"}, "icon": "utilities-terminal"},
+            {"id": "openFolder", "title": {"en": "Open Folder", "tr": "Klasörü Aç"}, "icon": "folder-open"},
+            {"id": "reveal", "title": {"en": "Show in File Manager", "tr": "Dosya Yöneticisinde Göster"},
+             "icon": "system-file-manager"},
+        ],
+    }
+    if ext == "mixed":
+        data["convert"] = []
+    print(json.dumps(data))
+    return 0
+
+
+def deps():
+    print(json.dumps({"tools": [
+        {"id": "ffmpeg", "available": True, "version": "7.1", "path": "/usr/bin/ffmpeg",
+         "package": "ffmpeg", "optional": False, "used_for": ["audio", "video", "gif"]},
+        {"id": "exiftool", "available": False, "version": None, "path": None,
+         "package": "perl-image-exiftool", "optional": False, "used_for": ["removeMetadata"]},
+        {"id": "pandoc", "available": False, "version": None, "path": None,
+         "package": "pandoc-cli", "optional": True, "used_for": ["document"]},
+    ]}))
+    return 0
+
+
+def run_job(op, ident, files):
+    cancelled = {"flag": False}
+
+    def on_term(_sig, _frm):
+        cancelled["flag"] = True
+
+    if ident == "stubborn":
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    else:
+        signal.signal(signal.SIGTERM, on_term)
+        signal.signal(signal.SIGINT, on_term)
+
+    emit({"event": "start", "job": "7f3c", "total": len(files)})
+    if ident in ("slow", "stubborn", "slowclean"):
+        for i in range(600):
+            if cancelled["flag"]:
+                if ident == "slowclean":
+                    time.sleep(1.0)
+                    mark = os.environ.get("FAKE_CLI_CLEANUP_MARK")
+                    if mark:
+                        with open(mark, "w", encoding="utf-8") as fh:
+                            fh.write("clean\n")
+                emit({"event": "done", "outputs": [], "failed": 0, "cancelled": True})
+                return 130
+            emit({"event": "progress", "input": files[0], "index": 0, "fraction": None, "message": "Waiting"})
+            time.sleep(0.05)
+        return 0
+    if ident == "merge":
+        for frac in (0.25, 0.5, 0.75):
+            emit({"event": "progress", "input": None, "index": None, "fraction": frac, "message": "Merging"})
+            time.sleep(0.05)
+        out = files[0].rsplit("/", 1)[0] + "/merged.pdf"
+        emit({"event": "output", "input": None, "index": None, "path": out})
+        emit({"event": "done", "outputs": [out], "failed": 0, "cancelled": False})
+        return 0
+    if ident == "qr":
+        out = files[0] + ".txt"
+        emit({"event": "output", "input": files[0], "index": 0, "path": out, "message": "https://example.org/42"})
+        emit({"event": "done", "outputs": [out], "failed": 0, "cancelled": False})
+        return 0
+    if ident == "nodone":
+        print("nashi-cli: something went wrong", file=sys.stderr)
+        return 3
+    outputs = []
+    failed = 0
+    for i, f in enumerate(files):
+        if ident == "garbage":
+            sys.stdout.write("this is not json\n")
+        emit({"event": "progress", "input": f, "index": i, "fraction": 0.5, "message": "Encoding"}, partial=True)
+        if ident == "fail":
+            emit({"event": "error", "input": f, "index": i, "code": "tool_failed", "message": "ffmpeg exited with 1"})
+            failed += 1
+            continue
+        stem = f.rsplit(".", 1)[0]
+        out = stem + "." + (ident if op == "convert" else "out")
+        outputs.append(out)
+        emit({"event": "output", "input": f, "index": i, "path": out})
+    # The final line has no trailing newline to exercise flush-at-EOF.
+    sys.stdout.write(json.dumps({"event": "done", "outputs": outputs, "failed": failed, "cancelled": False}))
+    sys.stdout.flush()
+    return 1 if failed else 0
+
+
+def main(argv):
+    log = os.environ.get("FAKE_CLI_ARGV_LOG")
+    if log:
+        with open(log, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(argv))
+    args = [a for a in argv if a != "--json"]
+    if not args:
+        print("usage", file=sys.stderr)
+        return 2
+    cmd = args[0]
+    if cmd == "wheel":
+        return wheel(args[1:])
+    if cmd == "deps":
+        return deps()
+    if cmd in ("convert", "tool") and len(args) >= 3:
+        rest = args[2:]
+        files = []
+        i = 0
+        while i < len(rest):
+            if rest[i] in ("--out-dir", "--options"):
+                i += 2
+                continue
+            files.append(rest[i])
+            i += 1
+        return run_job(cmd, args[1], files)
+    print("usage error", file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
