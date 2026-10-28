@@ -30,7 +30,43 @@ Without `--json` the CLI prints human-readable text. Exit codes: `0` all succeed
 - `tools`: for one file → `singleTools[ext]`; for several files → `multipleTools[ext]` when all share the ext, otherwise tools valid for all.
 - `needs_editor: true` means the UI must collect options (crop rect, trim range…) before running; until editors exist the UI may hide such tools.
 - `available: false` when a required external tool is missing; include `"missing": ["ffmpeg"]`.
-- `actions` are handled by the UI itself (copy, move, copy path, open terminal, open folder, show in Dolphin). The CLI only lists them.
+- `actions` are handled by the UI itself. The CLI only lists them. Fixed ids: `copy` (put the files on the clipboard as `text/uri-list`), `copyPath` (paths as text), `terminal` (open a terminal in the file's folder), `openFolder`, `reveal` (show in the file manager, selected). There is no `move` action: Nashi never moves user files.
+- `title` for formats is a plain string (the uppercase extension); for tools and actions it is `{"en","tr"}`.
+- `icon` is a freedesktop icon-theme name (e.g. `document-export`, `edit-copy`, `utilities-terminal`); the UI may fall back to its own icons.
+
+## `deps` output
+
+```json
+{"tools": [
+  {"id": "ffmpeg", "available": true, "version": "7.1", "path": "/usr/bin/ffmpeg",
+   "package": "ffmpeg", "optional": false, "used_for": ["audio", "video", "gif"]},
+  {"id": "exiftool", "available": false, "version": null, "path": null,
+   "package": "perl-image-exiftool", "optional": false, "used_for": ["removeMetadata"]}
+]}
+```
+
+`package` is the Arch Linux package name. Tool ids: `ffmpeg`, `ffprobe`, `magick`, `soffice`, `exiftool`, `qpdf`, `pdftoppm`, `pdftotext`, `gs`, `7z`, `zbarimg`, `pandoc`, `rsvg-convert`, `yt-dlp`.
+
+## `inspect` output
+
+```json
+{"files": [{"path": "/a.mp4", "ext": "mp4", "category": "video", "size": 1048576,
+            "duration": 12.5, "width": 1920, "height": 1080, "pages": null}]}
+```
+
+Categories: `image`, `audio`, `video`, `gif`, `pdf`, `document`, `presentation`, `spreadsheet`, `text`, `subtitle`, `archive`, `unknown`. Unknown/missing fields are `null`.
+
+## `catalog` output
+
+```json
+{"formats": [{"ext": "jpg", "category": "image", "title": "JPG", "targets": ["png", "..."],
+              "single_tools": ["compress", "..."], "multiple_tools": ["compress", "..."]}],
+ "tools": [{"id": "compress", "title": {"en": "Compress", "tr": "Sıkıştır"}, "icon": "...",
+            "needs_editor": false, "multi_input": false, "available": true, "missing": []}],
+ "actions": [{"id": "copyPath", "title": {"en": "Copy Path", "tr": "Yolu Kopyala"}, "icon": "edit-copy"}]}
+```
+
+Non-`--json` errors and usage errors: a JSON-mode usage error still prints one `{"event":"error","code":"invalid_options",...}` line plus `done` when it happens after `start`; before `start` it prints only to stderr and exits 2.
 
 ## Event stream (`convert` / `tool` with `--json`)
 
@@ -67,3 +103,13 @@ Optional; unknown keys are ignored. Defaults are sensible so every route works w
  "resize": {"w": null, "h": null}, "border": {"px": 40, "color": "#ffffff"},
  "rects": [{"x":0,"y":0,"w":10,"h":10,"t0":null,"t1":null}], "ranges": [[1.0,2.5]]}
 ```
+
+## Additions (v0.1)
+
+- `output` events may carry an optional `"message"` string (e.g. `readQRCode` puts the decoded text there; the text is also written to `stem-qr.txt`).
+- `deps` also lists `libheif` (HEIC support inside ImageMagick) and may include `"alt_packages": ["libreoffice-still"]`. `missing` lists may name `libheif`.
+- `catalog` formats keep the full upstream `targets` and add `unsupported_targets` (routes that cannot work on Linux, e.g. `→ pages`, `pdf → xlsx`). `wheel` never lists those.
+- `readQRCode` is a Linux addition to `single_tools` for raster images.
+- Extra output suffixes: `stem-parts/` (splitVideo), `stem-qr.txt`, `stem-<speed>x.ext`, `stem-trimmed|-cropped|-edited|-framed|-redacted|-bleeped|-organized.ext`, `stem-visualizer.mp4`, `stem-mono|-stereo.ext`, and `stem.tar.gz` when the target is `gz`.
+- Tools with `needs_editor: true` return `invalid_options` when called without their options.
+- Testing: `NASHI_DISABLE_TOOLS=a,b` makes those tools appear missing. Child processes run with `LC_ALL=C.UTF-8` (ImageMagick breaks under `tr_TR`).

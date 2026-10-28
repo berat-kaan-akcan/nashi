@@ -26,11 +26,11 @@ Yedek giriş yolları: global kısayol (panodaki/seçili dosyalar), Dolphin sağ
 
 | Faz | İçerik | Durum |
 |---|---|---|
-| **0 — Temel** | Repo iskeleti, plan, mimari, sözleşmeler (CLI protokolü, D-Bus), CI | bu turda |
-| **1 — Motor + CLI** | Katalog (45 format), dosya tespiti, dönüşümler, parametresiz araçlar, JSON ilerleme, testler | bu turda (Ajan A) |
-| **2 — inputd** | evdev akor algılama durum makinesi, D-Bus sinyalleri, udev kuralı, systemd user servisi | bu turda (Ajan B) |
-| **3 — Arayüz prototipi** | Tam ekran şeffaf layer-shell overlay, çark, bırakma, işi CLI'ye verme, ilerleme bildirimi, tepsi, ana pencere | bu turda (Ajan C) |
-| **4 — Paketleme + entegrasyon** | PKGBUILD, kurulum betiği, .desktop + MIME, Dolphin servis menüsü, Nautilus betiği | bu turda (Ajan D) |
+| **0 — Temel** | Repo iskeleti, plan, mimari, sözleşmeler (CLI protokolü, D-Bus), CI | tamamlandı |
+| **1 — Motor + CLI** | Katalog (45 format), dosya tespiti, dönüşümler, parametresiz araçlar, JSON ilerleme, testler | tamamlandı (Ajan A); gerçek cihaz testi Faz 5 |
+| **2 — inputd** | evdev akor algılama durum makinesi, D-Bus sinyalleri, udev kuralı, systemd user servisi | tamamlandı (Ajan B); gerçek cihaz testi Faz 5 |
+| **3 — Arayüz prototipi** | Tam ekran şeffaf layer-shell overlay, çark, bırakma, işi CLI'ye verme, ilerleme bildirimi, tepsi, ana pencere | tamamlandı (Ajan C); gerçek cihaz testi Faz 5 |
+| **4 — Paketleme + entegrasyon** | PKGBUILD, kurulum betiği, .desktop + MIME, Dolphin servis menüsü, Nautilus betiği | tamamlandı (Ajan D); gerçek cihaz testi Faz 5 |
 | **5 — Gerçek cihaz testi** | CachyOS üzerinde overlay + DnD + inputd denemesi, bulguya göre düzeltme | sonraki tur |
 | **6 — Medya araçları tamamı** | Kesme/kırpma/hız/bölme/birleştirme/karartma vb. ffmpeg araçlarının parametreli sürümleri, web indirme (yt-dlp) | sonraki tur |
 | **7 — Editörler** | Görsel kırpma, not ekleme, karartma, video zaman çizelgesi (I/O), PDF sayfa düzenleme arayüzleri | sonraki tur |
