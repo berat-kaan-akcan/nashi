@@ -1,0 +1,8 @@
+[package]
+name = "nashi-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+nashi-core = { path = "../nashi-core" }
