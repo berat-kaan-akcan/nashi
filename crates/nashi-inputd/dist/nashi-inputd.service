@@ -1,0 +1,34 @@
+[Unit]
+Description=Nashi drag + modifier chord detector
+Documentation=https://github.com/berat-kaanakcan/nashi
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=dbus
+BusName=io.github.beratkaanakcan.Nashi.Input
+ExecStart=/usr/bin/nashi-inputd
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=2
+
+# Hardening that works in a *user* manager without user/mount namespaces.
+# Deliberately NOT used: PrivateDevices (would hide /dev/input), PrivateUsers
+# (unmaps the `input` group), ProtectSystem/ProtectHome (need namespaces in
+# user units and are not available everywhere). The daemon only needs to read
+# /dev/input/event*, watch /dev/input with inotify, read
+# ~/.config/nashi/inputd.toml and talk to the session bus (AF_UNIX).
+NoNewPrivileges=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+UMask=0077
+
+[Install]
+WantedBy=graphical-session.target

@@ -1,7 +1,19 @@
 [package]
 name = "nashi-inputd"
+description = "Global drag + modifier chord detector for Nashi (evdev -> session D-Bus)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
 
 [dependencies]
+evdev = { version = "0.13", features = ["tokio"] }
+zbus = { version = "5", default-features = false, features = ["tokio"] }
+tokio = { version = "1", features = ["rt", "macros", "signal", "sync", "time"] }
+inotify = { version = "0.11", features = ["stream"] }
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+serde = { version = "1", features = ["derive"] }
+toml = { version = "0.8", default-features = false, features = ["parse"] }
+log = "0.4"
+env_logger = { version = "0.11", default-features = false, features = ["auto-color", "humantime"] }
