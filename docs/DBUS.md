@@ -20,8 +20,8 @@
 | Member | Type | Notes |
 |---|---|---|
 | `GetState()` | → `(b dragging, s mode)` | `mode` empty when no chord |
-| `Reload()` | → `()` | Re-read config |
-| `Enabled` | property `b`, read/write | When false, no signals |
+| `Reload()` | → `()` | Re-read config (also on `SIGHUP`). Returns `org.freedesktop.DBus.Error.Failed` and keeps the previous config when the file is invalid |
+| `Enabled` | property `b`, read/write | When false, no signals (exception: switching it off mid-drag emits one final `DragEnded` so the UI never keeps a stuck overlay). Runtime only; `Reload()` resets it to the config value. Emits `PropertiesChanged` |
 | `Version` | property `s` | crate version |
 
 ### Config `~/.config/nashi/inputd.toml`
@@ -36,6 +36,14 @@ ctrl  = "tools"
 alt   = "actions"
 ```
 
+### Semantics (clients must handle)
+
+- Several modifiers held: the most recently pressed one wins; releasing it falls back to the newest one still held. `ChordStarted` is re-emitted only when the mode changes, so it can arrive several times per drag.
+- A drag may start without a chord; a chord may come and go during a drag.
+- `DragEnded` is emitted only after `DragStarted`, may arrive without a preceding `ChordReleased`, and is also emitted when the daemon is disabled or stopped mid-drag. Treat it as "hide the overlay unless a drop arrives".
+- A press that never reaches the hold/move thresholds emits nothing.
+- `GetState()` returns `(false, "")` when idle.
+
 Devices: all evdev devices that report `BTN_LEFT` (mice, touchpads) or `KEY_LEFTSHIFT` (keyboards); hot-plug via inotify on `/dev/input`. Never grab devices (no `EVIOCGRAB`).
 
 ## `nashi` app → `io.github.beratkaanakcan.Nashi`
@@ -44,3 +52,6 @@ Devices: all evdev devices that report `BTN_LEFT` (mice, touchpads) or `KEY_LEFT
 - `ShowWheel(as paths, s mode)` — show the wheel at the cursor for these files (`mode` may be empty → `convert`). Used by `nashi --wheel FILE…`, the Dolphin service menu and the global shortcut.
 - `ShowWheelFromClipboard(s mode)` — files from the clipboard `text/uri-list`.
 - `Activate()` — raise the Home window.
+- The same object also implements the standard `org.freedesktop.Application` interface (`Activate(a{sv})`, `Open(as uris, a{sv})`, `ActivateAction`). `nashi FILE…` forwards to `Open` (opens Home with the files queued); both read the `activation-token` platform-data key so Wayland can raise the window. `Nashi1.Activate()` is kept for scripts but cannot pass a token.
+- `nashi --wheel [--mode m]` with no files maps to `ShowWheelFromClipboard(mode)`.
+- On Wayland the cursor position is unknown to clients, so `ShowWheel` centres the wheel on the primary screen.

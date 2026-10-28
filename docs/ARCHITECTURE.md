@@ -35,7 +35,8 @@ crates/
   nashi-cli/      binary `nashi-cli`
   nashi-inputd/   binary `nashi-inputd`
 ui/               CMake + Qt6/QML app `nashi`
-packaging/        arch/PKGBUILD, install.sh, udev, systemd, dolphin service menu, nautilus script
+packaging/        arch/PKGBUILD, install.sh, dolphin service menu, nautilus script
+                  (udev rule + systemd user unit live in crates/nashi-inputd/dist/)
 data/             .desktop, icons, metainfo
 docs/             PLAN, ARCHITECTURE, CLI-PROTOCOL, DBUS
 reference/        upstream Nashi FeatureCatalog.json (MIT) used as the source of the catalog
@@ -49,3 +50,17 @@ reference/        upstream Nashi FeatureCatalog.json (MIT) used as the source of
 - **Graceful degradation.** Missing tools never crash; routes needing them are reported as unavailable with the package name to install (`nashi-cli deps`).
 - **i18n.** UI strings are English source with Turkish translation (Qt `.ts`). Catalog titles have `en` and `tr`.
 - **Security of inputd.** It reads raw input devices but emits only chord state (mode, drag started/ended). It never logs or exports key codes beyond modifiers + primary button.
+
+## Integration points (fixed names shared by all components)
+
+| Item | Value |
+|---|---|
+| Binaries | `/usr/bin/nashi` (UI), `/usr/bin/nashi-cli`, `/usr/bin/nashi-inputd` |
+| App id / desktop file / icon | `io.github.beratkaanakcan.Nashi` (`data/io.github.beratkaanakcan.Nashi.desktop`, icon of the same name) |
+| UI command line | `nashi` (start or raise Home), `nashi --background` (tray only, used by autostart and D-Bus activation), `nashi --wheel [--mode convert\|tools\|actions] FILE…` (forward to the running instance's `ShowWheel`), `nashi FILE…` (open Home with these files queued) |
+| How the UI finds the CLI | `$NASHI_CLI`, else `nashi-cli` next to the `nashi` executable, else `PATH` |
+| Cancellation | UI calls `QProcess::terminate()` (SIGTERM); CLI emits `done` with `cancelled: true`, exits 130 |
+| inputd system files (owned by `crates/nashi-inputd/dist/`) | `70-nashi-inputd.rules` (udev), `nashi-inputd.service` (systemd **user** unit, `ExecStart=/usr/bin/nashi-inputd`) |
+| UI D-Bus activation file (owned by `data/`) | `io.github.beratkaanakcan.Nashi.service` → `Exec=/usr/bin/nashi --background` |
+| Autostart (owned by `data/`) | `io.github.beratkaanakcan.Nashi-autostart.desktop` → `nashi --background`, installed to `/etc/xdg/autostart/` |
+| Config | `~/.config/nashi/inputd.toml` (inputd), `~/.config/nashi/nashi.conf` (UI, QSettings) |
