@@ -1,0 +1,40 @@
+_nashi_message() {
+  cat <<'MSG'
+==> Nashi: one-time setup / tek seferlik kurulum
+
+  nashi-inputd reads /dev/input to detect "drag + Shift/Ctrl/Alt".
+  It only reports chord state, never key presses. Your user must be
+  in the 'input' group:
+
+  nashi-inputd, "sürükle + Shift/Ctrl/Alt" akorunu algılamak için
+  /dev/input okur; yalnızca akor durumunu bildirir, tuş içeriğini değil.
+  Kullanıcınız 'input' grubunda olmalı:
+
+      sudo usermod -aG input "$USER"
+
+  Then log out and back in (oturumu kapatıp yeniden açın), and run:
+
+      systemctl --user enable --now nashi-inputd.service
+
+  Nautilus users / Nautilus kullanıcıları (optional / isteğe bağlı):
+
+      mkdir -p ~/.local/share/nautilus/scripts
+      cp /usr/share/nashi/nautilus/nashi-nautilus-script ~/.local/share/nautilus/scripts/'Nashi – Convert'
+      cp /usr/share/nashi/nautilus/nashi-nautilus-script ~/.local/share/nautilus/scripts/'Nashi – Tools'
+MSG
+}
+
+post_install() {
+  _nashi_message
+}
+
+post_upgrade() {
+  echo "==> Nashi: restart the input daemon / giriş servisini yeniden başlatın:"
+  echo "      systemctl --user try-restart nashi-inputd.service"
+}
+
+post_remove() {
+  echo "==> Nashi: you may remove yourself from the 'input' group if nothing else needs it:"
+  echo "    'input' grubuna başka bir şey ihtiyaç duymuyorsa kendinizi çıkarabilirsiniz:"
+  echo "      sudo gpasswd -d \"\$USER\" input"
+}

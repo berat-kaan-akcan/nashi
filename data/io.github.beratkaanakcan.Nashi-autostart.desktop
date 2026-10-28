@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Nashi
+Comment=Start Nashi in the system tray to react to drag + modifier chords
+Comment[tr]=Sürükle + tuş akorlarına yanıt vermek için Nashi'yi sistem tepsisinde başlat
+Icon=io.github.beratkaanakcan.Nashi
+Exec=nashi --background
+TryExec=nashi
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=2
+X-KDE-autostart-phase=2
