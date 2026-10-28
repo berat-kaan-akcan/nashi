@@ -1,0 +1,14 @@
+[workspace]
+resolver = "2"
+members = ["crates/nashi-core", "crates/nashi-cli", "crates/nashi-inputd"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/berat-kaan-akcan/nashi"
+rust-version = "1.80"
+
+[profile.release]
+lto = "thin"
+strip = true

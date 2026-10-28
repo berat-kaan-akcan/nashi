@@ -1,0 +1,5 @@
+/target
+/build
+*.nashi-tmp
+.qtcreator/
+CMakeLists.txt.user
