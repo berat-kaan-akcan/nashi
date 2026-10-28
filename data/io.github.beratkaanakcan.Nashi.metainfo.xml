@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright 2026 Berat Kaan Akcan -->
+<component type="desktop-application">
+  <id>io.github.beratkaanakcan.Nashi</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <name>Nashi</name>
+  <summary>Convert files from a wheel that opens while you drag</summary>
+  <summary xml:lang="tr">Sürüklerken açılan bir çarktan dosya dönüştür</summary>
+
+  <developer id="io.github.beratkaanakcan">
+    <name>Berat Kaan Akcan</name>
+  </developer>
+
+  <description>
+    <p>
+      Start dragging a file from your file manager, press Shift, Ctrl or Alt, and a wheel
+      opens under the cursor. Drop the file on a slice to convert it, run a tool on it or
+      perform a file action. Results are written next to the original file with a new
+      name; inputs are never modified.
+    </p>
+    <p xml:lang="tr">
+      Dosya yöneticinden bir dosyayı sürüklemeye başla, Shift, Ctrl veya Alt tuşuna bas;
+      imlecin altında bir çark açılır. Dosyayı bir dilime bırakarak dönüştür, bir araç
+      çalıştır veya bir dosya işlemi yap. Sonuçlar özgün dosyanın yanına yeni bir adla
+      yazılır; giriş dosyaları asla değiştirilmez.
+    </p>
+    <p>Supported conversions and tools include:</p>
+    <p xml:lang="tr">Desteklenen dönüşümler ve araçlar:</p>
+    <ul>
+      <li>Images: JPG, PNG, WebP, AVIF, HEIC, TIFF, BMP, GIF, SVG</li>
+      <li xml:lang="tr">Görseller: JPG, PNG, WebP, AVIF, HEIC, TIFF, BMP, GIF, SVG</li>
+      <li>Audio and video: MP3, FLAC, WAV, OGG, Opus, M4A, MP4, MKV, MOV, WebM, AVI</li>
+      <li xml:lang="tr">Ses ve video: MP3, FLAC, WAV, OGG, Opus, M4A, MP4, MKV, MOV, WebM, AVI</li>
+      <li>Documents, spreadsheets, presentations, PDF, subtitles and archives</li>
+      <li xml:lang="tr">Belgeler, tablolar, sunumlar, PDF, altyazılar ve arşivler</li>
+      <li>Compression, metadata removal, PDF merging and more</li>
+      <li xml:lang="tr">Sıkıştırma, metaveri temizleme, PDF birleştirme ve daha fazlası</li>
+    </ul>
+    <p>
+      Conversions are done locally with tools such as FFmpeg, ImageMagick, LibreOffice,
+      exiftool, qpdf, Poppler and Ghostscript. Nashi for Linux is inspired by Nashi for macOS.
+    </p>
+    <p xml:lang="tr">
+      Dönüşümler FFmpeg, ImageMagick, LibreOffice, exiftool, qpdf, Poppler ve Ghostscript
+      gibi araçlarla yerel olarak yapılır. Nashi for Linux, macOS için Nashi'den esinlenmiştir.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">io.github.beratkaanakcan.Nashi.desktop</launchable>
+  <icon type="stock">io.github.beratkaanakcan.Nashi</icon>
+
+  <url type="homepage">https://github.com/berat-kaan-akcan/nashi</url>
+  <url type="bugtracker">https://github.com/berat-kaan-akcan/nashi/issues</url>
+  <url type="vcs-browser">https://github.com/berat-kaan-akcan/nashi</url>
+
+  <categories>
+    <category>Utility</category>
+  </categories>
+
+  <keywords>
+    <keyword>convert</keyword>
+    <keyword>converter</keyword>
+    <keyword>image</keyword>
+    <keyword>video</keyword>
+    <keyword>pdf</keyword>
+    <keyword xml:lang="tr">dönüştür</keyword>
+    <keyword xml:lang="tr">dönüştürücü</keyword>
+  </keywords>
+
+  <provides>
+    <binary>nashi</binary>
+    <binary>nashi-cli</binary>
+    <binary>nashi-inputd</binary>
+    <dbus type="user">io.github.beratkaanakcan.Nashi</dbus>
+  </provides>
+
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+
+  <content_rating type="oars-1.1"/>
+
+  <releases>
+    <release version="0.1.0" date="2026-10-28">
+      <description>
+        <p>First development release.</p>
+      </description>
+    </release>
+  </releases>
+</component>

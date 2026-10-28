@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    name: Rust (fmt, clippy, test)
+    runs-on: ubuntu-latest
+    # Arch instead of Ubuntu: Ubuntu ships ImageMagick 6 (no `magick`), which
+    # would make every image test skip. Arch's `rust` includes clippy + rustfmt.
+    # libreoffice-fresh is left out on purpose (very large); document tests
+    # skip cleanly without it.
+    container: archlinux:latest
+    steps:
+      - name: Install toolchain and external tools used by engine tests
+        run: |
+          pacman -Syu --noconfirm --needed \
+            base-devel git rust \
+            ffmpeg imagemagick libheif librsvg poppler ghostscript qpdf \
+            perl-image-exiftool 7zip zbar
+
+      # exiftool lives in /usr/bin/vendor_perl, normally added via /etc/profile.d.
+      - name: Add vendor_perl to PATH
+        run: echo /usr/bin/vendor_perl >> "$GITHUB_PATH"
+
+      - uses: actions/checkout@v4
+
+      - uses: Swatinem/rust-cache@v2
+
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+
+  ui:
+    name: Qt UI (build, offscreen tests)
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install build dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            base-devel git cmake ninja python \
+            qt6-base qt6-declarative qt6-tools qt6-svg layer-shell-qt
+
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -S ui -B build/ui -G Ninja -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build
+        run: cmake --build build/ui
+
+      - name: Test
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: ctest --test-dir build/ui --output-on-failure
+
+  lint:
+    name: Packaging lint
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install linters
+        run: |
+          pacman -Syu --noconfirm --needed \
+            git shellcheck desktop-file-utils appstream libxml2
+
+      - uses: actions/checkout@v4
+
+      - name: shellcheck
+        run: |
+          shellcheck packaging/install.sh packaging/nautilus/nashi-nautilus-script
+          shellcheck -s bash -e SC2034,SC2154,SC2164 \
+            packaging/arch/PKGBUILD packaging/arch/nashi.install
+
+      - name: desktop-file-validate
+        # packaging/dolphin/nashi.desktop is a KDE service menu (Type=Service),
+        # which the freedesktop validator does not understand.
+        run: desktop-file-validate data/*.desktop
+
+      - name: appstreamcli validate
+        run: appstreamcli validate --no-net data/*.metainfo.xml
+
+      - name: SVG icon is well-formed
+        run: xmllint --noout data/icons/hicolor/scalable/apps/*.svg

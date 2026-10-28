@@ -1,0 +1,27 @@
+[Desktop Entry]
+Type=Service
+X-KDE-ServiceTypes=KonqPopupMenu/Plugin
+MimeType=all/allfiles;
+Actions=convert;tools;open;
+X-KDE-Submenu=Nashi
+X-KDE-Submenu[tr]=Nashi
+Icon=io.github.beratkaanakcan.Nashi
+X-KDE-Priority=TopLevel
+
+[Desktop Action convert]
+Name=Convert…
+Name[tr]=Dönüştür…
+Icon=document-export
+Exec=nashi --wheel --mode convert %F
+
+[Desktop Action tools]
+Name=Tools…
+Name[tr]=Araçlar…
+Icon=applications-utilities
+Exec=nashi --wheel --mode tools %F
+
+[Desktop Action open]
+Name=Open in Nashi
+Name[tr]=Nashi'de Aç
+Icon=io.github.beratkaanakcan.Nashi
+Exec=nashi %F

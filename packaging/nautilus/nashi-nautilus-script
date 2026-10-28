@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Nautilus script for Nashi. Installed twice into ~/.local/share/nautilus/scripts/
+# as "Nashi – Convert" and "Nashi – Tools"; the mode is taken from the file name
+# (or from $NASHI_MODE). Opens the Nashi wheel for the selected files.
+set -euo pipefail
+
+mode="${NASHI_MODE:-}"
+if [[ -z "$mode" ]]; then
+    case "${0##*/}" in
+        *Tools* | *tools*) mode=tools ;;
+        *Actions* | *actions*) mode=actions ;;
+        *) mode=convert ;;
+    esac
+fi
+
+files=()
+# Nautilus passes absolute local paths, one per line (with a trailing newline).
+if [[ -n "${NAUTILUS_SCRIPT_SELECTED_FILE_PATHS:-}" ]]; then
+    while IFS= read -r line; do
+        [[ -n "$line" ]] && files+=("$line")
+    done <<<"$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
+fi
+
+# Fallback: arguments (names relative to the current directory). Make them
+# absolute so a name starting with "-" can never be taken for an option.
+if ((${#files[@]} == 0)); then
+    for arg in "$@"; do
+        if [[ "$arg" == /* ]]; then
+            files+=("$arg")
+        else
+            files+=("$PWD/$arg")
+        fi
+    done
+fi
+
+if ((${#files[@]} == 0)); then
+    exit 0
+fi
+
+nashi_bin="${NASHI_BIN:-nashi}"
+exec "$nashi_bin" --wheel --mode "$mode" "${files[@]}"

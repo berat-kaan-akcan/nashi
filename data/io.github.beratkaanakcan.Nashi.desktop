@@ -1,0 +1,30 @@
+[Desktop Entry]
+Type=Application
+Version=1.5
+Name=Nashi
+GenericName=File Converter
+GenericName[tr]=Dosya Dönüştürücü
+Comment=Drag a file, press a modifier and convert it from a wheel under the cursor
+Comment[tr]=Dosyayı sürükle, bir tuşa bas ve imlecin altındaki çarktan dönüştür
+Icon=io.github.beratkaanakcan.Nashi
+Exec=nashi %F
+TryExec=nashi
+Terminal=false
+StartupNotify=true
+StartupWMClass=nashi
+SingleMainWindow=true
+Categories=Utility;
+Keywords=convert;converter;image;video;audio;pdf;document;compress;metadata;wheel;drag;
+Keywords[tr]=dönüştür;dönüştürücü;görsel;resim;video;ses;pdf;belge;sıkıştır;metaveri;çark;sürükle;
+MimeType=image/jpeg;image/png;image/apng;image/gif;image/webp;image/avif;image/bmp;image/x-bmp;image/x-ms-bmp;image/tiff;image/heif;image/heic;image/svg+xml;audio/mpeg;audio/flac;audio/x-flac;audio/ogg;audio/x-vorbis+ogg;audio/x-opus+ogg;audio/vnd.wave;audio/wav;audio/x-wav;audio/x-aiff;audio/aiff;audio/mp4;audio/x-m4a;audio/x-ms-wma;video/mp4;video/quicktime;video/matroska;video/x-matroska;video/webm;video/vnd.avi;video/x-msvideo;video/x-ms-wmv;application/pdf;application/vnd.openxmlformats-officedocument.wordprocessingml.document;application/rtf;text/rtf;application/epub+zip;application/vnd.apple.pages;text/markdown;text/x-markdown;text/plain;application/vnd.ms-powerpoint;application/vnd.openxmlformats-officedocument.presentationml.presentation;application/vnd.ms-excel;application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;application/vnd.oasis.opendocument.spreadsheet;text/csv;text/tab-separated-values;application/x-subrip;text/vtt;application/zip;application/x-tar;application/gzip;application/x-gzip;application/vnd.rar;application/x-rar;
+Actions=convert;tools;
+
+[Desktop Action convert]
+Name=Convert…
+Name[tr]=Dönüştür…
+Exec=nashi --wheel --mode convert %F
+
+[Desktop Action tools]
+Name=Tools…
+Name[tr]=Araçlar…
+Exec=nashi --wheel --mode tools %F

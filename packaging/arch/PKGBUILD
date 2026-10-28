@@ -1,0 +1,149 @@
+# Maintainer: Berat Kaan Akcan <beratkaanakcan@gmail.com>
+#
+# VCS package: builds the latest commit of the main branch. There is no tagged
+# release yet, so this is named `nashi-git` (AUR convention) and provides
+# `nashi`. pkgver is `<cargo version>.r<commit count>.g<short hash>`.
+#
+# Build from a local checkout instead of GitHub (uncommitted changes included):
+#   NASHI_LOCAL_SRC="$PWD/../.." makepkg -si        # run inside packaging/arch
+# Leave NASHI_LOCAL_SRC unset for the normal git build (used by .SRCINFO).
+
+pkgname=nashi-git
+_pkgname=nashi
+pkgver=0.1.0.r1.g868b4e3
+pkgrel=1
+pkgdesc="Drag a file, press a modifier and convert it from a wheel under the cursor (KDE Plasma / Wayland)"
+arch=('x86_64' 'aarch64')
+url="https://github.com/berat-kaan-akcan/nashi"
+license=('MIT')
+depends=(
+  'gcc-libs'
+  'glibc'
+  'hicolor-icon-theme'
+  'layer-shell-qt'
+  'qt6-base'
+  'qt6-declarative'
+  'qt6-svg'
+)
+makedepends=(
+  'cargo'
+  'cmake'
+  'git'
+  'ninja'
+  'qt6-tools'
+)
+checkdepends=(
+  'python' # ui/tests/fake-nashi-cli
+)
+optdepends=(
+  'ffmpeg: audio, video and GIF conversions and media tools'
+  'imagemagick: image conversions and image tools'
+  'libheif: HEIC/HEIF input for ImageMagick'
+  'librsvg: SVG rendering (rsvg-convert)'
+  'libreoffice-fresh: document, spreadsheet and presentation conversions'
+  'perl-image-exiftool: metadata removal and inspection'
+  'qpdf: PDF merge, split, rotate and repair'
+  'poppler: PDF to image and text (pdftoppm, pdftotext)'
+  'ghostscript: PDF compression'
+  '7zip: archive extraction and creation'
+  'zbar: QR code reading'
+  'pandoc-cli: Markdown and EPUB conversions'
+  'yt-dlp: web video download tool'
+)
+provides=("$_pkgname")
+conflicts=("$_pkgname")
+install=nashi.install
+
+if [[ -n "${NASHI_LOCAL_SRC:-}" ]]; then
+  source=()
+  sha256sums=()
+else
+  source=("$_pkgname::git+https://github.com/berat-kaan-akcan/nashi.git")
+  sha256sums=('SKIP')
+fi
+
+_appid=io.github.beratkaanakcan.Nashi
+
+_srcroot() {
+  if [[ -n "${NASHI_LOCAL_SRC:-}" ]]; then
+    printf '%s\n' "$NASHI_LOCAL_SRC"
+  else
+    printf '%s\n' "$srcdir/$_pkgname"
+  fi
+}
+
+pkgver() {
+  cd "$(_srcroot)"
+  local ver
+  ver=$(sed -n '/^\[workspace.package\]/,/^\[/ s/^version *= *"\(.*\)"/\1/p' Cargo.toml)
+  printf '%s.r%s.g%s' "$ver" "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
+}
+
+prepare() {
+  cd "$(_srcroot)"
+  export RUSTUP_TOOLCHAIN=stable
+  cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+  cd "$(_srcroot)"
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_TARGET_DIR="$srcdir/target"
+  cargo build --frozen --release --workspace
+
+  cmake -S ui -B "$srcdir/build-ui" -G Ninja \
+    -DCMAKE_BUILD_TYPE=None \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DBUILD_TESTING=ON \
+    -Wno-dev
+  cmake --build "$srcdir/build-ui"
+}
+
+check() {
+  cd "$(_srcroot)"
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_TARGET_DIR="$srcdir/target"
+  cargo test --frozen --release --workspace
+  QT_QPA_PLATFORM=offscreen ctest --test-dir "$srcdir/build-ui" --output-on-failure
+}
+
+package() {
+  local root
+  root="$(_srcroot)"
+  cd "$root"
+
+  # UI (and whatever else ui/CMakeLists.txt installs, e.g. translations).
+  DESTDIR="$pkgdir" cmake --install "$srcdir/build-ui"
+  if [[ ! -x "$pkgdir/usr/bin/nashi" ]]; then
+    # Fallback when the UI project has no install() rule for the binary.
+    local ui_bin
+    ui_bin=$(find "$srcdir/build-ui" -type f -name nashi -perm -u+x -print -quit)
+    [[ -n "$ui_bin" ]] || { echo "nashi UI binary not found" >&2; return 1; }
+    install -Dm755 "$ui_bin" "$pkgdir/usr/bin/nashi"
+  fi
+
+  # Rust binaries.
+  install -Dm755 -t "$pkgdir/usr/bin" \
+    "$srcdir/target/release/nashi-cli" \
+    "$srcdir/target/release/nashi-inputd"
+
+  # nashi-inputd: systemd user unit + udev rule.
+  install -Dm644 crates/nashi-inputd/dist/nashi-inputd.service \
+    "$pkgdir/usr/lib/systemd/user/nashi-inputd.service"
+  install -Dm644 crates/nashi-inputd/dist/70-nashi-inputd.rules \
+    "$pkgdir/usr/lib/udev/rules.d/70-nashi-inputd.rules"
+
+  # Desktop integration.
+  install -Dm644 "data/$_appid.desktop" "$pkgdir/usr/share/applications/$_appid.desktop"
+  install -Dm644 "data/$_appid.metainfo.xml" "$pkgdir/usr/share/metainfo/$_appid.metainfo.xml"
+  install -Dm644 "data/$_appid.service" "$pkgdir/usr/share/dbus-1/services/$_appid.service"
+  install -Dm644 "data/icons/hicolor/scalable/apps/$_appid.svg" \
+    "$pkgdir/usr/share/icons/hicolor/scalable/apps/$_appid.svg"
+  install -Dm644 "data/$_appid-autostart.desktop" "$pkgdir/etc/xdg/autostart/$_appid-autostart.desktop"
+  install -Dm644 packaging/dolphin/nashi.desktop "$pkgdir/usr/share/kio/servicemenus/nashi.desktop"
+  # Nautilus only reads per-user scripts; ship it for users to copy (see nashi.install).
+  install -Dm755 packaging/nautilus/nashi-nautilus-script "$pkgdir/usr/share/nashi/nautilus/nashi-nautilus-script"
+
+  # Licenses (own MIT + upstream Nashi catalog attribution).
+  install -Dm644 -t "$pkgdir/usr/share/licenses/$pkgname" LICENSE NOTICE
+}
