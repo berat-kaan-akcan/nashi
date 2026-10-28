@@ -1,0 +1,16 @@
+# nashi-inputd: make sure evdev nodes are readable by the `input` group.
+#
+# On Arch/CachyOS this already is the default (systemd's 50-udev-default.rules
+# sets GROUP="input", MODE="0660" for /dev/input/event*); this rule only
+# re-asserts it defensively for setups that changed it. It never makes the
+# nodes world-readable.
+#
+# nashi-inputd runs as YOUR user (systemd user service), so your user must be
+# a member of the `input` group:
+#
+#     sudo usermod -aG input "$USER"     # then log out and back in
+#
+# Note: membership in `input` lets every program you run read all input
+# devices (including keystrokes). nashi-inputd itself only looks at BTN_LEFT,
+# shift/ctrl/alt and pointer motion, and never logs key codes.
+SUBSYSTEM=="input", KERNEL=="event[0-9]*", GROUP="input", MODE="0660"
