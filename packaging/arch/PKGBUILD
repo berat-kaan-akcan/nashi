@@ -10,7 +10,7 @@
 
 pkgname=nashi-git
 _pkgname=nashi
-pkgver=0.1.0.r6.gc32fc11
+pkgver=0.1.0.r9.gf76ca1a
 pkgrel=1
 pkgdesc="Drag a file, press a modifier and convert it from a wheel under the cursor (KDE Plasma / Wayland)"
 arch=('x86_64' 'aarch64')
@@ -72,6 +72,16 @@ _srcroot() {
   fi
 }
 
+# Separate CMake build dirs: a cache made from one source tree (local vs the
+# git clone) refuses to configure the other.
+_uibuild() {
+  if [[ -n "${NASHI_LOCAL_SRC:-}" ]]; then
+    printf '%s\n' "$srcdir/build-ui-local"
+  else
+    printf '%s\n' "$srcdir/build-ui-git"
+  fi
+}
+
 pkgver() {
   cd "$(_srcroot)"
   local ver
@@ -91,12 +101,12 @@ build() {
   export CARGO_TARGET_DIR="$srcdir/target"
   cargo build --frozen --release --workspace
 
-  cmake -S ui -B "$srcdir/build-ui" -G Ninja \
+  cmake -S ui -B "$(_uibuild)" -G Ninja \
     -DCMAKE_BUILD_TYPE=None \
     -DCMAKE_INSTALL_PREFIX=/usr \
     -DBUILD_TESTING=ON \
     -Wno-dev
-  cmake --build "$srcdir/build-ui"
+  cmake --build "$(_uibuild)"
 }
 
 check() {
@@ -104,7 +114,7 @@ check() {
   export RUSTUP_TOOLCHAIN=stable
   export CARGO_TARGET_DIR="$srcdir/target"
   cargo test --frozen --release --workspace
-  QT_QPA_PLATFORM=offscreen ctest --test-dir "$srcdir/build-ui" --output-on-failure
+  QT_QPA_PLATFORM=offscreen ctest --test-dir "$(_uibuild)" --output-on-failure
 }
 
 package() {
@@ -113,11 +123,11 @@ package() {
   cd "$root"
 
   # UI (and whatever else ui/CMakeLists.txt installs, e.g. translations).
-  DESTDIR="$pkgdir" cmake --install "$srcdir/build-ui"
+  DESTDIR="$pkgdir" cmake --install "$(_uibuild)"
   if [[ ! -x "$pkgdir/usr/bin/nashi" ]]; then
     # Fallback when the UI project has no install() rule for the binary.
     local ui_bin
-    ui_bin=$(find "$srcdir/build-ui" -type f -name nashi -perm -u+x -print -quit)
+    ui_bin=$(find "$(_uibuild)" -type f -name nashi -perm -u+x -print -quit)
     [[ -n "$ui_bin" ]] || { echo "nashi UI binary not found" >&2; return 1; }
     install -Dm755 "$ui_bin" "$pkgdir/usr/bin/nashi"
   fi
