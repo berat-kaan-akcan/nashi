@@ -2,12 +2,14 @@
 //! private per-job profile so it works while LibreOffice is open), pandoc for
 //! EPUB when present, and native handling for txt/md/textclipping/epub.
 
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use super::{epub, pdf, textclip, Ctx, Input, Produced};
 use crate::catalog::{category_of, Category};
 use crate::deps::require;
-use crate::events::{JobError, JobResult};
+use crate::events::{ErrorCode, JobError, JobResult};
 use crate::fsops::{single_file_in, WorkDir};
 use crate::process::Cmd;
 
@@ -152,16 +154,113 @@ pub fn soffice_to_output(
 
 /// Pandoc conversion (used for EPUB when available).
 ///
-/// `--sandbox` (pandoc >= 2.15) stops a crafted input from embedding other local
-/// files (e.g. `![](~/.ssh/id_rsa)` into an EPUB) or fetching URLs.
+/// A crafted input must not be able to embed other local files (e.g.
+/// `![](~/.ssh/id_rsa)` into an EPUB) or fetch URLs. Preferred: pandoc's own
+/// `--sandbox` (pandoc >= 2.15). Distro builds without `embed_data_files`
+/// (Arch's `pandoc-cli`) cannot read their own templates in sandbox mode and
+/// fail every docx/epub write, so there pandoc runs under bubblewrap instead:
+/// no network, no home directory, only the input file and the output folder.
+/// With neither available the conversion is refused, never run unconfined.
 fn pandoc(ctx: &Ctx, src: &Path, from: &str, to: &str, out: &Path) -> JobResult<()> {
     let p = require(ctx.deps, "pandoc")?;
-    Cmd::new(p)
-        .arg("--sandbox")
-        .args(["-f", from, "-t", to, "-o"])
-        .arg(out)
+    if pandoc_sandbox_works(p)? {
+        Cmd::new(p)
+            .arg("--sandbox")
+            .args(["-f", from, "-t", to, "-o"])
+            .arg(out)
+            .arg(src)
+            .run_ok()?;
+        return Ok(());
+    }
+    let Some(bwrap) = ctx.deps.path("bwrap") else {
+        return Err(JobError::new(
+            ErrorCode::MissingDependency,
+            "pandoc cannot run with --sandbox on this system (built without embedded \
+             data files); install the 'bubblewrap' package so Nashi can isolate it",
+        ));
+    };
+    pandoc_bwrap(bwrap, p, src, from, to, out)
+}
+
+/// Whether `pandoc --sandbox` can write a docx (needs its data files). Probed
+/// once per process; a cancelled probe is not cached.
+fn pandoc_sandbox_works(pandoc: &Path) -> JobResult<bool> {
+    static WORKS: OnceLock<bool> = OnceLock::new();
+    if let Some(w) = WORKS.get() {
+        return Ok(*w);
+    }
+    let ok = Cmd::new(pandoc)
+        .args([
+            "--sandbox",
+            "-f",
+            "markdown",
+            "-t",
+            "docx",
+            "-o",
+            "/dev/null",
+        ])
+        .run()?
+        .status
+        .success();
+    Ok(*WORKS.get_or_init(|| ok))
+}
+
+/// Run pandoc inside a bubblewrap container: read-only `/usr`, empty `/tmp`,
+/// no network or other namespaces shared, input bound read-only at a fixed
+/// path, and only the (private, per-job) output directory writable.
+fn pandoc_bwrap(
+    bwrap: &Path,
+    pandoc: &Path,
+    src: &Path,
+    from: &str,
+    to: &str,
+    out: &Path,
+) -> JobResult<()> {
+    let (Some(out_dir), Some(out_name)) = (out.parent(), out.file_name()) else {
+        return Err(JobError::tool_failed("invalid pandoc output path"));
+    };
+    let mut cmd = Cmd::new(bwrap)
+        .args(["--unshare-all", "--die-with-parent", "--new-session"])
+        .args(["--clearenv", "--setenv", "LC_ALL", "C.UTF-8"])
+        .args(["--setenv", "HOME", "/nonexistent"])
+        .args(["--ro-bind", "/usr", "/usr"]);
+    for p in [
+        "/lib",
+        "/lib64",
+        "/bin",
+        "/etc/ld.so.cache",
+        "/etc/localtime",
+    ] {
+        cmd = cmd.args(["--ro-bind-try", p, p]);
+    }
+    // A pandoc outside /usr (e.g. ~/.local/bin) is bound in at a fixed path.
+    let prog: &OsStr = if pandoc.starts_with("/usr") {
+        pandoc.as_os_str()
+    } else {
+        cmd = cmd.arg("--ro-bind").arg(pandoc).arg("/nashi/pandoc");
+        OsStr::new("/nashi/pandoc")
+    };
+    let mut target = PathBuf::from("/nashi/out");
+    target.push(out_name);
+    cmd.args(["--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp"])
+        .arg("--ro-bind")
         .arg(src)
-        .run_ok()?;
+        .arg("/nashi/input")
+        .arg("--bind")
+        .arg(out_dir)
+        .arg("/nashi/out")
+        .args(["--chdir", "/nashi/out", "--"])
+        .arg(prog)
+        .args(["-f", from, "-t", to, "-o"])
+        .arg(&target)
+        .arg("/nashi/input")
+        .run_ok()
+        .map_err(|mut e| {
+            if e.code == ErrorCode::ToolFailed {
+                e.message = e.message.replacen("bwrap", "pandoc (bwrap)", 1);
+            }
+            e
+        })?;
     Ok(())
 }
 

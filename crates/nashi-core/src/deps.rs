@@ -138,6 +138,8 @@ const EXTRA: &[&str] = &[
     "heif-enc",
     "heif-dec",
     "montage",
+    // Isolates pandoc when its own `--sandbox` is unusable (see engines/office.rs).
+    "bwrap",
 ];
 
 /// Result of probing the system.

@@ -3,6 +3,7 @@
 mod common;
 use common::*;
 use std::path::Path;
+use std::process::Command;
 
 fn sniff_is(p: &Path, magic: &[u8], offset: usize) {
     let h = std::fs::read(p).unwrap();
@@ -233,6 +234,37 @@ fn text_and_markdown_routes() {
         r.ok();
         sniff_is(&r.one(), b"\x89PNG", 0);
     }
+}
+
+/// A crafted Markdown file must not pull other local files into the EPUB
+/// (pandoc runs under `--sandbox` or bubblewrap, never unconfined).
+#[test]
+fn pandoc_does_not_embed_outside_files() {
+    need!("pandoc", "magick", "unzip");
+    let d = tempfile::tempdir().unwrap();
+    let secret_dir = tempfile::tempdir().unwrap();
+    let secret = png(secret_dir.path(), "secret.png");
+    let m = text(
+        d.path(),
+        "evil.md",
+        &format!("# Title\n\n![x]({})\n", secret.display()),
+    );
+    let r = convert("epub", &[&m]);
+    if r.error_codes() == ["missing_dependency"] {
+        eprintln!("skipped: pandoc unusable without bubblewrap");
+        return;
+    }
+    r.ok();
+    let listing = Command::new("unzip")
+        .arg("-l")
+        .arg(r.one())
+        .output()
+        .unwrap();
+    let listing = String::from_utf8_lossy(&listing.stdout);
+    assert!(
+        !listing.contains("media/"),
+        "outside file was embedded:\n{listing}"
+    );
 }
 
 #[test]
