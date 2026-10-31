@@ -1,8 +1,8 @@
 //! evdev device layer: discovery, hot-plug and event translation.
 //!
-//! Privacy: from every device only BTN_LEFT, BTN_TOUCH (finger lift, used to
-//! reset absolute deltas), the six shift/ctrl/alt keys and REL_X/REL_Y/ABS_X/
-//! ABS_Y are looked at. Every other event is dropped by a code comparison
+//! Privacy: from every device only BTN_LEFT, BTN_TOUCH (finger down/up), the
+//! BTN_TOOL_*TAP finger counts of touchpads, the six shift/ctrl/alt keys and
+//! REL_X/REL_Y/ABS_X/ABS_Y are looked at. Every other event is dropped by a code comparison
 //! without being stored or logged. Devices are never grabbed (no EVIOCGRAB),
 //! so the compositor keeps receiving everything unchanged. Logs only ever
 //! mention device names/paths.
@@ -17,7 +17,8 @@ use std::time::Duration;
 
 use evdev::raw_stream::RawDevice;
 use evdev::{
-    AbsoluteAxisCode, EventType, InputEvent, KeyCode, RelativeAxisCode, SynchronizationCode,
+    AbsoluteAxisCode, EventType, InputEvent, KeyCode, PropType, RelativeAxisCode,
+    SynchronizationCode,
 };
 use futures_util::StreamExt;
 use inotify::{Inotify, WatchMask};
@@ -30,6 +31,24 @@ pub const INPUT_DIR: &str = "/dev/input";
 /// Absolute axes are normalised so that the full X range of the device maps
 /// to this many "pixels" (the same factor is used for Y to keep the aspect).
 const ABS_NOMINAL_WIDTH: f64 = 1920.0;
+
+/// Touchpad tap-and-drag (libinput's "tap, then touch again and move"): the
+/// compositor turns it into a button press, but evdev never reports BTN_LEFT
+/// for it, so it is recognised here. The first touch must be a single-finger
+/// tap no longer than this (libinput's tap timeout is 180 ms) ...
+const TAP_MAX_US: u64 = 200_000;
+/// ... that barely moved (normalised units, ~2 mm on a typical touchpad) ...
+const TAP_MAX_MOVE: f64 = 40.0;
+/// ... and the next touch must start this soon after the tap was released.
+const TAP_GAP_US: u64 = 300_000;
+
+/// Multi-finger touchpad taps (right/middle click) never start a tap-drag.
+const MULTI_FINGER: [KeyCode; 4] = [
+    KeyCode::BTN_TOOL_DOUBLETAP,
+    KeyCode::BTN_TOOL_TRIPLETAP,
+    KeyCode::BTN_TOOL_QUADTAP,
+    KeyCode::BTN_TOOL_QUINTTAP,
+];
 
 /// The only keys ever looked at. Index = bit in [`Translator::held`].
 const KEYS: [KeyCode; 7] = [
@@ -60,6 +79,8 @@ pub struct Caps {
     pub keyboard: bool,
     /// `(min_x, min_y, scale)` for devices with ABS_X/ABS_Y.
     pub abs: Option<(f64, f64, f64)>,
+    /// Indirect touch device (touchpad): tap-and-drag is recognised.
+    pub touchpad: bool,
 }
 
 impl Caps {
@@ -68,6 +89,9 @@ impl Caps {
     }
 
     pub fn describe(&self) -> &'static str {
+        if self.touchpad && !self.keyboard {
+            return "touchpad";
+        }
         match (self.pointer, self.keyboard) {
             (true, true) => "pointer+keyboard",
             (true, false) => "pointer",
@@ -100,11 +124,36 @@ pub fn caps_of(dev: &RawDevice) -> Caps {
             }
         }
     }
+    let touchpad = abs.is_some()
+        && keys.is_some_and(|k| {
+            k.contains(KeyCode::BTN_TOUCH) && k.contains(KeyCode::BTN_TOOL_FINGER)
+        })
+        && !dev.properties().contains(PropType::DIRECT);
     Caps {
         pointer,
         keyboard,
         abs,
+        touchpad,
     }
+}
+
+/// Tap-and-drag recogniser state (touchpads only). Times are event
+/// timestamps in microseconds.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Tap {
+    Idle,
+    /// A finger is down; might become a tap.
+    Touch {
+        since: u64,
+        origin: Option<(f64, f64)>,
+        disqualified: bool,
+    },
+    /// A tap was released; a touch soon after starts a drag.
+    Released {
+        at: u64,
+    },
+    /// Synthetic button held until every finger lifts.
+    Dragging,
 }
 
 /// Turns raw evdev events of one device into abstract [`Input`]s.
@@ -117,6 +166,11 @@ pub struct Translator {
     rel: (f64, f64),
     abs: (Option<f64>, Option<f64>),
     dropping: bool,
+    /// Physical BTN_LEFT state; the reported button is `phys_left || tap drag`.
+    phys_left: bool,
+    tap: Tap,
+    /// Last absolute position (normalised), touchpads only.
+    pos: (Option<f64>, Option<f64>),
 }
 
 /// Result of feeding one event.
@@ -137,6 +191,61 @@ impl Translator {
             rel: (0.0, 0.0),
             abs: (None, None),
             dropping: false,
+            phys_left: false,
+            tap: Tap::Idle,
+            pos: (None, None),
+        }
+    }
+
+    /// Report the combined (physical or tap-drag) button state.
+    fn sync_button(&mut self, out: &mut Vec<Input>) {
+        let down = self.phys_left || self.tap == Tap::Dragging;
+        self.set_key(0, down, out);
+    }
+
+    fn touch(&mut self, now: u64, down: bool, out: &mut Vec<Input>) {
+        if down {
+            self.tap = match self.tap {
+                Tap::Released { at } if now.saturating_sub(at) <= TAP_GAP_US => Tap::Dragging,
+                _ => Tap::Touch {
+                    since: now,
+                    origin: None,
+                    disqualified: self.phys_left,
+                },
+            };
+        } else {
+            self.pos = (None, None);
+            self.tap = match self.tap {
+                Tap::Touch {
+                    since,
+                    disqualified: false,
+                    ..
+                } if now.saturating_sub(since) <= TAP_MAX_US => Tap::Released { at: now },
+                _ => Tap::Idle,
+            };
+        }
+        self.sync_button(out);
+    }
+
+    /// Called once per frame: a tap that moves too far is no tap.
+    fn track_tap_motion(&mut self) {
+        let (Some(x), Some(y)) = self.pos else {
+            return;
+        };
+        if let Tap::Touch {
+            origin,
+            disqualified,
+            ..
+        } = &mut self.tap
+        {
+            match origin {
+                None => *origin = Some((x, y)),
+                Some((ox, oy)) => {
+                    if (x - *ox).hypot(y - *oy) > TAP_MAX_MOVE {
+                        *disqualified = true;
+                    }
+                }
+            }
         }
     }
 
@@ -193,6 +302,15 @@ impl Translator {
     }
 
     pub fn feed(&mut self, ev: InputEvent, out: &mut Vec<Input>) -> Feed {
+        let now = ev
+            .timestamp()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_micros() as u64);
+        self.feed_at(ev, now, out)
+    }
+
+    /// [`Self::feed`] with an explicit event time in microseconds.
+    pub fn feed_at(&mut self, ev: InputEvent, now: u64, out: &mut Vec<Input>) -> Feed {
         let ty = ev.event_type();
         let code = ev.code();
         let value = ev.value();
@@ -212,6 +330,9 @@ impl Translator {
                     });
                     return Feed::NeedsResync;
                 }
+                if self.caps.touchpad {
+                    self.track_tap_motion();
+                }
                 self.flush_motion(out);
             }
             return Feed::Ok;
@@ -220,13 +341,33 @@ impl Translator {
             return Feed::Ok;
         }
         if ty == EventType::KEY {
-            if let Some(idx) = KEYS.iter().position(|k| k.0 == code) {
+            if code == KeyCode::BTN_LEFT.0 {
+                self.phys_left = value != 0;
+                if self.phys_left {
+                    // A clickpad press is a click, not a tap.
+                    match &mut self.tap {
+                        Tap::Touch { disqualified, .. } => *disqualified = true,
+                        Tap::Released { .. } => self.tap = Tap::Idle,
+                        _ => {}
+                    }
+                }
+                self.sync_button(out);
+            } else if let Some(idx) = KEYS.iter().position(|k| k.0 == code) {
                 // 0 = up, 1 = down, 2 = autorepeat (still down).
                 self.set_key(idx, value != 0, out);
-            } else if code == KeyCode::BTN_TOUCH.0 && value == 0 {
-                out.push(Input::AbsReset {
-                    device: self.device,
-                });
+            } else if code == KeyCode::BTN_TOUCH.0 {
+                if value == 0 {
+                    out.push(Input::AbsReset {
+                        device: self.device,
+                    });
+                }
+                if self.caps.touchpad && value != 2 {
+                    self.touch(now, value != 0, out);
+                }
+            } else if self.caps.touchpad && value != 0 && MULTI_FINGER.iter().any(|k| k.0 == code) {
+                if let Tap::Touch { disqualified, .. } = &mut self.tap {
+                    *disqualified = true;
+                }
             }
         } else if ty == EventType::RELATIVE {
             if code == RelativeAxisCode::REL_X.0 {
@@ -237,9 +378,13 @@ impl Translator {
         } else if ty == EventType::ABSOLUTE {
             if let Some((min_x, min_y, scale)) = self.caps.abs {
                 if code == AbsoluteAxisCode::ABS_X.0 {
-                    self.abs.0 = Some((f64::from(value) - min_x) * scale);
+                    let x = (f64::from(value) - min_x) * scale;
+                    self.abs.0 = Some(x);
+                    self.pos.0 = Some(x);
                 } else if code == AbsoluteAxisCode::ABS_Y.0 {
-                    self.abs.1 = Some((f64::from(value) - min_y) * scale);
+                    let y = (f64::from(value) - min_y) * scale;
+                    self.abs.1 = Some(y);
+                    self.pos.1 = Some(y);
                 }
             }
         }
@@ -249,7 +394,12 @@ impl Translator {
     /// Re-synchronise held keys after SYN_DROPPED. `is_down` is asked only
     /// about the keys in [`KEYS`].
     pub fn resync(&mut self, is_down: impl Fn(KeyCode) -> bool, out: &mut Vec<Input>) {
-        for (idx, key) in KEYS.iter().enumerate() {
+        // Touch history is unreliable after a drop: end any tap-drag.
+        self.phys_left = is_down(KeyCode::BTN_LEFT);
+        self.tap = Tap::Idle;
+        self.pos = (None, None);
+        self.sync_button(out);
+        for (idx, key) in KEYS.iter().enumerate().skip(1) {
             self.set_key(idx, is_down(*key), out);
         }
     }
@@ -561,6 +711,7 @@ mod tests {
         pointer: true,
         keyboard: false,
         abs: None,
+        touchpad: false,
     };
 
     #[test]
@@ -595,6 +746,7 @@ mod tests {
             pointer: false,
             keyboard: true,
             abs: None,
+            touchpad: false,
         };
         let mut tr = Translator::new(2, kb);
         let out = feed_all(
@@ -638,6 +790,7 @@ mod tests {
             pointer: true,
             keyboard: false,
             abs: Some((100.0, 50.0, 0.5)),
+            touchpad: false,
         };
         let mut tr = Translator::new(4, caps);
         let out = feed_all(
@@ -706,6 +859,175 @@ mod tests {
                 },
             ]
         );
+    }
+
+    const PAD: Caps = Caps {
+        pointer: true,
+        keyboard: false,
+        abs: Some((0.0, 0.0, 1.0)),
+        touchpad: true,
+    };
+
+    /// Touchpad frames as `(time_ms, events)`; returns only button inputs.
+    fn pad_buttons(tr: &mut Translator, frames: &[(u64, &[InputEvent])]) -> Vec<Input> {
+        let mut out = Vec::new();
+        for (ms, evs) in frames {
+            for e in *evs {
+                tr.feed_at(*e, ms * 1000, &mut out);
+            }
+            tr.feed_at(syn(), ms * 1000, &mut out);
+        }
+        out.retain(|i| matches!(i, Input::ButtonDown { .. } | Input::ButtonUp { .. }));
+        out
+    }
+
+    fn at(x: i32, y: i32) -> [InputEvent; 2] {
+        [
+            abs(AbsoluteAxisCode::ABS_X, x),
+            abs(AbsoluteAxisCode::ABS_Y, y),
+        ]
+    }
+
+    fn down_at(x: i32, y: i32) -> [InputEvent; 4] {
+        let [ax, ay] = at(x, y);
+        [
+            ax,
+            ay,
+            key(KeyCode::BTN_TOUCH, 1),
+            key(KeyCode::BTN_TOOL_FINGER, 1),
+        ]
+    }
+
+    fn up() -> [InputEvent; 2] {
+        [key(KeyCode::BTN_TOUCH, 0), key(KeyCode::BTN_TOOL_FINGER, 0)]
+    }
+
+    type Frames = Vec<(u64, Vec<InputEvent>)>;
+
+    const D1: Input = Input::ButtonDown { device: 9 };
+    const U1: Input = Input::ButtonUp { device: 9 };
+
+    #[test]
+    fn touchpad_tap_and_drag_holds_button_until_lift() {
+        let mut tr = Translator::new(9, PAD);
+        let out = pad_buttons(
+            &mut tr,
+            &[
+                (0, &down_at(500, 500)),
+                (80, &up()),
+                (200, &down_at(505, 500)),
+                (300, &at(700, 600)),
+                (900, &at(900, 700)),
+                (1000, &up()),
+            ],
+        );
+        assert_eq!(out, vec![D1, U1]);
+    }
+
+    #[test]
+    fn touchpad_plain_touches_and_non_taps_press_nothing() {
+        let cases: [(&str, Frames); 5] = [
+            (
+                "plain move",
+                vec![(0, down_at(0, 0).to_vec()), (900, up().to_vec())],
+            ),
+            (
+                "first touch too long",
+                vec![
+                    (0, down_at(0, 0).to_vec()),
+                    (400, up().to_vec()),
+                    (450, down_at(0, 0).to_vec()),
+                ],
+            ),
+            (
+                "second touch too late",
+                vec![
+                    (0, down_at(0, 0).to_vec()),
+                    (80, up().to_vec()),
+                    (700, down_at(0, 0).to_vec()),
+                ],
+            ),
+            (
+                "first touch moved (swipe)",
+                vec![
+                    (0, down_at(0, 0).to_vec()),
+                    (40, at(300, 0).to_vec()),
+                    (80, up().to_vec()),
+                    (150, down_at(300, 0).to_vec()),
+                ],
+            ),
+            (
+                "two-finger tap (right click)",
+                vec![
+                    (0, down_at(0, 0).to_vec()),
+                    (10, vec![key(KeyCode::BTN_TOOL_DOUBLETAP, 1)]),
+                    (80, up().to_vec()),
+                    (150, down_at(0, 0).to_vec()),
+                ],
+            ),
+        ];
+        for (name, frames) in cases {
+            let mut tr = Translator::new(9, PAD);
+            let frames: Vec<(u64, &[InputEvent])> =
+                frames.iter().map(|(t, e)| (*t, e.as_slice())).collect();
+            assert_eq!(pad_buttons(&mut tr, &frames), vec![], "{name}");
+        }
+    }
+
+    #[test]
+    fn touchpad_ignores_tap_drag_on_non_touchpads() {
+        let mut tr = Translator::new(9, PTR);
+        let out = pad_buttons(
+            &mut tr,
+            &[(0, &down_at(0, 0)), (80, &up()), (150, &down_at(0, 0))],
+        );
+        assert_eq!(out, vec![]);
+    }
+
+    #[test]
+    fn touchpad_click_and_tap_drag_merge_into_one_button() {
+        let mut tr = Translator::new(9, PAD);
+        // Physical clickpad press: reported as is, never mistaken for a tap.
+        let out = pad_buttons(
+            &mut tr,
+            &[
+                (0, &down_at(0, 0)),
+                (10, &[key(KeyCode::BTN_LEFT, 1)]),
+                (60, &[key(KeyCode::BTN_LEFT, 0)]),
+                (80, &up()),
+                (150, &down_at(0, 0)),
+                (400, &up()),
+            ],
+        );
+        assert_eq!(out, vec![D1, U1]);
+        // Pressing the pad during a tap-drag does not emit a second down, and
+        // the button stays down until both are released.
+        let mut tr = Translator::new(9, PAD);
+        let out = pad_buttons(
+            &mut tr,
+            &[
+                (0, &down_at(0, 0)),
+                (80, &up()),
+                (150, &down_at(0, 0)),
+                (300, &[key(KeyCode::BTN_LEFT, 1)]),
+                (400, &[key(KeyCode::BTN_LEFT, 0)]),
+                (500, &up()),
+            ],
+        );
+        assert_eq!(out, vec![D1, U1]);
+    }
+
+    #[test]
+    fn touchpad_resync_ends_tap_drag() {
+        let mut tr = Translator::new(9, PAD);
+        let mut out = pad_buttons(
+            &mut tr,
+            &[(0, &down_at(0, 0)), (80, &up()), (150, &down_at(0, 0))],
+        );
+        assert_eq!(out, vec![D1]);
+        out.clear();
+        tr.resync(|_| false, &mut out);
+        assert_eq!(out, vec![U1]);
     }
 
     #[test]

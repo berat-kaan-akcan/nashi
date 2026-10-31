@@ -46,6 +46,8 @@ alt   = "actions"
 
 Devices: all evdev devices that report `BTN_LEFT` (mice, touchpads) or `KEY_LEFTSHIFT` (keyboards); hot-plug via inotify on `/dev/input`. Never grab devices (no `EVIOCGRAB`).
 
+Touchpad tap-and-drag: the compositor (libinput) turns "tap, then touch again and move" into a button press, but evdev never reports `BTN_LEFT` for it. On touchpads (`BTN_TOUCH` + `BTN_TOOL_FINGER` + `ABS_X/Y`, not `INPUT_PROP_DIRECT`) the daemon therefore treats a single-finger tap (≤ 200 ms, ≤ ~2 mm of motion, no physical click, no `BTN_TOOL_DOUBLETAP`…) followed within 300 ms by a new touch as the primary button going down, and every finger lifting as it going up. The normal `drag_hold_ms` / `drag_move_px` thresholds still apply, so a plain double-tap (double click) emits nothing. A physical click during a tap-drag is merged into the same button (one down, one up).
+
 ## `nashi` app → `io.github.beratkaanakcan.Nashi`
 
 - Object `/io/github/beratkaanakcan/Nashi`, interface `io.github.beratkaanakcan.Nashi1`
