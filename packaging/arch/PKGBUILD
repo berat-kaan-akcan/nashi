@@ -10,7 +10,7 @@
 
 pkgname=nashi-git
 _pkgname=nashi
-pkgver=0.1.0.r1.g868b4e3
+pkgver=0.1.0.r6.gc32fc11
 pkgrel=1
 pkgdesc="Drag a file, press a modifier and convert it from a wheel under the cursor (KDE Plasma / Wayland)"
 arch=('x86_64' 'aarch64')
