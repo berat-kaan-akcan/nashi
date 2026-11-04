@@ -29,6 +29,9 @@ public:
     // Runs `nashi-cli inspect FILE --json`; emits inspected() or failed().
     Q_INVOKABLE int inspect(const QString &file);
 
+    // Runs `nashi-cli metadata FILE --json`; emits metadataRead() or failed().
+    Q_INVOKABLE int readMetadata(const QString &file);
+
     // Reads up to maxBytes of UTF-8 text for the Library preview pane.
     Q_INVOKABLE QString readTextPreview(const QString &file, int maxBytes = 65536) const;
 
@@ -48,6 +51,7 @@ public:
 Q_SIGNALS:
     void ready(int requestId, const QString &kind, const QStringList &files, int width, int height);
     void inspected(int requestId, const QVariantMap &info);
+    void metadataRead(int requestId, const QVariantList &fields);
     void failed(int requestId, const QString &message);
 
 private:

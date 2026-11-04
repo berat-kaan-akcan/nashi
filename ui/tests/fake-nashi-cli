@@ -127,6 +127,19 @@ def inspect_cmd(files):
     return 0
 
 
+def metadata_cmd(args):
+    files = [a for a in args if not a.startswith("--")]
+    if files and files[0].endswith(".txt"):
+        print(json.dumps({"error": {"code": "unsupported", "message": "no metadata here"}}))
+        return 1
+    print(json.dumps({"fields": [
+        {"key": "IFD0:Artist", "value": "Someone", "editable": True},
+        {"key": "PNG:ImageWidth", "value": "640", "editable": False},
+        {"key": "XMP-dc:Title", "value": "Old title", "editable": True},
+    ]}))
+    return 0
+
+
 def preview_cmd(args):
     if not args:
         return 2
@@ -301,6 +314,8 @@ def main(argv):
         return deps()
     if cmd == "inspect":
         return inspect_cmd(args[1:])
+    if cmd == "metadata":
+        return metadata_cmd(args[1:])
     if cmd == "preview":
         return preview_cmd(args[1:])
     if cmd == "download":

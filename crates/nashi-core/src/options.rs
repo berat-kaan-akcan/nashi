@@ -73,6 +73,10 @@ impl Default for Border {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct Options {
+    /// `removeMetadata`: set these fields instead of removing everything.
+    pub metadata_set: Option<std::collections::BTreeMap<String, String>>,
+    /// `removeMetadata`: remove only these fields.
+    pub metadata_remove: Option<Vec<String>>,
     /// `splitVideo`: cut at these times, in seconds, in any order.
     pub split_points: Option<Vec<f64>>,
     /// `splitVideo`: cut into this many equal clips (2..=10000).

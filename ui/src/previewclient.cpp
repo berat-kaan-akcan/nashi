@@ -126,6 +126,36 @@ int PreviewClient::inspect(const QString &file)
     return id;
 }
 
+int PreviewClient::readMetadata(const QString &file)
+{
+    const int id = ++m_nextId;
+    const QFileInfo fi(file);
+    if (file.isEmpty() || !fi.exists()) {
+        QTimer::singleShot(0, this, [this, id] { Q_EMIT failed(id, tr("File not found")); });
+        return id;
+    }
+
+    QPointer<PreviewClient> self(this);
+    CliCall::run(this, m_program,
+                 {QStringLiteral("metadata"), fi.absoluteFilePath(), QStringLiteral("--json")},
+                 [self, id](bool ok, const QJsonObject &obj, const QString &err) {
+                     if (!self)
+                         return;
+                     if (!ok) {
+                         Q_EMIT self->failed(id, err);
+                         return;
+                     }
+                     // The CLI reports its errors as JSON too, so the call itself still succeeds.
+                     const QJsonObject error = obj.value(QStringLiteral("error")).toObject();
+                     if (!error.isEmpty()) {
+                         Q_EMIT self->failed(id, error.value(QStringLiteral("message")).toString());
+                         return;
+                     }
+                     Q_EMIT self->metadataRead(id, obj.value(QStringLiteral("fields")).toArray().toVariantList());
+                 });
+    return id;
+}
+
 QString PreviewClient::readTextPreview(const QString &file, int maxBytes) const
 {
     if (file.isEmpty() || maxBytes <= 0)

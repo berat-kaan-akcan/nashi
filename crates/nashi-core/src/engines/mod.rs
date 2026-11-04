@@ -5,6 +5,7 @@ pub mod epub;
 pub mod htmlsafe;
 pub mod image;
 pub mod media;
+pub mod metadata;
 pub mod office;
 pub mod pdf;
 pub mod subtitle;
@@ -212,6 +213,9 @@ pub fn tool_single(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> 
         JobError::unsupported(format!("{tool} does not apply to .{}", input.ext()))
     })?;
     check_requirements(ctx.deps, &req)?;
+    if tool == "removeMetadata" && metadata::wants_edit(ctx) {
+        return metadata::edit(ctx, input);
+    }
     match input.category() {
         Category::Image | Category::Gif if tool == "removeMetadata" => {
             image::remove_metadata(ctx, input)

@@ -103,6 +103,8 @@ enum Cmd {
         #[arg(long)]
         options: Option<String>,
     },
+    /// List the metadata fields of a file.
+    Metadata { file: PathBuf },
     /// Render preview PNGs (frame, waveform, PDF pages) into DIR.
     Preview {
         file: PathBuf,
@@ -413,6 +415,35 @@ fn real_main() -> ExitCode {
             out_dir,
             options,
         } => return run_job(json, JobKind::Tool(tool_id), files, out_dir, options),
+        Cmd::Metadata { file } => {
+            let abs = std::path::absolute(&file).unwrap_or(file);
+            match nashi_core::engines::metadata::read(Deps::global(), &abs) {
+                Ok(fields) => {
+                    if json {
+                        print_json(&serde_json::json!({ "fields": fields }));
+                    } else {
+                        for f in &fields {
+                            out!("{}: {}", f.key, f.value);
+                        }
+                    }
+                }
+                Err(err) => {
+                    let code = if err.code == ErrorCode::MissingDependency {
+                        3
+                    } else {
+                        1
+                    };
+                    if json {
+                        print_json(&serde_json::json!({
+                            "error": { "code": err.code, "message": err.message }
+                        }));
+                    } else {
+                        eprintln!("nashi-cli: {}", err.message);
+                    }
+                    return ExitCode::from(code);
+                }
+            }
+        }
         Cmd::Preview {
             file,
             kind,

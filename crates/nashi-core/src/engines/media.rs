@@ -945,6 +945,39 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
     }
 }
 
+/// Copy the streams to a new file with these tags changed, without re-encoding.
+pub fn edit_tags(
+    ctx: &Ctx,
+    input: &Input,
+    set: &std::collections::BTreeMap<String, String>,
+    remove: &[String],
+) -> JobResult<Produced> {
+    let ext = input.ext();
+    let p = probe(ctx, input);
+    let staged = input.stage("-metadata", ext)?;
+    let mut cmd = ffmpeg(ctx)?.arg("-i").arg_cat("file:", &input.path).args([
+        "-map",
+        "0",
+        "-c",
+        "copy",
+        "-map_metadata",
+        "0",
+    ]);
+    for (key, value) in set {
+        cmd = cmd.arg("-metadata").arg(format!("{key}={value}"));
+    }
+    for key in remove {
+        cmd = cmd.arg("-metadata").arg(format!("{key}="));
+    }
+    // MP4 and MOV write only a fixed tag list unless asked for other keys.
+    if matches!(ext, "mp4" | "mov") {
+        cmd = cmd.args(["-movflags", "+use_metadata_tags"]);
+    }
+    let cmd = cmd.args(["-f", muxer(ext)]).arg(out(staged.path()));
+    run(ctx, cmd, p.duration, "Saving metadata")?;
+    Ok(staged.commit()?.into())
+}
+
 /// Clip boundaries, from 0 to the end, for a split at chosen times or into equal parts.
 fn split_bounds(o: &crate::options::Options, duration: Option<f64>) -> JobResult<Vec<f64>> {
     let total = duration

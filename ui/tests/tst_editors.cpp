@@ -529,6 +529,81 @@ private Q_SLOTS:
         QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
     }
 
+    void metadataFormRemovesEverythingOrEditsFields()
+    {
+        g_messages.clear();
+        QVERIFY(WheelModel::hasOptionsForm(QStringLiteral("removeMetadata")));
+        QQuickWindow *w = openEditor(QStringLiteral("removeMetadata"), QStringLiteral("Metadata"), photoPath);
+        QVERIFY(w);
+        const auto map = [w] { return w->property("result").toMap(); };
+        const auto call = [w](const char *method, const QVariant &a) {
+            QMetaObject::invokeMethod(w, method, Q_ARG(QVariant, a));
+        };
+
+        // Removing everything is the default and needs no options.
+        QVERIFY(map().isEmpty());
+        QVERIFY(w->property("result").typeId() != QMetaType::QString);
+
+        QTRY_COMPARE_WITH_TIMEOUT(w->property("metadataFields").toList().size(), 3, 10000);
+        w->setProperty("metadataMode", QStringLiteral("edit"));
+        QCOMPARE(w->property("result").typeId(), QMetaType::QString); // nothing changed yet
+
+        QMetaObject::invokeMethod(w, "editMetadata", Q_ARG(QVariant, QStringLiteral("XMP-dc:Title")),
+                                  Q_ARG(QVariant, QStringLiteral("New title")));
+        QCOMPARE(map().value(QStringLiteral("metadata_set")).toMap().value(QStringLiteral("XMP-dc:Title")).toString(),
+                 QStringLiteral("New title"));
+        // Typing the original value back is no change at all.
+        QMetaObject::invokeMethod(w, "editMetadata", Q_ARG(QVariant, QStringLiteral("XMP-dc:Title")),
+                                  Q_ARG(QVariant, QStringLiteral("Old title")));
+        QCOMPARE(w->property("result").typeId(), QMetaType::QString);
+
+        call("toggleMetadataRemoved", QStringLiteral("IFD0:Artist"));
+        QCOMPARE(map().value(QStringLiteral("metadata_remove")).toList().at(0).toString(), QStringLiteral("IFD0:Artist"));
+        call("toggleMetadataRemoved", QStringLiteral("IFD0:Artist"));
+        QVERIFY(!map().contains(QStringLiteral("metadata_remove")));
+
+        // Read-only fields stay as they are.
+        QMetaObject::invokeMethod(w, "editMetadata", Q_ARG(QVariant, QStringLiteral("PNG:ImageWidth")),
+                                  Q_ARG(QVariant, QStringLiteral("1")));
+        call("toggleMetadataRemoved", QStringLiteral("PNG:ImageWidth"));
+        QCOMPARE(w->property("result").typeId(), QMetaType::QString);
+
+        // New fields must have a usable name.
+        QVariant added;
+        QMetaObject::invokeMethod(w, "addMetadata", Q_RETURN_ARG(QVariant, added), Q_ARG(QVariant, QStringLiteral("-o")),
+                                  Q_ARG(QVariant, QStringLiteral("x")));
+        QVERIFY(added.isValid() && !added.toBool());
+        QMetaObject::invokeMethod(w, "addMetadata", Q_RETURN_ARG(QVariant, added), Q_ARG(QVariant, QStringLiteral("XMP-dc:Creator")),
+                                  Q_ARG(QVariant, QStringLiteral("Me")));
+        QVERIFY(added.toBool());
+        QCOMPARE(map().value(QStringLiteral("metadata_set")).toMap().value(QStringLiteral("XMP-dc:Creator")).toString(),
+                 QStringLiteral("Me"));
+
+        // Search narrows the list, by name or by value.
+        w->setProperty("metadataSearch", QStringLiteral("someone"));
+        QCOMPARE(w->property("visibleMetadataFields").toList().size(), 1);
+        w->setProperty("metadataSearch", QString());
+        saveEditorScreenshots(app, w, QStringLiteral("metadata"));
+
+        // Nothing carries over, and several files can only be cleaned.
+        app->showOptions(QStringLiteral("removeMetadata"), QStringLiteral("Metadata"), {photoPath, videoPath});
+        QCOMPARE(w->property("metadataMode").toString(), QStringLiteral("all"));
+        QVERIFY(map().isEmpty());
+        QVERIFY(!w->property("canEditMetadata").toBool());
+        w->setProperty("metadataMode", QStringLiteral("edit"));
+        QVERIFY(map().isEmpty());
+
+        // A file whose fields cannot be read can still be cleaned.
+        const QString note = tempDir.filePath(QStringLiteral("note.txt"));
+        QVERIFY(createDummyFile(note));
+        app->showOptions(QStringLiteral("removeMetadata"), QStringLiteral("Metadata"), {note});
+        QTRY_VERIFY_WITH_TIMEOUT(!w->property("metadataError").toString().isEmpty(), 10000);
+        QVERIFY(!w->property("canEditMetadata").toBool());
+        QVERIFY(map().isEmpty());
+        w->hide();
+        QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
+    }
+
     void organizePdfReorderRotateDuplicateDelete()
     {
         g_messages.clear();

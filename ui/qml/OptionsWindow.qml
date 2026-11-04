@@ -35,6 +35,7 @@ ApplicationWindow {
         case "organizePDF": return "pages"
         case "annotateImage": return "annotate"
         case "compress": return "compress"
+        case "removeMetadata": return "metadata"
         case "splitVideo": return "split"
         case "videoSnapshots": return "snapshots"
         }
@@ -80,6 +81,18 @@ ApplicationWindow {
     property string borderColor: "#ffffff"
     property var ranges: [[0, 1]]
     property string audioMode: "mute"
+    property string metadataMode: "all"
+    property var metadataFields: []
+    property string metadataError: ""
+    property int metadataRequest: -1
+    property var metadataEdits: ({})
+    property var metadataRemoved: []
+    property var metadataAdded: ({})
+    property string metadataSearch: ""
+    readonly property bool canEditMetadata: files.length === 1 && metadataError.length === 0
+    readonly property bool editingMetadata: group === "metadata" && canEditMetadata && metadataMode === "edit"
+    readonly property var visibleMetadataFields: metadataFields.filter(
+        f => App.matchesSearch(metadataSearch, String(f.key), String(f.value)))
     property var splitPoints: []
     property var discardClips: []
     property bool joinClips: false
@@ -114,6 +127,14 @@ ApplicationWindow {
         borderColor = "#ffffff"
         ranges = [[0, 1]]
         audioMode = "mute"
+        metadataMode = "all"
+        metadataFields = []
+        metadataError = ""
+        metadataEdits = ({})
+        metadataRemoved = []
+        metadataAdded = ({})
+        metadataSearch = ""
+        metadataRequest = group === "metadata" && files.length === 1 ? App.preview.readMetadata(firstFile) : -1
         splitPoints = []
         discardClips = []
         joinClips = false
@@ -327,6 +348,66 @@ ApplicationWindow {
         return [a, Math.min(b, duration > 0 ? duration : b)]
     }
 
+    function metadataField(key) {
+        return metadataFields.find(f => f.key === key)
+    }
+
+    function editMetadata(key, value) {
+        const field = metadataField(key)
+        if (!field || !field.editable)
+            return
+        const edits = Object.assign({}, metadataEdits)
+        if (String(field.value) === value)
+            delete edits[key]
+        else
+            edits[key] = value
+        metadataEdits = edits
+    }
+
+    function toggleMetadataRemoved(key) {
+        const field = metadataField(key)
+        if (!field || !field.editable)
+            return
+        metadataRemoved = metadataRemoved.includes(key)
+                ? metadataRemoved.filter(k => k !== key)
+                : metadataRemoved.concat([key])
+    }
+
+    // Audio and video tags have no group, so a ":" only belongs in the other names.
+    function addMetadata(key, value) {
+        const name = String(key).trim()
+        const media = fileCategory === "audio" || fileCategory === "video"
+        const valid = media ? /^[A-Za-z0-9][A-Za-z0-9_.-]*$/ : /^[A-Za-z0-9][A-Za-z0-9_.:-]*$/
+        if (!valid.test(name))
+            return false
+        const added = Object.assign({}, metadataAdded)
+        added[name] = String(value)
+        metadataAdded = added
+        return true
+    }
+
+    function removeAddedMetadata(key) {
+        const added = Object.assign({}, metadataAdded)
+        delete added[key]
+        metadataAdded = added
+    }
+
+    function metadataOptions() {
+        if (!editingMetadata)
+            return {}
+        const options = {}
+        const set = Object.assign({}, metadataEdits, metadataAdded)
+        for (const key of metadataRemoved)
+            delete set[key]
+        if (Object.keys(set).length > 0)
+            options.metadata_set = set
+        if (metadataRemoved.length > 0)
+            options.metadata_remove = metadataRemoved
+        if (Object.keys(options).length === 0)
+            return qsTr("Change at least one field.")
+        return options
+    }
+
     function setSplitPoints(points) {
         splitPoints = points
         // The clips are renumbered, so a removal would hit a different one.
@@ -424,6 +505,8 @@ ApplicationWindow {
         switch (group) {
         case "compress":
             return compressOptions()
+        case "metadata":
+            return metadataOptions()
         case "split": {
             if (splitPoints.length === 0)
                 return qsTr("Add at least one split point.")
@@ -577,6 +660,18 @@ ApplicationWindow {
         property bool on: false
         compact: true
         kind: on ? "primary" : "secondary"
+    }
+
+    Connections {
+        target: App.preview
+        function onMetadataRead(requestId, fields) {
+            if (requestId === win.metadataRequest)
+                win.metadataFields = fields
+        }
+        function onFailed(requestId, message) {
+            if (requestId === win.metadataRequest)
+                win.metadataError = message
+        }
     }
 
     Shortcut { sequence: "Escape"; onActivated: win.close() }
@@ -900,6 +995,144 @@ ApplicationWindow {
                                     if (timelineEditor.selectedRangeIndex >= next.length)
                                         timelineEditor.selectedRangeIndex = Math.max(0, next.length - 1)
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Metadata
+            SectionBox {
+                visible: win.group === "metadata"
+                title: qsTr("What to do")
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 6
+                    Choice {
+                        text: qsTr("Remove all")
+                        on: !win.editingMetadata
+                        onClicked: win.metadataMode = "all"
+                    }
+                    Choice {
+                        objectName: "editMetadataChoice"
+                        text: qsTr("Edit fields")
+                        enabled: win.canEditMetadata
+                        on: win.editingMetadata
+                        onClicked: win.metadataMode = "edit"
+                    }
+                }
+                Hint {
+                    visible: win.files.length > 1 || win.metadataError.length > 0
+                    text: win.files.length > 1 ? qsTr("Fields can be edited one file at a time.")
+                                               : qsTr("The fields of this file could not be read: %1").arg(win.metadataError)
+                }
+            }
+            SectionBox {
+                visible: win.editingMetadata
+                title: qsTr("Fields")
+                TextField {
+                    Layout.fillWidth: true
+                    placeholderText: qsTr("Search metadata")
+                    text: win.metadataSearch
+                    selectByMouse: true
+                    Accessible.name: qsTr("Search metadata")
+                    onTextEdited: win.metadataSearch = text
+                }
+                Hint {
+                    visible: win.metadataFields.length === 0
+                    text: qsTr("This file has no metadata fields yet. You can add one below.")
+                }
+                Repeater {
+                    model: win.visibleMetadataFields
+                    delegate: RowLayout {
+                        id: metadataRow
+                        required property var modelData
+                        readonly property string key: String(modelData.key)
+                        readonly property bool removed: win.metadataRemoved.includes(key)
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Text {
+                            Layout.preferredWidth: 170
+                            text: metadataRow.key
+                            textFormat: Text.PlainText
+                            elide: Text.ElideRight
+                            font.pixelSize: Theme.sizeSmall
+                            font.strikeout: metadataRow.removed
+                            color: Theme.secondaryText
+                        }
+                        TextField {
+                            Layout.fillWidth: true
+                            text: win.metadataEdits[metadataRow.key] !== undefined
+                                  ? win.metadataEdits[metadataRow.key] : String(metadataRow.modelData.value)
+                            readOnly: !metadataRow.modelData.editable
+                            enabled: !metadataRow.removed
+                            selectByMouse: true
+                            Accessible.name: metadataRow.key
+                            onTextEdited: win.editMetadata(metadataRow.key, text)
+                        }
+                        NButton {
+                            visible: metadataRow.modelData.editable === true
+                            compact: true
+                            kind: "quiet"
+                            iconName: metadataRow.removed ? "edit-undo" : "list-remove"
+                            Accessible.name: metadataRow.removed ? qsTr("Keep %1").arg(metadataRow.key)
+                                                                 : qsTr("Remove %1").arg(metadataRow.key)
+                            onClicked: win.toggleMetadataRemoved(metadataRow.key)
+                        }
+                    }
+                }
+                Repeater {
+                    model: Object.keys(win.metadataAdded)
+                    delegate: RowLayout {
+                        id: addedRow
+                        required property string modelData
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Text {
+                            Layout.fillWidth: true
+                            text: addedRow.modelData + " = " + win.metadataAdded[addedRow.modelData]
+                            textFormat: Text.PlainText
+                            elide: Text.ElideRight
+                            font.pixelSize: Theme.sizeSmall
+                            color: Theme.text
+                        }
+                        NButton {
+                            compact: true
+                            kind: "quiet"
+                            iconName: "list-remove"
+                            Accessible.name: qsTr("Remove %1").arg(addedRow.modelData)
+                            onClicked: win.removeAddedMetadata(addedRow.modelData)
+                        }
+                    }
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+                    TextField {
+                        id: newMetadataKey
+                        Layout.preferredWidth: 170
+                        placeholderText: win.fileCategory === "pdf" ? "PDF:Title"
+                                         : (win.fileCategory === "audio" || win.fileCategory === "video") ? "title"
+                                         : "XMP-dc:Title"
+                        selectByMouse: true
+                        Accessible.name: qsTr("New field name")
+                    }
+                    TextField {
+                        id: newMetadataValue
+                        Layout.fillWidth: true
+                        placeholderText: qsTr("Value")
+                        selectByMouse: true
+                        Accessible.name: qsTr("New field value")
+                    }
+                    NButton {
+                        compact: true
+                        iconName: "list-add"
+                        text: qsTr("Add")
+                        enabled: newMetadataKey.text.trim().length > 0
+                        onClicked: {
+                            if (win.addMetadata(newMetadataKey.text, newMetadataValue.text)) {
+                                newMetadataKey.text = ""
+                                newMetadataValue.text = ""
                             }
                         }
                     }

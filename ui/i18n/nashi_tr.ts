@@ -901,6 +901,10 @@
         <translation>Bu alanı tut (piksel)</translation>
     </message>
     <message>
+        <source>Change at least one field.</source>
+        <translation>En az bir alanı değiştirin.</translation>
+    </message>
+    <message>
         <source>Enter a file size greater than zero.</source>
         <translation>Sıfırdan büyük bir dosya boyutu girin.</translation>
     </message>
@@ -975,6 +979,62 @@
     <message>
         <source>Remove range</source>
         <translation>Aralığı kaldır</translation>
+    </message>
+    <message>
+        <source>What to do</source>
+        <translation>Ne yapılacak</translation>
+    </message>
+    <message>
+        <source>Remove all</source>
+        <translation>Tümünü kaldır</translation>
+    </message>
+    <message>
+        <source>Edit fields</source>
+        <translation>Alanları düzenle</translation>
+    </message>
+    <message>
+        <source>Fields can be edited one file at a time.</source>
+        <translation>Alanlar tek tek dosyalarda düzenlenebilir.</translation>
+    </message>
+    <message>
+        <source>The fields of this file could not be read: %1</source>
+        <translation>Bu dosyanın alanları okunamadı: %1</translation>
+    </message>
+    <message>
+        <source>Fields</source>
+        <translation>Alanlar</translation>
+    </message>
+    <message>
+        <source>Search metadata</source>
+        <translation>Meta verilerde ara</translation>
+    </message>
+    <message>
+        <source>This file has no metadata fields yet. You can add one below.</source>
+        <translation>Bu dosyada henüz meta veri alanı yok. Aşağıdan ekleyebilirsiniz.</translation>
+    </message>
+    <message>
+        <source>Keep %1</source>
+        <translation>%1 kalsın</translation>
+    </message>
+    <message>
+        <source>Remove %1</source>
+        <translation>%1 kaldır</translation>
+    </message>
+    <message>
+        <source>New field name</source>
+        <translation>Yeni alan adı</translation>
+    </message>
+    <message>
+        <source>Value</source>
+        <translation>Değer</translation>
+    </message>
+    <message>
+        <source>New field value</source>
+        <translation>Yeni alan değeri</translation>
+    </message>
+    <message>
+        <source>Add</source>
+        <translation>Ekle</translation>
     </message>
     <message>
         <source>Cuts</source>
