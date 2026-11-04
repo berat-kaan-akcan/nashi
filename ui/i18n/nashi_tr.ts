@@ -593,6 +593,409 @@
     </message>
 </context>
 <context>
+    <name>EngineMessages</name>
+    <message>
+        <source>Already optimized. Original quality retained.</source>
+        <translation>Zaten en iyi hâlinde. Orijinal kalite korundu.</translation>
+    </message>
+    <message>
+        <source>Comment authors and dates may remain in this PDF. Install qpdf to remove them.</source>
+        <translation>Bu PDF&apos;te not yazarları ve tarihleri kalmış olabilir. Kaldırmak için qpdf kurun.</translation>
+    </message>
+    <message>
+        <source>The old values may still be recoverable from this PDF. Install qpdf to remove them.</source>
+        <translation>Eski değerler bu PDF&apos;ten hâlâ kurtarılabilir. Kaldırmak için qpdf kurun.</translation>
+    </message>
+    <message>
+        <source>Annotating</source>
+        <translation>İşaretleniyor</translation>
+    </message>
+    <message>
+        <source>Bleeping</source>
+        <translation>Bip ekleniyor</translation>
+    </message>
+    <message>
+        <source>Changing speed</source>
+        <translation>Hız değiştiriliyor</translation>
+    </message>
+    <message>
+        <source>Compressing</source>
+        <translation>Sıkıştırılıyor</translation>
+    </message>
+    <message>
+        <source>Compressing (first pass)</source>
+        <translation>Sıkıştırılıyor (ilk geçiş)</translation>
+    </message>
+    <message>
+        <source>Compressing (second pass)</source>
+        <translation>Sıkıştırılıyor (ikinci geçiş)</translation>
+    </message>
+    <message>
+        <source>Converting</source>
+        <translation>Dönüştürülüyor</translation>
+    </message>
+    <message>
+        <source>Converting channels</source>
+        <translation>Kanallar dönüştürülüyor</translation>
+    </message>
+    <message>
+        <source>Converting with LibreOffice</source>
+        <translation>LibreOffice ile dönüştürülüyor</translation>
+    </message>
+    <message>
+        <source>Creating PDF</source>
+        <translation>PDF oluşturuluyor</translation>
+    </message>
+    <message>
+        <source>Creating collage</source>
+        <translation>Kolaj oluşturuluyor</translation>
+    </message>
+    <message>
+        <source>Cropping</source>
+        <translation>Kırpılıyor</translation>
+    </message>
+    <message>
+        <source>Downloading</source>
+        <translation>İndiriliyor</translation>
+    </message>
+    <message>
+        <source>Extracting</source>
+        <translation>Açılıyor</translation>
+    </message>
+    <message>
+        <source>Extracting frames</source>
+        <translation>Kareler çıkarılıyor</translation>
+    </message>
+    <message>
+        <source>Extracting text</source>
+        <translation>Metin çıkarılıyor</translation>
+    </message>
+    <message>
+        <source>Framing</source>
+        <translation>Çerçeveleniyor</translation>
+    </message>
+    <message>
+        <source>Joining</source>
+        <translation>Birleştiriliyor</translation>
+    </message>
+    <message>
+        <source>Joining clips</source>
+        <translation>Parçalar birleştiriliyor</translation>
+    </message>
+    <message>
+        <source>Merging</source>
+        <translation>Birleştiriliyor</translation>
+    </message>
+    <message>
+        <source>Normalizing</source>
+        <translation>Ses düzeyi ayarlanıyor</translation>
+    </message>
+    <message>
+        <source>Packing</source>
+        <translation>Paketleniyor</translation>
+    </message>
+    <message>
+        <source>Processing</source>
+        <translation>İşleniyor</translation>
+    </message>
+    <message>
+        <source>Reading QR codes</source>
+        <translation>QR kodları okunuyor</translation>
+    </message>
+    <message>
+        <source>Redacting</source>
+        <translation>Karartılıyor</translation>
+    </message>
+    <message>
+        <source>Removing audio</source>
+        <translation>Ses kaldırılıyor</translation>
+    </message>
+    <message>
+        <source>Removing metadata</source>
+        <translation>Meta veriler kaldırılıyor</translation>
+    </message>
+    <message>
+        <source>Rendering</source>
+        <translation>Oluşturuluyor</translation>
+    </message>
+    <message>
+        <source>Rendering pages</source>
+        <translation>Sayfalar oluşturuluyor</translation>
+    </message>
+    <message>
+        <source>Reordering pages</source>
+        <translation>Sayfalar sıralanıyor</translation>
+    </message>
+    <message>
+        <source>Saving metadata</source>
+        <translation>Meta veriler kaydediliyor</translation>
+    </message>
+    <message>
+        <source>Splitting</source>
+        <translation>Bölünüyor</translation>
+    </message>
+    <message>
+        <source>Trimming</source>
+        <translation>Kırpılıyor</translation>
+    </message>
+    <message>
+        <source>Saving clip %1 of %2</source>
+        <translation>Parça kaydediliyor: %1 / %2</translation>
+    </message>
+    <message>
+        <source>Saving frame %1 of %2</source>
+        <translation>Kare kaydediliyor: %1 / %2</translation>
+    </message>
+    <message>
+        <source>The archive expands beyond the safety limit.</source>
+        <translation>Arşiv açılınca güvenlik sınırını aşıyor.</translation>
+    </message>
+    <message>
+        <source>The requested file size could not be reached. Choose a larger target.</source>
+        <translation>İstenen dosya boyutuna ulaşılamadı. Daha büyük bir hedef seçin.</translation>
+    </message>
+    <message>
+        <source>This PDF has no text to extract (it may be a scan)</source>
+        <translation>Bu PDF&apos;te çıkarılacak metin yok (taranmış olabilir)</translation>
+    </message>
+    <message>
+        <source>A size target needs media with a known duration</source>
+        <translation>Boyut hedefi için süresi bilinen bir medya gerekir</translation>
+    </message>
+    <message>
+        <source>RTFD bundle has no TXT.rtf</source>
+        <translation>RTFD paketinde TXT.rtf yok</translation>
+    </message>
+    <message>
+        <source>URL has an empty or invalid host</source>
+        <translation>Bağlantının adresi boş ya da geçersiz</translation>
+    </message>
+    <message>
+        <source>URL is empty</source>
+        <translation>Bağlantı boş</translation>
+    </message>
+    <message>
+        <source>URL must not contain whitespace or control characters</source>
+        <translation>Bağlantıda boşluk veya kontrol karakteri olamaz</translation>
+    </message>
+    <message>
+        <source>only http:// and https:// URLs are supported</source>
+        <translation>Yalnızca http:// ve https:// bağlantıları destekleniyor</translation>
+    </message>
+    <message>
+        <source>a snapshot time is outside the video</source>
+        <translation>Bir kare zamanı videonun dışında</translation>
+    </message>
+    <message>
+        <source>a removed clip is outside the split</source>
+        <translation>Kaldırılan parça bölmenin dışında</translation>
+    </message>
+    <message>
+        <source>add at least one split point</source>
+        <translation>En az bir kesme noktası ekleyin</translation>
+    </message>
+    <message>
+        <source>choose at least one frame</source>
+        <translation>En az bir kare seçin</translation>
+    </message>
+    <message>
+        <source>keep at least one clip</source>
+        <translation>En az bir parçayı koruyun</translation>
+    </message>
+    <message>
+        <source>cannot split a video with an unknown duration</source>
+        <translation>Süresi bilinmeyen bir video bölünemez</translation>
+    </message>
+    <message>
+        <source>split points must be at least 0.05 seconds apart and from either end</source>
+        <translation>Kesme noktaları birbirinden ve videonun iki ucundan en az 0,05 saniye uzak olmalı</translation>
+    </message>
+    <message>
+        <source>split points must fall inside the video</source>
+        <translation>Kesme noktaları videonun içinde olmalı</translation>
+    </message>
+    <message>
+        <source>start is beyond the end of the file</source>
+        <translation>Başlangıç dosyanın sonundan sonra</translation>
+    </message>
+    <message>
+        <source>trim needs start and/or end</source>
+        <translation>Kırpmak için başlangıç veya bitiş gerekir</translation>
+    </message>
+    <message>
+        <source>the file has no audio stream</source>
+        <translation>Dosyada ses yok</translation>
+    </message>
+    <message>
+        <source>the file has no video stream</source>
+        <translation>Dosyada video yok</translation>
+    </message>
+    <message>
+        <source>the archive is empty</source>
+        <translation>Arşiv boş</translation>
+    </message>
+    <message>
+        <source>not a valid EPUB file</source>
+        <translation>Geçerli bir EPUB dosyası değil</translation>
+    </message>
+    <message>
+        <source>not an RTFD bundle</source>
+        <translation>RTFD paketi değil</translation>
+    </message>
+    <message>
+        <source>no QR code or barcode found</source>
+        <translation>QR kod veya barkod bulunamadı</translation>
+    </message>
+    <message>
+        <source>no frame could be saved at that time</source>
+        <translation>O zamanda kare kaydedilemedi</translation>
+    </message>
+    <message>
+        <source>no output files were produced</source>
+        <translation>Çıktı dosyası üretilmedi</translation>
+    </message>
+    <message>
+        <source>no subtitle cues found</source>
+        <translation>Altyazı bulunamadı</translation>
+    </message>
+    <message>
+        <source>no text found in the clipping (resource-fork clippings are not supported)</source>
+        <translation>Kırpıntıda metin bulunamadı (resource-fork kırpıntıları desteklenmiyor)</translation>
+    </message>
+    <message>
+        <source>one of these fields cannot be written to this file</source>
+        <translation>Bu alanlardan biri bu dosyaya yazılamıyor</translation>
+    </message>
+    <message>
+        <source>this kind of file has no editable metadata</source>
+        <translation>Bu dosya türünde düzenlenebilir meta veri yok</translation>
+    </message>
+    <message>
+        <source>the background image could not be read</source>
+        <translation>Arka plan görseli okunamadı</translation>
+    </message>
+    <message>
+        <source>the background must be an image</source>
+        <translation>Arka plan bir görsel olmalı</translation>
+    </message>
+    <message>
+        <source>the canvas would be too large or too small</source>
+        <translation>Tuval çok büyük ya da çok küçük olurdu</translation>
+    </message>
+    <message>
+        <source>the spacing and padding leave no room for the images</source>
+        <translation>Aralık ve boşluk görsellere yer bırakmıyor</translation>
+    </message>
+    <message>
+        <source>could not determine image dimensions</source>
+        <translation>Görsel boyutu belirlenemedi</translation>
+    </message>
+    <message>
+        <source>could not read the image size</source>
+        <translation>Görsel boyutu okunamadı</translation>
+    </message>
+    <message>
+        <source>could not read the page count</source>
+        <translation>Sayfa sayısı okunamadı</translation>
+    </message>
+    <message>
+        <source>curl produced no output file</source>
+        <translation>curl çıktı dosyası üretmedi</translation>
+    </message>
+    <message>
+        <source>yt-dlp produced no output file</source>
+        <translation>yt-dlp çıktı dosyası üretmedi</translation>
+    </message>
+    <message>
+        <source>pdftoppm produced no pages</source>
+        <translation>pdftoppm sayfa üretmedi</translation>
+    </message>
+    <message>
+        <source>ffmpeg produced no preview frame</source>
+        <translation>ffmpeg önizleme karesi üretmedi</translation>
+    </message>
+    <message>
+        <source>ffmpeg produced no waveform image</source>
+        <translation>ffmpeg dalga formu üretmedi</translation>
+    </message>
+    <message>
+        <source>spreadsheet to text is not supported</source>
+        <translation>Elektronik tablodan metne dönüştürme desteklenmiyor</translation>
+    </message>
+    <message>
+        <source>joinVideos needs at least two videos</source>
+        <translation>Birleştirmek için en az iki video gerekir</translation>
+    </message>
+    <message>
+        <source>mergePDF needs at least two PDFs</source>
+        <translation>Birleştirmek için en az iki PDF gerekir</translation>
+    </message>
+    <message>
+        <source>page %1 is beyond the last page (%2)</source>
+        <translation>%1. sayfa son sayfadan sonra (son sayfa: %2)</translation>
+    </message>
+    <message>
+        <source>invalid page list &apos;%1&apos;</source>
+        <translation>Geçersiz sayfa listesi: &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>file is already .%1</source>
+        <translation>Dosya zaten .%1 biçiminde</translation>
+    </message>
+    <message>
+        <source>.%1 to .%2 is not supported</source>
+        <translation>.%1 biçiminden .%2 biçimine dönüştürme desteklenmiyor</translation>
+    </message>
+    <message>
+        <source>PDF to .%1 is not supported</source>
+        <translation>PDF&apos;ten .%1 biçimine dönüştürme desteklenmiyor</translation>
+    </message>
+    <message>
+        <source>cannot convert media to .%1</source>
+        <translation>Medya .%1 biçimine dönüştürülemiyor</translation>
+    </message>
+    <message>
+        <source>subtitles to .%1 are not supported</source>
+        <translation>Altyazıdan .%1 biçimine dönüştürme desteklenmiyor</translation>
+    </message>
+    <message>
+        <source>unknown file type%1</source>
+        <translation>Bilinmeyen dosya türü%1</translation>
+    </message>
+    <message>
+        <source>missing %1 (install: %2)</source>
+        <translation>%1 eksik (kurun: %2)</translation>
+    </message>
+    <message>
+        <source>%1 is not installed (install the &apos;%2&apos; package)</source>
+        <translation>%1 kurulu değil (&apos;%2&apos; paketini kurun)</translation>
+    </message>
+    <message>
+        <source>could not start %1: %2</source>
+        <translation>%1 başlatılamadı: %2</translation>
+    </message>
+    <message>
+        <source>%1 exited with %2: %3</source>
+        <translation>%1 %2 koduyla bitti: %3</translation>
+    </message>
+    <message>
+        <source>%1 exited with %2</source>
+        <translation>%1 %2 koduyla bitti</translation>
+    </message>
+    <message>
+        <source>%1 does not apply to .%2 files</source>
+        <translation>%1 .%2 dosyalarına uygulanamaz</translation>
+    </message>
+    <message>
+        <source>%1 is not available for .%2</source>
+        <translation>%1 .%2 için kullanılamıyor</translation>
+    </message>
+    <message>
+        <source>%1 is a directory</source>
+        <translation>%1 bir klasör</translation>
+    </message>
+</context>
+<context>
     <name>FileActions</name>
     <message numerus="yes">
         <source>Copied %n file(s) to the clipboard</source>

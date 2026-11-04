@@ -77,6 +77,7 @@ Upstream'in `b3c60f2..be59b13` aralığı incelendi; Linux'u etkileyen hatalar �
 * **Görsel düzenleme ayarları:** pozlama, parlaklık, kontrast, gama, doygunluk, ton, sıcaklık, keskinlik, bulanıklık, gren, gri tonlama ve sepya; kaydırıcılar ve küçük canlı önizleme (`preview --adjust`).
 * **Çerçeve ve kolaj:** düz/gradyan/görsel arka plan, köşe yuvarlama, gölge, tuval oranı; ızgara/satır/sütun/öne çıkan kolaj, aralık, doldur/sığdır ve görsel sırası. Çerçevede konum ve görsel ölçeği yalnızca CLI'dan ayarlanır; gradyan iki renkli; ikisinde de önizleme yok.
 * **İşaretleme:** numara, açıklama balonu, seçip taşıma ve seçileni silme; geri alma artık tüm durumu saklıyor. Büyüteç, görsel ekleme, dolgu, opaklık ve yazı tipi seçimi yok.
+* **Arşiv sınırı ve mesajlar:** arşivler en fazla 20 GB açılır (liste, dosya boyutu sınırı ve açılış sonrası toplam denetimi; `NASHI_ARCHIVE_LIMIT_BYTES` testler için düşürür). Kullanıcının görebileceği 100 motor mesajı `ui/src/enginetext.cpp` tablosuyla çevrilir; tablo dışındaki teknik mesajlar İngilizce kalır.
 * **Yeni özellikler:** ses kırpmada sessizlik silme, bip modu, PDF→görsel DPI ayarı, çarkta Paylaş/Float, Pick aşamasında klavyeyle çark, Kütüphane aramasında `İ/I/ı/i` eşleşmesi.
 
 ### 2.6. Test Denetimi (2026-11-04)
@@ -112,7 +113,7 @@ Arayüz ve servisler şu ana kadar birim testleri ve `QT_QPA_PLATFORM=offscreen`
 * **`editImage` kalan ayarlar:** Vurgular, gölgeler, beyazlar, siyahlar, renk tonu kayması (tint), canlılık, netlik, doku, solma, puslanma giderme, gürültü azaltma ve vinyet henüz yok.
 * **PDF ek seçenekleri:** Sabit grup/sayfa aralığıyla bölme ve birleştirmede eşit sayfa genişliğine ölçekleme.
 * **Video/ses ek seçenekleri:** Özel LUFS ses yüksekliği hedefi.
-* **Upstream eşitlemesinden kalanlar:** motor hata mesajları hâlâ İngilizce (arayüzde çevrilmiyor); arşiv açmada toplam boyut sınırı yok; Pick aşamasında klavye ve çarktan Paylaş gerçek KWin oturumunda denenmedi.
+* **Upstream eşitlemesinden kalanlar:** Pick aşamasında klavye ve çarktan Paylaş gerçek KWin oturumunda denenmedi.
 * **Küçük uygulama detayları:** Format bazlı varsayılan kalite ayarları sayfası (ör. varsayılan JPEG kalitesi), işlem bitiş sesi, Fransızca (`fr`) çeviri.
 
 ### 3.3. İleriki Fazlar

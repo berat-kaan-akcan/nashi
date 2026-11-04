@@ -32,6 +32,7 @@ add_compile_definitions(
 # --- Core library + QML module (shared by the app and the tests) -------------
 qt_add_library(nashi_ui STATIC)
 target_sources(nashi_ui PRIVATE
+    src/enginetext.cpp
     src/actions.cpp            src/actions.h
     src/app.cpp                src/app.h
     src/appdbus.cpp            src/appdbus.h

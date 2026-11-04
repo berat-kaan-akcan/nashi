@@ -403,3 +403,38 @@ fn json_mode_never_prints_non_json() {
     assert_eq!(r.outputs().len(), 1);
     assert_eq!(r.error_codes(), ["invalid_input"]);
 }
+
+/// The UI translates engine messages from a table. An entry whose message no
+/// longer exists in the engine would silently stop translating anything.
+#[test]
+fn every_translated_engine_message_still_exists() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let table = std::fs::read_to_string(root.join("ui/src/enginetext.cpp")).unwrap();
+    let mut engine = String::new();
+    let mut dirs = vec![root.join("crates/nashi-core/src")];
+    while let Some(dir) = dirs.pop() {
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                dirs.push(path);
+            } else {
+                engine.push_str(&std::fs::read_to_string(path).unwrap());
+            }
+        }
+    }
+    let entries: Vec<&str> = table
+        .split("QT_TRANSLATE_NOOP(\"EngineMessages\", \"")
+        .skip(1)
+        .map(|rest| rest.split("\")").next().unwrap())
+        .collect();
+    assert!(entries.len() > 50, "only {} entries", entries.len());
+    for entry in entries {
+        // The longest piece between placeholders identifies the message.
+        let piece = entry
+            .split('%')
+            .map(|p| p.trim_start_matches(|c: char| c.is_ascii_digit()))
+            .max_by_key(|p| p.len())
+            .unwrap();
+        assert!(engine.contains(piece), "not in the engine: {entry}");
+    }
+}

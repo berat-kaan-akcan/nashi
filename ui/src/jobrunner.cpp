@@ -1,5 +1,7 @@
 #include "jobrunner.h"
 
+#include "enginetext.h"
+
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonObject>
@@ -141,11 +143,11 @@ void JobRunner::handleEvent(const QJsonObject &ev)
             m_index = idx.toInt();
         const QJsonValue frac = ev.value(QStringLiteral("fraction"));
         m_fraction = frac.isDouble() ? qBound(0.0, frac.toDouble(), 1.0) : -1.0;
-        m_message = ev.value(QStringLiteral("message")).toString();
+        m_message = EngineText::translate(ev.value(QStringLiteral("message")).toString());
         Q_EMIT progressChanged();
     } else if (type == QLatin1String("output")) {
         const QString path = ev.value(QStringLiteral("path")).toString();
-        const QString msg = ev.value(QStringLiteral("message")).toString();
+        const QString msg = EngineText::translate(ev.value(QStringLiteral("message")).toString());
         if (!msg.isEmpty())
             m_outputMessages.append(msg);
         if (!path.isEmpty() && !m_outputs.contains(path)) {
@@ -157,7 +159,7 @@ void JobRunner::handleEvent(const QJsonObject &ev)
         }
     } else if (type == QLatin1String("error")) {
         addError(ev.value(QStringLiteral("input")).toString(), ev.value(QStringLiteral("code")).toString(),
-                 ev.value(QStringLiteral("message")).toString());
+                 EngineText::translate(ev.value(QStringLiteral("message")).toString()));
     } else if (type == QLatin1String("done")) {
         m_doneSeen = true;
         m_doneCancelled = ev.value(QStringLiteral("cancelled")).toBool();

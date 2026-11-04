@@ -53,6 +53,7 @@ pub struct Cmd {
     stdout_file: Option<File>,
     envs: Vec<(OsString, OsString)>,
     cwd: Option<PathBuf>,
+    file_limit: Option<u64>,
 }
 
 /// Finished process.
@@ -70,6 +71,7 @@ impl Cmd {
             stdout_file: None,
             envs: Vec::new(),
             cwd: None,
+            file_limit: None,
         }
     }
 
@@ -106,6 +108,12 @@ impl Cmd {
     }
 
     /// Send stdout to a file instead of capturing it.
+    /// The largest file the process may write, in bytes.
+    pub fn file_limit(mut self, bytes: u64) -> Cmd {
+        self.file_limit = Some(bytes);
+        self
+    }
+
     pub fn stdout_to(mut self, f: File) -> Cmd {
         self.stdout_file = Some(f);
         self
@@ -141,6 +149,21 @@ impl Cmd {
             .stderr(Stdio::piped())
             .process_group(0);
         die_with_parent(&mut c);
+        if let Some(bytes) = self.file_limit {
+            let limit = libc::rlimit {
+                rlim_cur: bytes,
+                rlim_max: bytes,
+            };
+            // SAFETY: setrlimit is async-signal-safe and `limit` is a plain copied value.
+            unsafe {
+                c.pre_exec(move || {
+                    if libc::setrlimit(libc::RLIMIT_FSIZE, &limit) == -1 {
+                        return Err(std::io::Error::last_os_error());
+                    }
+                    Ok(())
+                });
+            }
+        }
         // Locale-neutral but UTF-8: avoids tr_TR dotless-i case-folding bugs
         // (ImageMagick fails to find its TIFF coder under tr_TR) and keeps
         // tool output parseable.

@@ -12,24 +12,99 @@ fn missing_extractor() -> JobError {
     JobError::missing("7z", "7zip")
 }
 
+/// The most an archive may expand to. `NASHI_ARCHIVE_LIMIT_BYTES` lowers it for tests.
+fn expansion_limit() -> u64 {
+    std::env::var("NASHI_ARCHIVE_LIMIT_BYTES")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(20 * 1024 * 1024 * 1024)
+}
+
+fn too_large() -> JobError {
+    JobError::invalid_input("The archive expands beyond the safety limit.")
+}
+
 /// Decompress a `.gz` stream into `out`.
 fn gunzip(ctx: &Ctx, src: &Path, out: &Path) -> JobResult<()> {
     let d = ctx.deps;
+    let limit = expansion_limit();
     let f = std::fs::File::create(out)?;
-    if let Some(gz) = d.path("gzip") {
-        Cmd::new(gz).arg("-dc").arg(src).stdout_to(f).run_ok()?;
+    // One past the limit: a file of exactly the limit is still allowed.
+    let result = if let Some(gz) = d.path("gzip") {
+        Cmd::new(gz)
+            .arg("-dc")
+            .arg(src)
+            .stdout_to(f)
+            .file_limit(limit + 1)
+            .run_ok()
     } else if let Some(z) = d.path("7z") {
         Cmd::new(z)
             .args(["e", "-so", "-tgzip"])
             .arg(src)
             .stdout_to(f)
-            .run_ok()?;
+            .file_limit(limit + 1)
+            .run_ok()
     } else if let Some(b) = d.path("bsdtar") {
-        Cmd::new(b).args(["-xOf"]).arg(src).stdout_to(f).run_ok()?;
+        Cmd::new(b)
+            .args(["-xOf"])
+            .arg(src)
+            .stdout_to(f)
+            .file_limit(limit + 1)
+            .run_ok()
     } else {
         return Err(missing_extractor());
+    };
+    if std::fs::metadata(out).is_ok_and(|m| m.len() > limit) {
+        return Err(too_large());
     }
+    result?;
     Ok(())
+}
+
+/// What the archive says it holds, when a tool can list it. The listing can lie,
+/// so this only saves the work of extracting an archive that is plainly too large.
+fn listed_size(ctx: &Ctx, archive: &Path) -> Option<u64> {
+    let d = ctx.deps;
+    if let Some(z) = d.path("7z") {
+        let out = Cmd::new(z)
+            .args(["l", "-slt", "--"])
+            .arg(archive)
+            .run_ok()
+            .ok()?;
+        return Some(
+            out.stdout
+                .lines()
+                .filter_map(|l| l.strip_prefix("Size = ")?.trim().parse::<u64>().ok())
+                .sum(),
+        );
+    }
+    let b = d.path("bsdtar")?;
+    let out = Cmd::new(b).arg("-tvf").arg(archive).run_ok().ok()?;
+    Some(
+        out.stdout
+            .lines()
+            .filter_map(|l| l.split_whitespace().nth(4)?.parse::<u64>().ok())
+            .sum(),
+    )
+}
+
+/// Bytes in the regular files below `root`. Hard links count in full, because
+/// anything that reads or repacks them gets a full copy each.
+fn tree_size(root: &Path) -> std::io::Result<u64> {
+    let mut total = 0;
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        for entry in std::fs::read_dir(&dir)? {
+            let path = entry?.path();
+            let meta = std::fs::symlink_metadata(&path)?;
+            if meta.is_dir() {
+                stack.push(path);
+            } else if meta.is_file() {
+                total += meta.len();
+            }
+        }
+    }
+    Ok(total)
 }
 
 fn is_tar(p: &Path) -> bool {
@@ -86,13 +161,26 @@ pub fn extract_into(
     dest: &Path,
     links: Links,
 ) -> JobResult<()> {
-    extract_raw(ctx, archive, ext, dest)?;
+    let limit = expansion_limit();
+    if ext != "gz" && listed_size(ctx, archive).is_some_and(|size| size > limit) {
+        return Err(too_large());
+    }
+    let result = extract_raw(ctx, archive, ext, dest);
+    // Past the limit the tools fail on the file they are writing, so check this first.
+    if tree_size(dest)? > limit {
+        return Err(too_large());
+    }
+    result?;
     sanitize_tree(dest, links)?;
+    if tree_size(dest)? > limit {
+        return Err(too_large());
+    }
     Ok(())
 }
 
 fn extract_raw(ctx: &Ctx, archive: &Path, ext: &str, dest: &Path) -> JobResult<()> {
     let d = ctx.deps;
+    let limit = expansion_limit();
     if ext == "gz" {
         let work = WorkDir::new_in(dest.parent().unwrap_or(dest))?;
         let inner = work.join("inner");
@@ -113,6 +201,7 @@ fn extract_raw(ctx: &Ctx, archive: &Path, ext: &str, dest: &Path) -> JobResult<(
             .args(["x", "-y", "-bso0", "-bsp0"])
             .arg_cat("-o", dest)
             .arg(archive)
+            .file_limit(limit + 1)
             .run()?;
         // Exit 2 only because 7z refused unsafe links: that is what we want.
         let only_unsafe_links = out.status.code() == Some(2) && {
@@ -128,6 +217,7 @@ fn extract_raw(ctx: &Ctx, archive: &Path, ext: &str, dest: &Path) -> JobResult<(
             .arg(archive)
             .arg("-C")
             .arg(dest)
+            .file_limit(limit + 1)
             .run_ok()?;
     } else if let (Some(t), "tar") = (d.path("tar"), ext) {
         Cmd::new(t)
@@ -135,6 +225,7 @@ fn extract_raw(ctx: &Ctx, archive: &Path, ext: &str, dest: &Path) -> JobResult<(
             .arg(archive)
             .arg("-C")
             .arg(dest)
+            .file_limit(limit + 1)
             .run_ok()?;
     } else if let (Some(u), "zip") = (d.path("unzip"), ext) {
         Cmd::new(u)
@@ -142,6 +233,7 @@ fn extract_raw(ctx: &Ctx, archive: &Path, ext: &str, dest: &Path) -> JobResult<(
             .arg(archive)
             .arg("-d")
             .arg(dest)
+            .file_limit(limit + 1)
             .run_ok()?;
     } else {
         return Err(missing_extractor());

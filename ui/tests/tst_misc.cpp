@@ -1,4 +1,5 @@
 #include "actions.h"
+#include "enginetext.h"
 #include "depsmodel.h"
 #include "language.h"
 #include "recentmodel.h"
@@ -10,6 +11,7 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QTranslator>
 #include <QUrl>
 
 class TestMisc : public QObject
@@ -45,6 +47,42 @@ private Q_SLOTS:
         const QStringList evil = FileActions::terminalCommand(QStringLiteral("/d"), QStringLiteral("xterm; rm -rf ~"),
                                                               has({QStringLiteral("xterm;")}));
         QCOMPARE(evil.constFirst(), QStringLiteral("xterm;"));
+    }
+
+    void engineMessagesAreTranslatedWithTheirValues()
+    {
+        class Fake : public QTranslator
+        {
+        public:
+            QString translate(const char *context, const char *source, const char *, int) const override
+            {
+                if (QByteArray(context) != "EngineMessages")
+                    return {};
+                const QByteArray text(source);
+                if (text == "Compressing")
+                    return QStringLiteral("Sıkıştırılıyor");
+                if (text == "page %1 is beyond the last page (%2)")
+                    return QStringLiteral("%2 sayfa var, %1. sayfa yok");
+                if (text == "%1 exited with %2: %3")
+                    return QStringLiteral("%1 %2 koduyla bitti: %3");
+                return {};
+            }
+            bool isEmpty() const override { return false; }
+        } fake;
+        QCoreApplication::installTranslator(&fake);
+        QCOMPARE(EngineText::translate(QStringLiteral("Compressing")), QStringLiteral("Sıkıştırılıyor"));
+        QCOMPARE(EngineText::translate(QStringLiteral("page 5 is beyond the last page (3)")),
+                 QStringLiteral("3 sayfa var, 5. sayfa yok"));
+        // Tool output stays exactly as it was, even if it looks like a placeholder.
+        QCOMPARE(EngineText::translate(QStringLiteral("ffmpeg exited with 234: bad %1 value")),
+                 QStringLiteral("ffmpeg 234 koduyla bitti: bad %1 value"));
+        // Nothing else is touched.
+        QCOMPARE(EngineText::translate(QStringLiteral("some new engine message")),
+                 QStringLiteral("some new engine message"));
+        QCOMPARE(EngineText::translate(QString()), QString());
+        QCoreApplication::removeTranslator(&fake);
+        QCOMPARE(EngineText::translate(QStringLiteral("Compressing")), QStringLiteral("Compressing"));
+        QVERIFY(EngineText::sources().contains(QStringLiteral("Compressing")));
     }
 
     void actionIds()
