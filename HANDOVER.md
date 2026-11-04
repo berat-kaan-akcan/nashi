@@ -76,6 +76,7 @@ Upstream'in `b3c60f2..be59b13` aralığı incelendi; Linux'u etkileyen hatalar �
 * **Metadata düzenleme:** `nashi-cli metadata` ile alanları okuma; arama, düzenleme, ekleme ve tek tek silme (görsel/PDF exiftool, ses/video ffmpeg). Tek dosyada çalışır; çoklu seçimde yalnızca tümünü silme var.
 * **Görsel düzenleme ayarları:** pozlama, parlaklık, kontrast, gama, doygunluk, ton, sıcaklık, keskinlik, bulanıklık, gren, gri tonlama ve sepya; kaydırıcılar ve küçük canlı önizleme (`preview --adjust`).
 * **Çerçeve ve kolaj:** düz/gradyan/görsel arka plan, köşe yuvarlama, gölge, tuval oranı; ızgara/satır/sütun/öne çıkan kolaj, aralık, doldur/sığdır ve görsel sırası. Çerçevede konum ve görsel ölçeği yalnızca CLI'dan ayarlanır; gradyan iki renkli; ikisinde de önizleme yok.
+* **İşaretleme:** numara, açıklama balonu, seçip taşıma ve seçileni silme; geri alma artık tüm durumu saklıyor. Büyüteç, görsel ekleme, dolgu, opaklık ve yazı tipi seçimi yok.
 * **Yeni özellikler:** ses kırpmada sessizlik silme, bip modu, PDF→görsel DPI ayarı, çarkta Paylaş/Float, Pick aşamasında klavyeyle çark, Kütüphane aramasında `İ/I/ı/i` eşleşmesi.
 
 ### 2.6. Test Denetimi (2026-11-04)

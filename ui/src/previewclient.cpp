@@ -183,6 +183,15 @@ QString PreviewClient::newAnnotationPath()
     return QFileInfo(path).absoluteFilePath();
 }
 
+namespace {
+// White on dark colours and dark on light ones, matching the editor's canvas.
+QColor inkOn(const QColor &color)
+{
+    const double light = 0.299 * color.redF() + 0.587 * color.greenF() + 0.114 * color.blueF();
+    return light > 0.6 ? QColor(QStringLiteral("#1d2117")) : QColor(Qt::white);
+}
+} // namespace
+
 QString PreviewClient::renderAnnotationOverlay(int width, int height, const QVariantList &items)
 {
     if (width <= 0 || height <= 0 || items.isEmpty())
@@ -284,6 +293,42 @@ QString PreviewClient::renderAnnotationOverlay(int width, int height, const QVar
             p.setPen(pen);
             p.setBrush(Qt::NoBrush);
             p.drawEllipse(QRectF(std::min(x1, x2), std::min(y1, y2), std::abs(x2 - x1), std::abs(y2 - y1)));
+        } else if (kind == QLatin1String("number")) {
+            const double size = std::max(8.0, it.value(QStringLiteral("size"), 40.0).toDouble());
+            const QPointF center(it.value(QStringLiteral("x")).toDouble(), it.value(QStringLiteral("y")).toDouble());
+            p.setPen(Qt::NoPen);
+            p.setBrush(color);
+            p.drawEllipse(center, size / 2, size / 2);
+            QFont font;
+            font.setPixelSize(std::max(6, int(std::round(size * 0.55))));
+            font.setBold(true);
+            p.setFont(font);
+            p.setPen(inkOn(color));
+            p.drawText(QRectF(center.x() - size / 2, center.y() - size / 2, size, size), Qt::AlignCenter,
+                       it.value(QStringLiteral("number")).toString());
+        } else if (kind == QLatin1String("callout")) {
+            const QString text = it.value(QStringLiteral("text")).toString();
+            if (!text.isEmpty()) {
+                const int fontPx = std::max(14, int(std::round(it.value(QStringLiteral("size"), 24.0).toDouble())));
+                const double x = it.value(QStringLiteral("x")).toDouble();
+                const double y = it.value(QStringLiteral("y")).toDouble();
+                const double tail = fontPx * 0.7;
+                const double pad = fontPx * 0.5;
+                QFont font;
+                font.setPixelSize(fontPx);
+                font.setBold(true);
+                const QFontMetricsF fm(font);
+                const QRectF box(x, y - tail - fontPx - pad * 2, fm.horizontalAdvance(text) + pad * 2, fontPx + pad * 2);
+                QPolygonF pointer;
+                pointer << QPointF(x, y) << QPointF(x + fontPx * 0.4, y - tail) << QPointF(x + fontPx, y - tail);
+                p.setPen(Qt::NoPen);
+                p.setBrush(color);
+                p.drawPolygon(pointer);
+                p.drawRoundedRect(box, pad, pad);
+                p.setFont(font);
+                p.setPen(inkOn(color));
+                p.drawText(box, Qt::AlignCenter, text);
+            }
         } else if (kind == QLatin1String("text")) {
             const QString text = it.value(QStringLiteral("text")).toString();
             if (!text.isEmpty()) {

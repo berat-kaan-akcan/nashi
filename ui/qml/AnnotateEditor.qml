@@ -5,7 +5,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import NashiApp
 
-// Vector annotation editor over an image: Pen, Highlighter, Line, Arrow,
+// Vector annotation editor over an image: Pen, Highlighter, Line, Arrow, Number, Callout,
 // Rectangle, Ellipse, and Text. Renders only annotations onto a transparent
 // full-resolution Canvas so exportOverlay() saves a clean alpha PNG.
 Item {
@@ -21,7 +21,12 @@ Item {
     property string strokePreset: "medium" // "thin"|"medium"|"thick"
 
     property var items: []
+    // Earlier and undone states of `items`. Whole states, because a move changes
+    // an item in place rather than adding one.
+    property var undoStack: []
     property var redoStack: []
+    property int selectedIndex: -1
+    property var moveStart: null
     property var draftItem: null
     property string lastExportPath: ""
 
@@ -78,7 +83,10 @@ Item {
         currentColor = "#e03131"
         strokePreset = "medium"
         items = []
+        undoStack = []
         redoStack = []
+        selectedIndex = -1
+        moveStart = null
         draftItem = null
         lastExportPath = ""
         pendingTextX = -1
@@ -128,24 +136,25 @@ Item {
         }
     }
 
-    function pushAction(item) {
-        const next = items.slice()
-        next.push(item)
-        items = next
+    function remember() {
+        undoStack = undoStack.concat([items])
         redoStack = []
         lastExportPath = ""
+    }
+
+    function pushAction(item) {
+        remember()
+        items = items.concat([item])
         annotationCanvas.requestPaint()
     }
 
     function undo() {
-        if (items.length === 0)
+        if (undoStack.length === 0)
             return
-        const next = items.slice()
-        const popped = next.pop()
-        const r = redoStack.slice()
-        r.push(popped)
-        items = next
-        redoStack = r
+        redoStack = redoStack.concat([items])
+        items = undoStack[undoStack.length - 1]
+        undoStack = undoStack.slice(0, -1)
+        selectedIndex = -1
         lastExportPath = ""
         annotationCanvas.requestPaint()
     }
@@ -153,13 +162,123 @@ Item {
     function redo() {
         if (redoStack.length === 0)
             return
-        const r = redoStack.slice()
-        const restored = r.pop()
-        const next = items.slice()
-        next.push(restored)
-        redoStack = r
-        items = next
+        undoStack = undoStack.concat([items])
+        items = redoStack[redoStack.length - 1]
+        redoStack = redoStack.slice(0, -1)
+        selectedIndex = -1
         lastExportPath = ""
+        annotationCanvas.requestPaint()
+    }
+
+    function nextNumber() {
+        let highest = 0
+        for (const it of items) {
+            if (it.kind === "number")
+                highest = Math.max(highest, Number(it.number))
+        }
+        return highest + 1
+    }
+
+    // Canvas coordinates, like the pointer.
+    function addNumberAt(x, y) {
+        pushAction({
+            kind: "number",
+            color: currentColor,
+            size: Math.max(24, Math.round(activeStrokePx * 5)),
+            alpha: 1.0,
+            number: nextNumber(),
+            x: Number(x),
+            y: Number(y)
+        })
+    }
+
+    function addCalloutAt(x, y, text) {
+        const t = String(text || "").trim()
+        if (t.length === 0)
+            return
+        pushAction({
+            kind: "callout",
+            color: currentColor,
+            size: Math.max(18, Math.round(activeStrokePx * 3.8)),
+            alpha: 1.0,
+            x: Number(x),
+            y: Number(y),
+            text: t
+        })
+    }
+
+    // The box an item covers. Text widths are estimates, which is close enough to pick by.
+    function itemBounds(it) {
+        const size = Number(it.size || 4)
+        const pad = Math.max(8, size / 2)
+        if (it.points) {
+            const xs = it.points.map(p => p.x)
+            const ys = it.points.map(p => p.y)
+            return [Math.min(...xs) - pad, Math.min(...ys) - pad, Math.max(...xs) + pad, Math.max(...ys) + pad]
+        }
+        if (it.x1 !== undefined) {
+            return [Math.min(it.x1, it.x2) - pad, Math.min(it.y1, it.y2) - pad,
+                    Math.max(it.x1, it.x2) + pad, Math.max(it.y1, it.y2) + pad]
+        }
+        if (it.kind === "number")
+            return [it.x - size / 2, it.y - size / 2, it.x + size / 2, it.y + size / 2]
+        const width = String(it.text || "").length * size * 0.65
+        if (it.kind === "callout")
+            return [it.x, it.y - size * 2.7, it.x + width + size, it.y]
+        return [it.x, it.y - size / 2, it.x + width, it.y + size / 2]
+    }
+
+    function selectAt(x, y) {
+        selectedIndex = -1
+        for (let i = items.length - 1; i >= 0; --i) {
+            const b = itemBounds(items[i])
+            if (x >= b[0] && x <= b[2] && y >= b[1] && y <= b[3]) {
+                selectedIndex = i
+                break
+            }
+        }
+        annotationCanvas.requestPaint()
+    }
+
+    function beginMove() {
+        moveStart = selectedIndex >= 0 ? items : null
+    }
+
+    function moveSelectedBy(dx, dy) {
+        if (selectedIndex < 0 || selectedIndex >= items.length)
+            return
+        const moved = Object.assign({}, items[selectedIndex])
+        if (moved.points)
+            moved.points = moved.points.map(p => ({ x: p.x + dx, y: p.y + dy }))
+        for (const key of ["x", "x1", "x2"]) {
+            if (moved[key] !== undefined)
+                moved[key] += dx
+        }
+        for (const key of ["y", "y1", "y2"]) {
+            if (moved[key] !== undefined)
+                moved[key] += dy
+        }
+        const next = items.slice()
+        next[selectedIndex] = moved
+        items = next
+        annotationCanvas.requestPaint()
+    }
+
+    function endMove() {
+        if (moveStart && moveStart !== items) {
+            undoStack = undoStack.concat([moveStart])
+            redoStack = []
+            lastExportPath = ""
+        }
+        moveStart = null
+    }
+
+    function removeSelected() {
+        if (selectedIndex < 0 || selectedIndex >= items.length)
+            return
+        remember()
+        items = items.filter((_, i) => i !== selectedIndex)
+        selectedIndex = -1
         annotationCanvas.requestPaint()
     }
 
@@ -167,7 +286,9 @@ Item {
         if (items.length === 0 && !draftItem)
             return
         items = []
+        undoStack = []
         redoStack = []
+        selectedIndex = -1
         draftItem = null
         lastExportPath = ""
         pendingTextX = -1
@@ -240,16 +361,26 @@ Item {
             return
         const tx = pendingTextX >= 0 ? pendingTextX : Math.round(canvasWidth * 0.5)
         const ty = pendingTextY >= 0 ? pendingTextY : Math.round(canvasHeight * 0.5)
-        pushAction({
-            kind: "text",
-            color: currentColor,
-            size: Math.max(18, Math.round(activeStrokePx * 3.8)),
-            x: tx,
-            y: ty,
-            text: t
-        })
+        if (currentTool === "callout") {
+            addCalloutAt(tx, ty, t)
+        } else {
+            pushAction({
+                kind: "text",
+                color: currentColor,
+                size: Math.max(18, Math.round(activeStrokePx * 3.8)),
+                x: tx,
+                y: ty,
+                text: t
+            })
+        }
         pendingTextX = -1
         pendingTextY = -1
+    }
+
+    // White on dark colours and dark on light ones, matching the exported picture.
+    function inkOn(color) {
+        const c = Qt.color(String(color))
+        return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b > 0.6 ? "#1d2117" : "#ffffff"
     }
 
     function paintSingleItem(ctx, it) {
@@ -324,6 +455,36 @@ Item {
             ctx.arc(0, 0, 1, 0, Math.PI * 2)
             ctx.restore()
             ctx.stroke()
+        } else if (kind === "number") {
+            const size = Number(it.size || 40)
+            ctx.beginPath()
+            ctx.arc(it.x, it.y, size / 2, 0, Math.PI * 2)
+            ctx.fill()
+            ctx.fillStyle = inkOn(it.color)
+            ctx.font = "bold " + Math.round(size * 0.55) + "px sans-serif"
+            ctx.textAlign = "center"
+            ctx.textBaseline = "middle"
+            ctx.fillText(String(it.number), it.x, it.y)
+        } else if (kind === "callout" && it.text) {
+            const fontPx = Math.max(14, Math.round(Number(it.size || 24)))
+            ctx.font = "bold " + fontPx + "px sans-serif"
+            const tail = fontPx * 0.7
+            const pad = fontPx * 0.5
+            const boxW = ctx.measureText(String(it.text)).width + pad * 2
+            const boxH = fontPx + pad * 2
+            const top = it.y - tail - boxH
+            ctx.beginPath()
+            ctx.moveTo(it.x, it.y)
+            ctx.lineTo(it.x + fontPx * 0.4, it.y - tail)
+            ctx.lineTo(it.x + fontPx, it.y - tail)
+            ctx.closePath()
+            ctx.fill()
+            ctx.beginPath()
+            ctx.roundedRect(it.x, top, boxW, boxH, pad, pad)
+            ctx.fill()
+            ctx.fillStyle = inkOn(it.color)
+            ctx.textBaseline = "middle"
+            ctx.fillText(String(it.text), it.x + pad, top + boxH / 2)
         } else if (kind === "text" && it.text) {
             const fontPx = Math.max(14, Math.round(Number(it.size || 24)))
             ctx.font = "bold " + fontPx + "px sans-serif"
@@ -346,6 +507,16 @@ Item {
             paintSingleItem(ctx, items[i])
         if (includeDraft && draftItem)
             paintSingleItem(ctx, draftItem)
+        // On screen only: the export is drawn separately and never sees this.
+        if (includeDraft && selectedIndex >= 0 && selectedIndex < items.length) {
+            const b = itemBounds(items[selectedIndex])
+            ctx.save()
+            ctx.strokeStyle = "#2f6fed"
+            ctx.lineWidth = Math.max(2, Math.round(unitScale * 2))
+            ctx.setLineDash([4, 3])
+            ctx.strokeRect(b[0], b[1], b[2] - b[0], b[3] - b[1])
+            ctx.restore()
+        }
     }
 
     function exportOverlay() {
@@ -397,7 +568,10 @@ Item {
                     ["arrow", qsTr("Arrow")],
                     ["rect", qsTr("Rectangle")],
                     ["ellipse", qsTr("Ellipse")],
-                    ["text", qsTr("Text")]
+                    ["text", qsTr("Text")],
+                    ["number", qsTr("Number")],
+                    ["callout", qsTr("Callout")],
+                    ["select", qsTr("Select / Move")]
                 ]
                 delegate: ToolBtn {
                     required property var modelData
@@ -406,7 +580,7 @@ Item {
                     on: root.currentTool === String(modelData[0])
                     onClicked: {
                         root.currentTool = String(modelData[0])
-                        if (root.currentTool === "text")
+                        if (root.currentTool === "text" || root.currentTool === "callout")
                             noteField.forceActiveFocus()
                     }
                 }
@@ -485,6 +659,16 @@ Item {
             }
 
             NButton {
+                objectName: "annotateDeleteButton"
+                visible: root.selectedIndex >= 0
+                compact: true
+                kind: "quiet"
+                iconName: "edit-delete"
+                text: qsTr("Delete selected")
+                onClicked: root.removeSelected()
+            }
+
+            NButton {
                 objectName: "annotateClearButton"
                 compact: true
                 kind: "quiet"
@@ -498,7 +682,7 @@ Item {
         // Inline Text Tool input bar
         RowLayout {
             Layout.fillWidth: true
-            visible: root.currentTool === "text"
+            visible: root.currentTool === "text" || root.currentTool === "callout"
             spacing: 8
 
             TextField {
@@ -608,7 +792,7 @@ Item {
 
                 // Pending text target reticle when user clicked image before typing text
                 Rectangle {
-                    visible: root.currentTool === "text" && root.pendingTextX >= 0 && root.pendingTextY >= 0
+                    visible: (root.currentTool === "text" || root.currentTool === "callout") && root.pendingTextX >= 0 && root.pendingTextY >= 0
                     x: (root.pendingTextX / Math.max(1, root.canvasWidth)) * stage.width - 7
                     y: (root.pendingTextY / Math.max(1, root.canvasHeight)) * stage.height - 7
                     width: 14
@@ -623,7 +807,9 @@ Item {
                     id: drawMouse
                     anchors.fill: parent
                     hoverEnabled: true
-                    cursorShape: root.currentTool === "text" ? Qt.IBeamCursor : Qt.CrossCursor
+                    cursorShape: root.currentTool === "text" || root.currentTool === "callout" ? Qt.IBeamCursor
+                                 : root.currentTool === "select" ? Qt.SizeAllCursor : Qt.CrossCursor
+                    property point lastPoint
 
                     function toCanvas(mx, my) {
                         const cx = Math.max(0, Math.min(root.canvasWidth,
@@ -635,7 +821,17 @@ Item {
 
                     onPressed: mouse => {
                         const pt = toCanvas(mouse.x, mouse.y)
-                        if (root.currentTool === "text") {
+                        if (root.currentTool === "select") {
+                            root.selectAt(pt.x, pt.y)
+                            root.beginMove()
+                            lastPoint = Qt.point(pt.x, pt.y)
+                            return
+                        }
+                        if (root.currentTool === "number") {
+                            root.addNumberAt(pt.x, pt.y)
+                            return
+                        }
+                        if (root.currentTool === "text" || root.currentTool === "callout") {
                             root.pendingTextX = pt.x
                             root.pendingTextY = pt.y
                             if (noteField.text.trim().length > 0)
@@ -670,9 +866,16 @@ Item {
                     }
 
                     onPositionChanged: mouse => {
-                        if (!pressed || !root.draftItem)
+                        if (!pressed)
                             return
                         const pt = toCanvas(mouse.x, mouse.y)
+                        if (root.currentTool === "select") {
+                            root.moveSelectedBy(pt.x - lastPoint.x, pt.y - lastPoint.y)
+                            lastPoint = Qt.point(pt.x, pt.y)
+                            return
+                        }
+                        if (!root.draftItem)
+                            return
                         const cur = root.draftItem
                         if (cur.kind === "pen" || cur.kind === "highlighter") {
                             const pts = cur.points.slice()
@@ -705,6 +908,10 @@ Item {
                     }
 
                     onReleased: {
+                        if (root.currentTool === "select") {
+                            root.endMove()
+                            return
+                        }
                         if (!root.draftItem)
                             return
                         const finished = root.draftItem
@@ -720,6 +927,7 @@ Item {
                     }
 
                     onCanceled: {
+                        root.endMove()
                         root.draftItem = null
                         annotationCanvas.requestPaint()
                     }

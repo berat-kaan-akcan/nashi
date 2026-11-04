@@ -727,6 +727,97 @@ private Q_SLOTS:
         QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
     }
 
+    void annotationNumbersCalloutsAndMoving()
+    {
+        g_messages.clear();
+        QQuickWindow *w = openEditor(QStringLiteral("annotateImage"), QStringLiteral("Annotate Image"), photoPath);
+        QVERIFY(w);
+        auto *annotate = w->findChild<QObject *>(QStringLiteral("annotateEditor"));
+        QVERIFY(annotate);
+        QTRY_VERIFY_WITH_TIMEOUT(!annotate->property("resolvedImageUrl").toString().isEmpty(), 10000);
+        const auto item = [annotate](int i) {
+            return annotate->property("items").toList().at(i).toMap();
+        };
+        const auto count = [annotate] { return annotate->property("items").toList().size(); };
+        const auto invoke = [annotate](const char *method) { QMetaObject::invokeMethod(annotate, method); };
+        const auto at = [annotate](const char *method, double x, double y) {
+            QMetaObject::invokeMethod(annotate, method, Q_ARG(QVariant, x), Q_ARG(QVariant, y));
+        };
+
+        // Numbers count up by themselves, and removing one frees its number.
+        at("addNumberAt", 100, 100);
+        at("addNumberAt", 300, 100);
+        QCOMPARE(item(0).value(QStringLiteral("number")).toInt(), 1);
+        QCOMPARE(item(1).value(QStringLiteral("number")).toInt(), 2);
+        invoke("undo");
+        at("addNumberAt", 300, 100);
+        QCOMPARE(item(1).value(QStringLiteral("number")).toInt(), 2);
+
+        QMetaObject::invokeMethod(annotate, "addCalloutAt", Q_ARG(QVariant, 200.0), Q_ARG(QVariant, 200.0),
+                                  Q_ARG(QVariant, QStringLiteral("Look here")));
+        QCOMPARE(item(2).value(QStringLiteral("kind")).toString(), QStringLiteral("callout"));
+        QCOMPARE(item(2).value(QStringLiteral("text")).toString(), QStringLiteral("Look here"));
+
+        // The topmost item under the pointer is picked; empty space picks nothing.
+        at("selectAt", 300, 100);
+        QCOMPARE(annotate->property("selectedIndex").toInt(), 1);
+        at("selectAt", 5, 5);
+        QCOMPARE(annotate->property("selectedIndex").toInt(), -1);
+
+        // A move is one undo step, however many pointer events it took.
+        at("selectAt", 300, 100);
+        invoke("beginMove");
+        at("moveSelectedBy", 10, 0);
+        at("moveSelectedBy", 10, 5);
+        invoke("endMove");
+        QCOMPARE(item(1).value(QStringLiteral("x")).toDouble(), 320.0);
+        QCOMPARE(item(1).value(QStringLiteral("y")).toDouble(), 105.0);
+        QCOMPARE(item(0).value(QStringLiteral("x")).toDouble(), 100.0);
+        invoke("undo");
+        QCOMPARE(item(1).value(QStringLiteral("x")).toDouble(), 300.0);
+        QCOMPARE(count(), 3);
+        invoke("redo");
+        QCOMPARE(item(1).value(QStringLiteral("x")).toDouble(), 320.0);
+
+        // Lines and strokes move with all their points.
+        annotate->setProperty("selectedIndex", -1);
+        QMetaObject::invokeMethod(annotate, "addArrow", Q_ARG(QVariant, 400), Q_ARG(QVariant, 40), Q_ARG(QVariant, 500),
+                                  Q_ARG(QVariant, 40), Q_ARG(QVariant, QStringLiteral("#e03131")), Q_ARG(QVariant, 6));
+        const double arrowY = item(3).value(QStringLiteral("y1")).toDouble();
+        at("selectAt", item(3).value(QStringLiteral("x1")).toDouble() + 20, arrowY);
+        QCOMPARE(annotate->property("selectedIndex").toInt(), 3);
+        invoke("beginMove");
+        at("moveSelectedBy", 0, 30);
+        invoke("endMove");
+        QCOMPARE(item(3).value(QStringLiteral("y1")).toDouble(), arrowY + 30);
+        QCOMPARE(item(3).value(QStringLiteral("y2")).toDouble(), arrowY + 30);
+
+        invoke("removeSelected");
+        QCOMPARE(count(), 3);
+        invoke("undo");
+        QCOMPARE(count(), 4);
+
+        // Both new kinds reach the exported picture.
+        QImage overlay(app->preview()->renderAnnotationOverlay(
+            640, 360,
+            {QVariantMap{{QStringLiteral("kind"), QStringLiteral("number")}, {QStringLiteral("number"), 7},
+                         {QStringLiteral("x"), 100}, {QStringLiteral("y"), 100}, {QStringLiteral("size"), 40},
+                         {QStringLiteral("color"), QStringLiteral("#0000ff")}},
+             QVariantMap{{QStringLiteral("kind"), QStringLiteral("callout")}, {QStringLiteral("text"), QStringLiteral("Hi")},
+                         {QStringLiteral("x"), 300}, {QStringLiteral("y"), 200}, {QStringLiteral("size"), 24},
+                         {QStringLiteral("color"), QStringLiteral("#ff0000")}}}));
+        QVERIFY(!overlay.isNull());
+        QCOMPARE(overlay.pixelColor(100, 84).blue(), 255);
+        QCOMPARE(overlay.pixelColor(100, 84).alpha(), 255);
+        QCOMPARE(overlay.pixelColor(100, 40).alpha(), 0);
+        QCOMPARE(overlay.pixelColor(302, 197).red(), 255); // the tail points at the spot
+        QCOMPARE(overlay.pixelColor(302, 197).alpha(), 255);
+        QCOMPARE(overlay.pixelColor(290, 200).alpha(), 0);
+        QCOMPARE(overlay.pixelColor(306, 170).red(), 255); // the balloon sits above it
+        w->hide();
+        QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
+    }
+
     void organizePdfReorderRotateDuplicateDelete()
     {
         g_messages.clear();

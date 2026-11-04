@@ -32,6 +32,18 @@
         <translation>Metin</translation>
     </message>
     <message>
+        <source>Number</source>
+        <translation>Numara</translation>
+    </message>
+    <message>
+        <source>Callout</source>
+        <translation>Açıklama balonu</translation>
+    </message>
+    <message>
+        <source>Select / Move</source>
+        <translation>Seç / Taşı</translation>
+    </message>
+    <message>
         <source>Thin</source>
         <translation>İnce</translation>
     </message>
@@ -50,6 +62,10 @@
     <message>
         <source>Redo</source>
         <translation>Yinele</translation>
+    </message>
+    <message>
+        <source>Delete selected</source>
+        <translation>Seçileni sil</translation>
     </message>
     <message>
         <source>Clear</source>
