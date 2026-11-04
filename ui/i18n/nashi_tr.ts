@@ -901,6 +901,14 @@
         <translation>Bu alanı tut (piksel)</translation>
     </message>
     <message>
+        <source>Enter a file size greater than zero.</source>
+        <translation>Sıfırdan büyük bir dosya boyutu girin.</translation>
+    </message>
+    <message>
+        <source>Enter a percentage between 1 and 99.</source>
+        <translation>1 ile 99 arasında bir yüzde girin.</translation>
+    </message>
+    <message>
         <source>Left</source>
         <translation>Sol</translation>
     </message>
@@ -943,6 +951,58 @@
     <message>
         <source>Remove range</source>
         <translation>Aralığı kaldır</translation>
+    </message>
+    <message>
+        <source>Compression</source>
+        <translation>Sıkıştırma</translation>
+    </message>
+    <message>
+        <source>Balanced</source>
+        <translation>Dengeli</translation>
+    </message>
+    <message>
+        <source>Strong</source>
+        <translation>Güçlü</translation>
+    </message>
+    <message>
+        <source>Image size</source>
+        <translation>Görsel boyutu</translation>
+    </message>
+    <message>
+        <source>Original</source>
+        <translation>Orijinal</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation>Özel</translation>
+    </message>
+    <message>
+        <source>Pixel sizes limit the longest edge. Smaller images keep their size.</source>
+        <translation>Piksel değerleri en uzun kenarı sınırlar. Daha küçük görseller boyutunu korur.</translation>
+    </message>
+    <message>
+        <source>Video size</source>
+        <translation>Video boyutu</translation>
+    </message>
+    <message>
+        <source>File size limit</source>
+        <translation>Dosya boyutu sınırı</translation>
+    </message>
+    <message>
+        <source>No limit</source>
+        <translation>Sınır yok</translation>
+    </message>
+    <message>
+        <source>Target size</source>
+        <translation>Hedef boyut</translation>
+    </message>
+    <message>
+        <source>% reduction</source>
+        <translation>% azaltma</translation>
+    </message>
+    <message>
+        <source>Nashi lowers quality until the file fits, and also shrinks images if needed. It reports an error if it cannot, and the original stays safe.</source>
+        <translation>Nashi dosya sığana kadar kaliteyi düşürür, gerekirse görselleri de küçültür. Sığdıramazsa hata bildirir; orijinal dosya korunur.</translation>
     </message>
     <message>
         <source>Rotate and flip</source>

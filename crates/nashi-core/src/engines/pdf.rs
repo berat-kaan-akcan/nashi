@@ -172,33 +172,65 @@ fn gs_out(p: &Path) -> OsString {
     OsString::from_vec(v)
 }
 
+fn compress(ctx: &Ctx, input: &Input) -> JobResult<Produced> {
+    ctx.progress(None, "Compressing");
+    let original = std::fs::metadata(&input.path)?.len();
+    let target = super::compress_target(ctx.opts, input)?;
+    if target.is_some_and(|t| original <= t) {
+        return super::keep_original(input, "pdf");
+    }
+    let staged = input.stage("-compressed", "pdf")?;
+    let work = WorkDir::new_in(&input.out_dir)?;
+    let tmp = work.join("out.pdf");
+    let rewrite = |preset: &str, resolution: Option<u32>| -> JobResult<u64> {
+        let mut cmd = gs_base(ctx)?
+            .arg(format!("-dPDFSETTINGS=/{preset}"))
+            .arg("-dCompatibilityLevel=1.5");
+        if let Some(dpi) = resolution {
+            for kind in ["Color", "Gray", "Mono"] {
+                cmd = cmd.args([
+                    format!("-dDownsample{kind}Images=true"),
+                    format!("-d{kind}ImageDownsampleThreshold=1.0"),
+                    format!("-d{kind}ImageResolution={dpi}"),
+                ]);
+            }
+        }
+        cmd.arg(gs_out(&tmp)).arg("-f").arg(&input.path).run_ok()?;
+        Ok(std::fs::metadata(&tmp)?.len())
+    };
+    if let Some(target) = target {
+        // Text stays selectable at every step; only the images get coarser.
+        for (preset, resolution) in [
+            ("printer", None),
+            ("ebook", None),
+            ("screen", None),
+            ("screen", Some(50)),
+            ("screen", Some(36)),
+        ] {
+            if rewrite(preset, resolution)? <= target {
+                staged.take_from(&tmp)?;
+                return Ok(staged.commit()?.into());
+            }
+        }
+        return Err(super::target_unreachable());
+    }
+    let preset = ctx.opts.pdf_preset.as_deref().unwrap_or("ebook");
+    // Rewriting an already small PDF can make it larger.
+    let kept = rewrite(preset, None)? >= original;
+    if kept {
+        std::fs::copy(&input.path, &tmp)?;
+    }
+    staged.take_from(&tmp)?;
+    Ok(Produced {
+        paths: vec![staged.commit()?],
+        message: kept.then(|| super::ALREADY_OPTIMIZED.into()),
+    })
+}
+
 /// Single-input PDF tools.
 pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
     match tool {
-        "compress" => {
-            ctx.progress(None, "Compressing");
-            let preset = ctx.opts.pdf_preset.as_deref().unwrap_or("ebook");
-            let staged = input.stage("-compressed", "pdf")?;
-            let work = WorkDir::new_in(&input.out_dir)?;
-            let tmp = work.join("out.pdf");
-            gs_base(ctx)?
-                .arg(format!("-dPDFSETTINGS=/{preset}"))
-                .arg("-dCompatibilityLevel=1.5")
-                .arg(gs_out(&tmp))
-                .arg("-f")
-                .arg(&input.path)
-                .run_ok()?;
-            // Rewriting an already small PDF can make it larger.
-            let kept = std::fs::metadata(&tmp)?.len() >= std::fs::metadata(&input.path)?.len();
-            if kept {
-                std::fs::copy(&input.path, &tmp)?;
-            }
-            staged.take_from(&tmp)?;
-            Ok(Produced {
-                paths: vec![staged.commit()?],
-                message: kept.then(|| "Already optimized. Original quality retained.".into()),
-            })
-        }
+        "compress" => compress(ctx, input),
         "removeMetadata" => remove_metadata(ctx, input),
         "splitPDF" => split(ctx, input),
         "organizePDF" => organize(ctx, input),

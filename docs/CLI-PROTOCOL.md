@@ -178,3 +178,4 @@ nashi-cli download URL [--kind auto|video|audio|thumbnail|image] [--out-dir DIR]
 - `redactAudio` option `audio_mode`: `mute` (default) or `bleep` (a 1 kHz tone). Other values return `invalid_options`.
 - `dpi` (36..1200, default 150) sets the resolution of PDF and document → `jpg`/`png` page images.
 - `actions` gains the fixed ids `share` and `float`.
+- `compress` options: `target_bytes` (positive) or `percentage` (0 < p < 100, of the file a symlink points to) ask for a size; an unreachable one returns `invalid_options` and no file, and a file already small enough is copied with a `message`. `target_bytes` wins when both are given. Images also take `max_edge` (1..32000) and `image_scale` (0 < s <= 1), which only shrink, and `resize`. Video takes `max_height` (2..16384), which only shrinks. Lossy audio takes `audio_kbps` (8..512). A size target on `wav`, `flac` or `aiff` writes `.m4a`, since those have no bitrate to lower.

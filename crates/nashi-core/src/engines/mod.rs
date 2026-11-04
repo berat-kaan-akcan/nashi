@@ -69,6 +69,46 @@ impl Input {
     }
 }
 
+/// Shown when a file is kept because compressing it would not help.
+pub const ALREADY_OPTIMIZED: &str = "Already optimized. Original quality retained.";
+
+/// The refusal for a size that no attempt could reach.
+pub fn target_unreachable() -> JobError {
+    JobError::invalid_options(
+        "The requested file size could not be reached. Choose a larger target.",
+    )
+}
+
+/// The size `compress` must reach for `input`, if one was asked for.
+pub fn compress_target(opts: &crate::options::Options, input: &Input) -> JobResult<Option<u64>> {
+    if opts.target_bytes == Some(0) {
+        return Err(JobError::invalid_options("target_bytes must be positive"));
+    }
+    if let Some(p) = opts.percentage {
+        if !p.is_finite() || p <= 0.0 || p >= 100.0 {
+            return Err(JobError::invalid_options(
+                "percentage must be greater than 0 and less than 100",
+            ));
+        }
+    }
+    // metadata() follows links: a symlink's own size is only a few bytes.
+    let size = std::fs::metadata(&input.path)?.len();
+    Ok(opts.target_bytes.or_else(|| {
+        opts.percentage
+            .map(|p| (size as f64 * (1.0 - p / 100.0)) as u64)
+    }))
+}
+
+/// An output that is a plain copy of the input, for a file already small enough.
+pub fn keep_original(input: &Input, ext: &str) -> JobResult<Produced> {
+    let staged = input.stage("-compressed", ext)?;
+    std::fs::copy(&input.path, staged.path())?;
+    Ok(Produced {
+        paths: vec![staged.commit()?],
+        message: Some(ALREADY_OPTIMIZED.into()),
+    })
+}
+
 /// Per-item context.
 pub struct Ctx<'a> {
     pub deps: &'a Deps,

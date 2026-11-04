@@ -355,25 +355,110 @@ fn os(v: &[String]) -> Vec<OsString> {
     v.iter().map(OsString::from).collect()
 }
 
+/// `-resize` operations for the size options of `compress`.
+fn compress_resize(o: &crate::options::Options) -> JobResult<Vec<String>> {
+    let mut ops = Vec::new();
+    if let Some(edge) = o.max_edge {
+        if !(1..=32000).contains(&edge) {
+            return Err(JobError::invalid_options(
+                "max_edge must be between 1 and 32000",
+            ));
+        }
+        ops.extend(["-resize".to_string(), format!("{edge}x{edge}>")]);
+    }
+    if let Some(scale) = o.image_scale {
+        if !scale.is_finite() || scale <= 0.0 || scale > 1.0 {
+            return Err(JobError::invalid_options(
+                "image_scale must be greater than 0 and at most 1",
+            ));
+        }
+        ops.extend(["-resize".to_string(), format!("{}%", scale * 100.0)]);
+    }
+    if let Some(rs) = o.resize.as_ref().filter(|r| r.w.is_some() || r.h.is_some()) {
+        let w = rs.w.map(|v| v.to_string()).unwrap_or_default();
+        let h = rs.h.map(|v| v.to_string()).unwrap_or_default();
+        let exact = if rs.w.is_some() && rs.h.is_some() {
+            "!"
+        } else {
+            ""
+        };
+        ops.extend(["-resize".to_string(), format!("{w}x{h}{exact}")]);
+    }
+    Ok(ops)
+}
+
+fn compress(ctx: &Ctx, input: &Input) -> JobResult<Produced> {
+    let o = ctx.opts;
+    let d = ctx.deps;
+    let ext = input.ext();
+    let resize = compress_resize(o)?;
+    let target = super::compress_target(o, input)?;
+    let encode = |quality: u32| -> Vec<String> {
+        match ext {
+            "png" => vec![
+                "-strip".into(),
+                "-define".into(),
+                "png:compression-level=9".into(),
+                "-define".into(),
+                "png:compression-filter=5".into(),
+            ],
+            "tiff" => vec!["-compress".into(), "zip".into()],
+            _ => vec!["-quality".into(), quality.to_string()],
+        }
+    };
+    let mut quality = o.quality.unwrap_or(82);
+    let Some(target) = target else {
+        let mut ops = encode(quality);
+        ops.extend(resize);
+        return process(ctx, input, "-compressed", os(&ops));
+    };
+    let out_ext = if ext == "svg" { "png" } else { ext };
+    if resize.is_empty() && ext != "svg" && std::fs::metadata(&input.path)?.len() <= target {
+        return super::keep_original(input, ext);
+    }
+    ctx.progress(None, "Compressing");
+    let staged = input.stage("-compressed", out_ext)?;
+    let work = WorkDir::new_in(&input.out_dir)?;
+    let (src, src_ext) = readable_source(ctx, input, &work)?;
+    // Quality only reaches lossy formats that ImageMagick itself writes.
+    let lossy = matches!(out_ext, "jpg" | "webp" | "heic" | "avif")
+        && d.magick_can(im_format(out_ext), true);
+    let mut scale = 1.0f64;
+    for _ in 0..24 {
+        let mut ops = encode(quality);
+        ops.extend(resize.iter().cloned());
+        if scale < 1.0 {
+            ops.extend(["-resize".to_string(), format!("{}%", scale * 100.0)]);
+        }
+        write_as(
+            ctx,
+            &src,
+            &src_ext,
+            out_ext,
+            &os(&ops),
+            false,
+            &staged,
+            &work,
+        )?;
+        if std::fs::metadata(staged.path())?.len() <= target {
+            return Ok(staged.commit()?.into());
+        }
+        // Lower the quality first, then shrink; the shrink is always from the
+        // starting size, so rounding does not compound and distort the shape.
+        if lossy && quality > 15 {
+            quality = (quality * 72 / 100).max(15);
+        } else {
+            scale *= 0.8;
+        }
+    }
+    Err(super::target_unreachable())
+}
+
 /// Single-input image tools.
 pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
     let o = ctx.opts;
     match tool {
-        "compress" => {
-            let q = o.quality.unwrap_or(82);
-            let ops: Vec<String> = match input.ext() {
-                "png" => vec![
-                    "-strip".into(),
-                    "-define".into(),
-                    "png:compression-level=9".into(),
-                    "-define".into(),
-                    "png:compression-filter=5".into(),
-                ],
-                "tiff" => vec!["-compress".into(), "zip".into()],
-                _ => vec!["-quality".into(), q.to_string()],
-            };
-            process(ctx, input, "-compressed", os(&ops))
-        }
+        "compress" => compress(ctx, input),
         "cropImage" => {
             let r = o
                 .rect

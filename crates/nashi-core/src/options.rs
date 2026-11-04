@@ -73,6 +73,18 @@ impl Default for Border {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct Options {
+    /// `compress`: the largest size the output may have.
+    pub target_bytes: Option<u64>,
+    /// `compress`: reduce by this percentage of the input (0 < p < 100).
+    pub percentage: Option<f64>,
+    /// `compress` images: shrink so the longest edge is at most this many pixels.
+    pub max_edge: Option<u32>,
+    /// `compress` images: resize each to this fraction of its own size (0 < s <= 1).
+    pub image_scale: Option<f64>,
+    /// `compress` video: shrink to at most this height.
+    pub max_height: Option<u32>,
+    /// `compress` lossy audio: bitrate in kbit/s.
+    pub audio_kbps: Option<u32>,
     /// `trimAudio`: also remove silence from both ends of the selection.
     pub trim_silence: Option<bool>,
     /// `trimAudio`: what counts as silence, in dB (default -50).

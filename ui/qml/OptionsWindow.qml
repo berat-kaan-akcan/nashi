@@ -34,6 +34,7 @@ ApplicationWindow {
         case "redactAudio": return "redactAudio"
         case "organizePDF": return "pages"
         case "annotateImage": return "annotate"
+        case "compress": return "compress"
         }
         return ""
     }
@@ -76,6 +77,15 @@ ApplicationWindow {
     property string borderColor: "#ffffff"
     property var ranges: [[0, 1]]
     property string audioMode: "mute"
+    readonly property string fileCategory: info && info.category ? String(info.category) : ""
+    property string compressPreset: "balanced"
+    property string compressImageSizeChoice: "original"
+    property string compressCustomWidth: ""
+    property string compressCustomHeight: ""
+    property int compressVideoHeight: 0
+    property string compressLimit: "none"
+    property string compressLimitValue: ""
+    property string compressLimitUnit: "MB"
 
     property bool syncingRect: false
     property bool syncingTime: false
@@ -88,6 +98,14 @@ ApplicationWindow {
         borderColor = "#ffffff"
         ranges = [[0, 1]]
         audioMode = "mute"
+        compressPreset = "balanced"
+        compressImageSizeChoice = "original"
+        compressCustomWidth = ""
+        compressCustomHeight = ""
+        compressVideoHeight = 0
+        compressLimit = "none"
+        compressLimitValue = ""
+        compressLimitUnit = "MB"
         trimSilenceSwitch.checked = false
 
         syncingTime = true
@@ -286,8 +304,56 @@ ApplicationWindow {
         return [a, Math.min(b, duration > 0 ? duration : b)]
     }
 
+    // Every setting goes along, since a selection can mix kinds of file and the
+    // engine reads only what applies to each one.
+    function compressOptions() {
+        const strong = compressPreset === "strong"
+        const options = {
+            quality: strong ? 45 : 80,
+            crf: strong ? 32 : 26,
+            audio_kbps: strong ? 64 : 128,
+            pdf_preset: strong ? "screen" : "ebook"
+        }
+        const choice = compressImageSizeChoice
+        if (fileCategory === "image") {
+            if (choice === "custom") {
+                const whole = /^[1-9]\d*$/
+                const w = compressCustomWidth.trim()
+                const h = compressCustomHeight.trim()
+                if ((w.length === 0 && h.length === 0)
+                        || (w.length > 0 && !whole.test(w)) || (h.length > 0 && !whole.test(h)))
+                    return qsTr("Enter whole numbers for the new size.")
+                options.resize = {}
+                if (w.length > 0)
+                    options.resize.w = Number(w)
+                if (h.length > 0)
+                    options.resize.h = Number(h)
+            } else if (choice.endsWith("%")) {
+                options.image_scale = parseInt(choice) / 100
+            } else if (choice !== "original") {
+                options.max_edge = Number(choice)
+            }
+        }
+        if (fileCategory === "video" && compressVideoHeight > 0)
+            options.max_height = compressVideoHeight
+        const amount = Number(compressLimitValue.trim().replace(",", "."))
+        const entered = compressLimitValue.trim().length > 0 && isFinite(amount)
+        if (compressLimit === "size") {
+            if (!entered || amount <= 0)
+                return qsTr("Enter a file size greater than zero.")
+            options.target_bytes = Math.round(amount * (compressLimitUnit === "MB" ? 1048576 : 1024))
+        } else if (compressLimit === "percent") {
+            if (!entered || amount < 1 || amount > 99)
+                return qsTr("Enter a percentage between 1 and 99.")
+            options.percentage = amount
+        }
+        return options
+    }
+
     function build() {
         switch (group) {
+        case "compress":
+            return compressOptions()
         case "speed":
             return { speed: speed }
         case "trim": {
@@ -400,6 +466,12 @@ ApplicationWindow {
     component FieldLabel: Text {
         font.pixelSize: Theme.sizeSmall
         font.weight: Font.DemiBold
+        color: Theme.secondaryText
+    }
+    component Hint: Text {
+        Layout.fillWidth: true
+        wrapMode: Text.Wrap
+        font.pixelSize: Theme.sizeSmall
         color: Theme.secondaryText
     }
     component NumberField: TextField {
@@ -729,6 +801,144 @@ ApplicationWindow {
                             }
                         }
                     }
+                }
+            }
+
+            // Compress
+            SectionBox {
+                visible: win.group === "compress"
+                title: qsTr("Compression")
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 6
+                    Repeater {
+                        model: [["balanced", qsTr("Balanced")], ["strong", qsTr("Strong")]]
+                        delegate: Choice {
+                            required property var modelData
+                            text: String(modelData[1])
+                            on: win.compressPreset === String(modelData[0])
+                            onClicked: win.compressPreset = String(modelData[0])
+                        }
+                    }
+                }
+            }
+            SectionBox {
+                objectName: "compressImageSize"
+                visible: win.group === "compress" && win.fileCategory === "image"
+                title: qsTr("Image size")
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 6
+                    Repeater {
+                        model: [["original", qsTr("Original")], ["2560", "2560 px"], ["1920", "1920 px"],
+                                ["1280", "1280 px"], ["75%", "75%"], ["50%", "50%"], ["25%", "25%"],
+                                ["custom", qsTr("Custom")]]
+                        delegate: Choice {
+                            required property var modelData
+                            text: String(modelData[1])
+                            on: win.compressImageSizeChoice === String(modelData[0])
+                            onClicked: win.compressImageSizeChoice = String(modelData[0])
+                        }
+                    }
+                }
+                RowLayout {
+                    visible: win.compressImageSizeChoice === "custom"
+                    spacing: 10
+                    ColumnLayout {
+                        spacing: 3
+                        FieldLabel { text: qsTr("Width") }
+                        NumberField {
+                            text: win.compressCustomWidth
+                            onTextEdited: win.compressCustomWidth = text
+                        }
+                    }
+                    ColumnLayout {
+                        spacing: 3
+                        FieldLabel { text: qsTr("Height") }
+                        NumberField {
+                            text: win.compressCustomHeight
+                            onTextEdited: win.compressCustomHeight = text
+                        }
+                    }
+                }
+                Hint {
+                    text: win.compressImageSizeChoice === "custom"
+                          ? qsTr("Give one side to keep the proportions.")
+                          : qsTr("Pixel sizes limit the longest edge. Smaller images keep their size.")
+                }
+            }
+            SectionBox {
+                objectName: "compressVideoSize"
+                visible: win.group === "compress" && win.fileCategory === "video"
+                title: qsTr("Video size")
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 6
+                    Repeater {
+                        model: [[0, qsTr("Original")], [1080, "1080p"], [720, "720p"], [480, "480p"]]
+                        delegate: Choice {
+                            required property var modelData
+                            text: String(modelData[1])
+                            on: win.compressVideoHeight === Number(modelData[0])
+                            onClicked: win.compressVideoHeight = Number(modelData[0])
+                        }
+                    }
+                }
+            }
+            SectionBox {
+                visible: win.group === "compress"
+                title: qsTr("File size limit")
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 6
+                    Repeater {
+                        model: [["none", qsTr("No limit")], ["size", qsTr("Target size")],
+                                ["percent", qsTr("% reduction")]]
+                        delegate: Choice {
+                            required property var modelData
+                            text: String(modelData[1])
+                            on: win.compressLimit === String(modelData[0])
+                            onClicked: {
+                                win.compressLimit = String(modelData[0])
+                                win.compressLimitValue = ""
+                            }
+                        }
+                    }
+                }
+                RowLayout {
+                    visible: win.compressLimit !== "none"
+                    spacing: 8
+                    TextField {
+                        objectName: "compressLimitField"
+                        Layout.preferredWidth: 110
+                        text: win.compressLimitValue
+                        selectByMouse: true
+                        inputMethodHints: Qt.ImhFormattedNumbersOnly
+                        Accessible.name: win.compressLimit === "size" ? qsTr("Target size") : qsTr("% reduction")
+                        onTextEdited: win.compressLimitValue = text
+                    }
+                    Choice {
+                        visible: win.compressLimit === "size"
+                        text: "KB"
+                        on: win.compressLimitUnit === "KB"
+                        onClicked: win.compressLimitUnit = "KB"
+                    }
+                    Choice {
+                        visible: win.compressLimit === "size"
+                        text: "MB"
+                        on: win.compressLimitUnit === "MB"
+                        onClicked: win.compressLimitUnit = "MB"
+                    }
+                    Text {
+                        visible: win.compressLimit === "percent"
+                        text: "%"
+                        font.pixelSize: Theme.sizeBody
+                        color: Theme.text
+                    }
+                }
+                Hint {
+                    visible: win.compressLimit !== "none"
+                    text: qsTr("Nashi lowers quality until the file fits, and also shrinks images if needed. It reports an error if it cannot, and the original stays safe.")
                 }
             }
 

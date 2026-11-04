@@ -352,6 +352,85 @@ private Q_SLOTS:
         QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
     }
 
+    void compressFormBuildsOptionsForEachKindOfFile()
+    {
+        g_messages.clear();
+        QVERIFY(WheelModel::hasOptionsForm(QStringLiteral("compress")));
+        QQuickWindow *w = openEditor(QStringLiteral("compress"), QStringLiteral("Compress"), photoPath);
+        QVERIFY(w);
+        const auto result = [w] { return w->property("result").toMap(); };
+        const auto imageSection = w->findChild<QObject *>(QStringLiteral("compressImageSize"));
+        const auto videoSection = w->findChild<QObject *>(QStringLiteral("compressVideoSize"));
+        QVERIFY(imageSection && videoSection);
+        QTRY_VERIFY_WITH_TIMEOUT(w->property("mediaWidth").toInt() > 0, 10000);
+        QVERIFY(imageSection->property("visible").toBool());
+        QVERIFY(!videoSection->property("visible").toBool());
+
+        // Balanced by default, with no size limit.
+        QCOMPARE(result().value(QStringLiteral("quality")).toInt(), 80);
+        QCOMPARE(result().value(QStringLiteral("crf")).toInt(), 26);
+        QCOMPARE(result().value(QStringLiteral("audio_kbps")).toInt(), 128);
+        QCOMPARE(result().value(QStringLiteral("pdf_preset")).toString(), QStringLiteral("ebook"));
+        QVERIFY(!result().contains(QStringLiteral("target_bytes")));
+        QVERIFY(!result().contains(QStringLiteral("max_edge")));
+
+        w->setProperty("compressPreset", QStringLiteral("strong"));
+        QCOMPARE(result().value(QStringLiteral("quality")).toInt(), 45);
+        QCOMPARE(result().value(QStringLiteral("crf")).toInt(), 32);
+        QCOMPARE(result().value(QStringLiteral("audio_kbps")).toInt(), 64);
+        QCOMPARE(result().value(QStringLiteral("pdf_preset")).toString(), QStringLiteral("screen"));
+
+        w->setProperty("compressImageSizeChoice", QStringLiteral("1920"));
+        QCOMPARE(result().value(QStringLiteral("max_edge")).toInt(), 1920);
+        w->setProperty("compressImageSizeChoice", QStringLiteral("50%"));
+        QVERIFY(!result().contains(QStringLiteral("max_edge")));
+        QCOMPARE(result().value(QStringLiteral("image_scale")).toDouble(), 0.5);
+        w->setProperty("compressImageSizeChoice", QStringLiteral("custom"));
+        w->setProperty("compressCustomWidth", QStringLiteral("abc"));
+        QCOMPARE(w->property("result").typeId(), QMetaType::QString);
+        w->setProperty("compressCustomWidth", QStringLiteral("640"));
+        QCOMPARE(result().value(QStringLiteral("resize")).toMap().value(QStringLiteral("w")).toInt(), 640);
+        w->setProperty("compressImageSizeChoice", QStringLiteral("original"));
+
+        w->setProperty("compressLimit", QStringLiteral("size"));
+        QCOMPARE(w->property("result").typeId(), QMetaType::QString); // nothing entered yet
+        w->setProperty("compressLimitValue", QStringLiteral("2"));
+        w->setProperty("compressLimitUnit", QStringLiteral("MB"));
+        QCOMPARE(result().value(QStringLiteral("target_bytes")).toLongLong(), 2097152);
+        w->setProperty("compressLimitUnit", QStringLiteral("KB"));
+        QCOMPARE(result().value(QStringLiteral("target_bytes")).toLongLong(), 2048);
+        w->setProperty("compressLimit", QStringLiteral("percent"));
+        w->setProperty("compressLimitValue", QStringLiteral("40"));
+        QVERIFY(!result().contains(QStringLiteral("target_bytes")));
+        QCOMPARE(result().value(QStringLiteral("percentage")).toDouble(), 40.0);
+        w->setProperty("compressLimitValue", QStringLiteral("100"));
+        QCOMPARE(w->property("result").typeId(), QMetaType::QString);
+
+        // Video offers a height instead of an image size, and nothing carries over.
+        app->showOptions(QStringLiteral("compress"), QStringLiteral("Compress"), {videoPath});
+        QTRY_VERIFY_WITH_TIMEOUT(w->property("duration").toDouble() > 12.0, 10000);
+        QVERIFY(!imageSection->property("visible").toBool());
+        QVERIFY(videoSection->property("visible").toBool());
+        QCOMPARE(result().value(QStringLiteral("quality")).toInt(), 80);
+        QVERIFY(!result().contains(QStringLiteral("percentage")));
+        w->setProperty("compressLimit", QStringLiteral("size"));
+        w->setProperty("compressLimitValue", QStringLiteral("25"));
+        saveEditorScreenshots(app, w, QStringLiteral("compress"));
+        w->setProperty("compressLimit", QStringLiteral("none"));
+        w->setProperty("compressVideoHeight", 720);
+        QCOMPARE(result().value(QStringLiteral("max_height")).toInt(), 720);
+
+        // PDFs and audio have neither.
+        app->showOptions(QStringLiteral("compress"), QStringLiteral("Compress"), {pdfPath});
+        QTRY_VERIFY_WITH_TIMEOUT(w->property("pageCount").toInt() > 0, 10000);
+        QVERIFY(!imageSection->property("visible").toBool());
+        QVERIFY(!videoSection->property("visible").toBool());
+        QVERIFY(!result().contains(QStringLiteral("max_height")));
+
+        w->hide();
+        QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
+    }
+
     void organizePdfReorderRotateDuplicateDelete()
     {
         g_messages.clear();

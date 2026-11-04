@@ -71,6 +71,7 @@ Upstream'in `b3c60f2..be59b13` aralığı incelendi; Linux'u etkileyen hatalar �
 * **Gizlilik:** video karartmada tek sayılı x/y'de açık kalan kenar ve şeffaf videoda sızan renk bilgisi; PDF metadata temizliğinde kalan not yazarı/tarihi (`qpdf` yoksa çıktı uyarı taşır).
 * **Başarısız işler ve bozuk çıktı:** uzun dosya adları, surround/yüksek hızlı ses → opus/wma/wmv, altyazı sırası ve boş satırsız cue'lar, küçük PDF'in sıkıştırmada büyümesi, stdout yazılamayınca panik.
 * **Veri ve görüntü kaybı:** albüm kapağı, OGG etiketleri, Apple konum etiketleri, kare olmayan pikselli GIF/birleştirme/kare çıkarma, Xing başlıksız MP3 süresi, EPUB dili, dönüştürmede EXIF yönü.
+* **Sıkıştırma formu:** Dengeli/Güçlü, görsel ve video boyutu ön ayarları, hedef dosya boyutu ve yüzde azaltma (görselde kalite+küçültme, videoda 2-pass, seste bit hızı, PDF'te Ghostscript basamakları).
 * **Yeni özellikler:** ses kırpmada sessizlik silme, bip modu, PDF→görsel DPI ayarı, çarkta Paylaş/Float, Pick aşamasında klavyeyle çark, Kütüphane aramasında `İ/I/ı/i` eşleşmesi.
 
 ### 2.6. Test Denetimi (2026-11-04)
@@ -103,7 +104,6 @@ Arayüz ve servisler şu ana kadar birim testleri ve `QT_QPA_PLATFORM=offscreen`
 6. **Global kısayol ve kurulum:** `packaging/install.sh --user` (veya `makepkg -si`) ile kurulum, systemd `nashi-inputd.service` çalışması ve KDE Kısayollar altında `Ctrl+Shift+D` (`DownloadClipboard`) eylemi.
 
 ### 3.2. Upstream'de Bulunup Henüz Port Edilmeyen İkincil Özellikler
-* **Hedef boyuta sıkıştırma:** Yalnızca kalite yüzdesi yerine "en fazla 2 MB" gibi hedef bayt boyutuna göre iteratif sıkıştırma / 2-pass video bitrate hesabı.
 * **`editImage` görüntü ayarları ve efektler:** Parlaklık, kontrast, doygunluk, keskinlik, gri tonlama, sepya (`magick` parametreleri + kaydırıcılar).
 * **`frameImage` gelişmiş arka plan:** Düz kenarlık dışında gradyan/görsel arka plan, iç boşluk (`padding`), köşe yuvarlama ve gölge.
 * **Kolaj düzenleri:** Izgara (`montage -tile`) dışında yatay satır, dikey sütun ve öne çıkan (`featured`) kolaj düzenleri.

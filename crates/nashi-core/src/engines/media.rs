@@ -274,6 +274,209 @@ fn atempo_chain(speed: f64) -> String {
     parts.join(",")
 }
 
+fn compress(ctx: &Ctx, input: &Input, p: &Probe) -> JobResult<Produced> {
+    let o = ctx.opts;
+    let target = super::compress_target(o, input)?;
+    if let Some(kbps) = o.audio_kbps {
+        if !(8..=512).contains(&kbps) {
+            return Err(JobError::invalid_options(
+                "audio_kbps must be between 8 and 512",
+            ));
+        }
+    }
+    if let Some(h) = o.max_height {
+        if !(2..=16384).contains(&h) {
+            return Err(JobError::invalid_options(
+                "max_height must be between 2 and 16384",
+            ));
+        }
+    }
+    if input.category() == Category::Video {
+        compress_video(ctx, input, p, target)
+    } else {
+        compress_audio(ctx, input, p, target)
+    }
+}
+
+/// Attempts at a size target; each one aims lower, since encoders overshoot.
+const TARGET_ATTEMPTS: [f64; 3] = [0.95, 0.8, 0.65];
+
+fn known_duration(p: &Probe) -> JobResult<f64> {
+    p.duration
+        .filter(|d| *d > 0.0)
+        .ok_or_else(|| JobError::invalid_input("A size target needs media with a known duration"))
+}
+
+fn compress_video(ctx: &Ctx, input: &Input, p: &Probe, target: Option<u64>) -> JobResult<Produced> {
+    let o = ctx.opts;
+    let ext = input.ext().to_string();
+    let source = || ffmpeg(ctx).map(|c| c.arg("-i").arg_cat("file:", &input.path));
+    let fitted = |crf: Option<u32>| -> Vec<String> {
+        let mut v = video_codec(&ext, crf);
+        if let Some(h) = o.max_height {
+            let i = v.iter().position(|x| x == "-vf").unwrap();
+            v[i + 1] = format!("scale=-2:'min({h},ih)',{}", v[i + 1]);
+        }
+        v
+    };
+    let audio_args = |kbps: u32| -> Vec<String> {
+        let codec = if ext == "webm" { "libopus" } else { "aac" };
+        let mut a: Vec<String> = ["-c:a", codec, "-b:a", &format!("{kbps}k")]
+            .iter()
+            .map(|x| x.to_string())
+            .collect();
+        a.extend(
+            audio_fit(&ext, p.channels, p.sample_rate)
+                .into_iter()
+                .map(String::from),
+        );
+        a
+    };
+    let Some(target) = target else {
+        let staged = input.stage("-compressed", &ext)?;
+        let cmd = source()?
+            .args(fitted(Some(o.crf.unwrap_or(26))))
+            .args(["-map", "0:v:0", "-map", "0:a?"])
+            .args(audio_args(if ext == "webm" { 96 } else { 128 }))
+            .args(["-f", muxer(&ext)])
+            .arg(out(staged.path()));
+        run(ctx, cmd, p.duration, "Compressing")?;
+        return Ok(staged.commit()?.into());
+    };
+    if o.max_height.is_none() && std::fs::metadata(&input.path)?.len() <= target {
+        return super::keep_original(input, &ext);
+    }
+    let seconds = known_duration(p)?;
+    let total_kbps = target as f64 * 8.0 / seconds / 1000.0;
+    let audio_kbps = if p.has_audio {
+        (total_kbps / 8.0).clamp(32.0, 128.0) as u32
+    } else {
+        0
+    };
+    let staged = input.stage("-compressed", &ext)?;
+    let work = WorkDir::new_in(&input.out_dir)?;
+    let log = work.join("pass");
+    for share in TARGET_ATTEMPTS {
+        let video_kbps = total_kbps * share - f64::from(audio_kbps);
+        if video_kbps < 20.0 {
+            break;
+        }
+        // Two passes keep the size close to the request without wasting bits.
+        let mut video = fitted(None);
+        for flag in ["-crf", "-b:v"] {
+            if let Some(i) = video.iter().position(|x| x == flag) {
+                video.drain(i..i + 2);
+            }
+        }
+        video.extend(["-b:v".to_string(), format!("{}k", video_kbps as u32)]);
+        let first = source()?
+            .args(["-map", "0:v:0", "-an"])
+            .args(video.iter())
+            .args(["-pass", "1", "-passlogfile"])
+            .arg(&log)
+            .args(["-f", "null", "/dev/null"]);
+        run(ctx, first, p.duration, "Compressing (first pass)")?;
+        let mut second = source()?
+            .args(["-map", "0:v:0", "-map", "0:a:0?"])
+            .args(video.iter())
+            .args(["-pass", "2", "-passlogfile"])
+            .arg(&log);
+        if p.has_audio {
+            second = second.args(audio_args(audio_kbps));
+        }
+        let second = second.args(["-f", muxer(&ext)]).arg(out(staged.path()));
+        run(ctx, second, p.duration, "Compressing (second pass)")?;
+        if std::fs::metadata(staged.path())?.len() <= target {
+            drop(work);
+            return Ok(staged.commit()?.into());
+        }
+    }
+    Err(super::target_unreachable())
+}
+
+fn compress_audio(ctx: &Ctx, input: &Input, p: &Probe, target: Option<u64>) -> JobResult<Produced> {
+    let o = ctx.opts;
+    let ext = input.ext();
+    let source = || {
+        ffmpeg(ctx).map(|c| {
+            c.arg("-i")
+                .arg_cat("file:", &input.path)
+                .args(["-vn", "-map", "0:a:0"])
+        })
+    };
+    let at_bitrate = |ext: &str, kbps: u32| -> Vec<String> {
+        let codec = match ext {
+            "mp3" => "libmp3lame",
+            "ogg" => "libvorbis",
+            "opus" => "libopus",
+            "wma" => "wmav2",
+            _ => "aac",
+        };
+        let mut a: Vec<String> = ["-c:a", codec, "-b:a", &format!("{kbps}k")]
+            .iter()
+            .map(|x| x.to_string())
+            .collect();
+        a.extend(
+            audio_fit(ext, p.channels, p.sample_rate)
+                .into_iter()
+                .map(String::from),
+        );
+        a
+    };
+    let has_bitrate = matches!(ext, "mp3" | "m4a" | "ogg" | "opus" | "wma");
+    let Some(target) = target else {
+        let staged = input.stage("-compressed", ext)?;
+        let a: Vec<String> = match (ext, o.audio_kbps) {
+            (_, Some(kbps)) if has_bitrate => at_bitrate(ext, kbps),
+            ("mp3" | "m4a", None) => at_bitrate(ext, 128),
+            ("opus", None) => at_bitrate(ext, 64),
+            ("ogg", None) => ["-c:a", "libvorbis", "-q:a", "3"]
+                .map(String::from)
+                .to_vec(),
+            ("flac", _) => ["-c:a", "flac", "-compression_level", "12"]
+                .map(String::from)
+                .to_vec(),
+            ("wav", _) => ["-c:a", "pcm_s16le", "-ar", "22050"]
+                .map(String::from)
+                .to_vec(),
+            _ => audio_codec(ext)
+                .into_iter()
+                .chain(audio_fit(ext, p.channels, p.sample_rate))
+                .map(String::from)
+                .collect(),
+        };
+        let cmd = source()?
+            .args(a)
+            .args(["-f", muxer(ext)])
+            .arg(out(staged.path()));
+        run(ctx, cmd, p.duration, "Compressing")?;
+        return Ok(staged.commit()?.into());
+    };
+    if std::fs::metadata(&input.path)?.len() <= target {
+        return super::keep_original(input, ext);
+    }
+    // Lossless containers have no bitrate to lower.
+    let out_ext = if has_bitrate { ext } else { "m4a" };
+    let seconds = known_duration(p)?;
+    let total_kbps = target as f64 * 8.0 / seconds / 1000.0;
+    let staged = input.stage("-compressed", out_ext)?;
+    for share in TARGET_ATTEMPTS {
+        let kbps = (total_kbps * share).min(320.0) as u32;
+        if kbps < 8 {
+            break;
+        }
+        let cmd = source()?
+            .args(at_bitrate(out_ext, kbps))
+            .args(["-f", muxer(out_ext)])
+            .arg(out(staged.path()));
+        run(ctx, cmd, p.duration, "Compressing")?;
+        if std::fs::metadata(staged.path())?.len() <= target {
+            return Ok(staged.commit()?.into());
+        }
+    }
+    Err(super::target_unreachable())
+}
+
 /// Single-input audio/video tools.
 pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
     let o = ctx.opts;
@@ -318,33 +521,7 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
         Ok(staged.commit()?.into())
     };
     match tool {
-        "compress" => {
-            let staged = input.stage("-compressed", &ext)?;
-            let mut cmd = ffin(ffmpeg(ctx)?);
-            if is_video {
-                let mut v = video_codec(&ext, Some(o.crf.unwrap_or(26)));
-                v.extend(["-map".into(), "0:v:0".into(), "-map".into(), "0:a?".into()]);
-                cmd = cmd.args(v);
-                cmd = if ext == "webm" {
-                    cmd.args(["-c:a", "libopus", "-b:a", "96k"])
-                } else {
-                    cmd.args(["-c:a", "aac", "-b:a", "128k"])
-                };
-            } else {
-                let a: Vec<&str> = match ext.as_str() {
-                    "mp3" => vec!["-c:a", "libmp3lame", "-b:a", "128k"],
-                    "m4a" => vec!["-c:a", "aac", "-b:a", "128k"],
-                    "flac" => vec!["-c:a", "flac", "-compression_level", "12"],
-                    "wav" => vec!["-c:a", "pcm_s16le", "-ar", "22050"],
-                    "ogg" => vec!["-c:a", "libvorbis", "-q:a", "3"],
-                    "opus" => vec!["-c:a", "libopus", "-b:a", "64k"],
-                    _ => audio_codec(&ext),
-                };
-                cmd = cmd.args(["-vn", "-map", "0:a:0"]).args(a);
-            }
-            let cmd = cmd.args(audio_fit(&ext, p.channels, p.sample_rate));
-            finish(cmd, staged, p.duration, "Compressing")
-        }
+        "compress" => compress(ctx, input, &p),
         "removeMetadata" => {
             let staged = input.stage("-clean", &ext)?;
             let maps: &[&str] = if is_video {
