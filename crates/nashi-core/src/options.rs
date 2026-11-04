@@ -4,7 +4,14 @@ use serde::Deserialize;
 
 use crate::events::{JobError, JobResult};
 
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RedactStyle {
+    Black,
+    Blur,
+    Pixelate,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 pub struct Rect {
     pub x: f64,
     pub y: f64,
@@ -14,6 +21,21 @@ pub struct Rect {
     pub t0: Option<f64>,
     #[serde(default)]
     pub t1: Option<f64>,
+    #[serde(default)]
+    pub style: Option<String>,
+}
+
+impl Rect {
+    pub fn redact_style(&self) -> JobResult<RedactStyle> {
+        match self.style.as_deref() {
+            None | Some("black") => Ok(RedactStyle::Black),
+            Some("blur") => Ok(RedactStyle::Blur),
+            Some("pixelate") => Ok(RedactStyle::Pixelate),
+            Some(other) => Err(JobError::invalid_options(format!(
+                "invalid redact style '{other}' (expected black, blur or pixelate)"
+            ))),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -68,6 +90,8 @@ pub struct Options {
     pub border: Option<Border>,
     pub rects: Option<Vec<Rect>>,
     pub ranges: Option<Vec<[f64; 2]>>,
+    pub overlay: Option<String>,
+    pub rotations: Option<Vec<i32>>,
 }
 
 impl Options {
@@ -218,6 +242,27 @@ pub fn parse_pages(spec: &str, count: Option<u32>) -> JobResult<Vec<u32>> {
     Ok(out)
 }
 
+/// Normalise clockwise page rotations (multiples of 90) to `0 | 90 | 180 | 270`,
+/// checking that `rotations.len() == expected_len`.
+pub fn normalize_rotations(rotations: &[i32], expected_len: usize) -> JobResult<Vec<i32>> {
+    if rotations.len() != expected_len {
+        return Err(JobError::invalid_options(format!(
+            "rotations length ({}) must match output page count ({expected_len})",
+            rotations.len()
+        )));
+    }
+    let mut out = Vec::with_capacity(rotations.len());
+    for &r in rotations {
+        if r % 90 != 0 {
+            return Err(JobError::invalid_options(format!(
+                "rotation {r} must be a multiple of 90"
+            )));
+        }
+        out.push(r.rem_euclid(360));
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -252,5 +297,31 @@ mod tests {
         assert!(valid_color("white"));
         assert!(!valid_color("#ggg"));
         assert!(!valid_color("red; rm"));
+    }
+
+    #[test]
+    fn rotations_and_redact_styles() {
+        assert_eq!(
+            normalize_rotations(&[0, 90, -90, 450, -180], 5).unwrap(),
+            vec![0, 90, 270, 90, 180]
+        );
+        assert!(normalize_rotations(&[0, 90], 3).is_err());
+        assert!(normalize_rotations(&[45], 1).is_err());
+
+        let o = Options::parse(Some(
+            r#"{"overlay":"/tmp/ov.png","rotations":[0,90],"rects":[{"x":0,"y":0,"w":10,"h":10,"style":"blur"},{"x":0,"y":0,"w":5,"h":5}]}"#,
+        ))
+        .unwrap();
+        assert_eq!(o.overlay.as_deref(), Some("/tmp/ov.png"));
+        assert_eq!(o.rotations.as_deref(), Some(&[0, 90][..]));
+        let rects = o.rects.unwrap();
+        assert_eq!(rects[0].redact_style().unwrap(), RedactStyle::Blur);
+        assert_eq!(rects[1].redact_style().unwrap(), RedactStyle::Black);
+
+        let bad = Options::parse(Some(
+            r#"{"rects":[{"x":0,"y":0,"w":5,"h":5,"style":"neon"}]}"#,
+        ))
+        .unwrap();
+        assert!(bad.rects.unwrap()[0].redact_style().is_err());
     }
 }

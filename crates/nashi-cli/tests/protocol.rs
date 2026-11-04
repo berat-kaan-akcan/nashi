@@ -11,7 +11,7 @@ fn catalog_shape() {
     assert_eq!(r.code, 0);
     let v: Value = serde_json::from_str(r.stdout.trim()).unwrap();
     let formats = v["formats"].as_array().unwrap();
-    assert_eq!(formats.len(), 45);
+    assert_eq!(formats.len(), 46);
     for f in formats {
         for k in [
             "ext",
@@ -77,6 +77,7 @@ fn deps_shape() {
         "pandoc",
         "rsvg-convert",
         "yt-dlp",
+        "curl",
     ] {
         assert!(ids.contains(&id), "deps lacks {id}");
     }

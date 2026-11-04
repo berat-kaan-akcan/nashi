@@ -35,8 +35,10 @@ target_sources(nashi_ui PRIVATE
     src/actions.cpp            src/actions.h
     src/app.cpp                src/app.h
     src/appdbus.cpp            src/appdbus.h
+    src/autostart.cpp          src/autostart.h
     src/cliargs.cpp            src/cliargs.h
     src/clilocator.cpp         src/clilocator.h
+    src/clipboardimport.cpp    src/clipboardimport.h
     src/depsmodel.cpp          src/depsmodel.h
     src/iconprovider.cpp       src/iconprovider.h
     src/inputdclient.cpp       src/inputdclient.h
@@ -46,9 +48,12 @@ target_sources(nashi_ui PRIVATE
     src/language.cpp           src/language.h
     src/notifier.cpp           src/notifier.h
     src/overlaycontroller.cpp  src/overlaycontroller.h
+    src/previewclient.cpp      src/previewclient.h
     src/recentmodel.cpp        src/recentmodel.h
     src/selection.cpp          src/selection.h
     src/settings.cpp           src/settings.h
+    src/setupcheck.cpp         src/setupcheck.h
+    src/shelfmodel.cpp         src/shelfmodel.h
     src/surfaces.cpp           src/surfaces.h
     src/toastcontroller.cpp    src/toastcontroller.h
     src/tray.cpp               src/tray.h
@@ -76,13 +81,33 @@ set(NASHI_QML_FILES
     qml/RecentPage.qml
     qml/DepsPage.qml
     qml/SettingsPage.qml
+    qml/Theme.qml
+    qml/NashiMark.qml
+    qml/NButton.qml
+    qml/Card.qml
+    qml/Pill.qml
+    qml/PageHeading.qml
+    qml/SectionBox.qml
+    qml/KeyChip.qml
+    qml/ActionTile.qml
+    qml/OptionsWindow.qml
+    qml/RectEditor.qml
+    qml/TimelineEditor.qml
+    qml/PdfOrganizer.qml
+    qml/AnnotateEditor.qml
+    qml/WelcomeWindow.qml
+    qml/DownloadWindow.qml
+    qml/PreviewWindow.qml
+    qml/ShelfWindow.qml
+    qml/ShareSheet.qml
 )
+set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
 qt_add_qml_module(nashi_ui
     URI NashiApp
     VERSION 1.0
     QML_FILES ${NASHI_QML_FILES}
-    RESOURCES resources/nashi.svg
+    RESOURCES resources/nashi.svg resources/mark.svg resources/mark-happy.svg
     RESOURCE_PREFIX /qt/qml
     OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/NashiApp
 )

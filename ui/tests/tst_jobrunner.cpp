@@ -248,9 +248,19 @@ private Q_SLOTS:
                                                     {QStringLiteral("/a b/c.mp4")}, QString());
         QCOMPARE(t, QStringList({QStringLiteral("tool"), QStringLiteral("compress"), QStringLiteral("/a b/c.mp4"),
                                  QStringLiteral("--json")}));
+        const QStringList o = JobManager::buildArgs(QStringLiteral("tool"), QStringLiteral("trimVideo"),
+                                                    {QStringLiteral("/a.mp4")}, QString(), QStringLiteral("{\"start\":1}"));
+        QCOMPARE(o, QStringList({QStringLiteral("tool"), QStringLiteral("trimVideo"), QStringLiteral("/a.mp4"),
+                                 QStringLiteral("--options"), QStringLiteral("{\"start\":1}"), QStringLiteral("--json")}));
         // Relative names are made absolute so they can never look like options.
         const QStringList r = JobManager::buildArgs(QStringLiteral("tool"), QStringLiteral("x"), {QStringLiteral("-rf")}, {});
         QVERIFY(r.at(2).startsWith(QLatin1Char('/')));
+
+        const QStringList dl = JobManager::buildDownloadArgs(QStringLiteral("https://example.com/v?a=1"),
+                                                             QStringLiteral("audio"), QStringLiteral("/tmp/dl"));
+        QCOMPARE(dl, QStringList({QStringLiteral("download"), QStringLiteral("--kind"), QStringLiteral("audio"),
+                                  QStringLiteral("--out-dir"), QStringLiteral("/tmp/dl"), QStringLiteral("--json"),
+                                  QStringLiteral("--"), QStringLiteral("https://example.com/v?a=1")}));
     }
 
     void managerRunsAndLists()

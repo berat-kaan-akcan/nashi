@@ -84,6 +84,7 @@ pub const DEPS: &[DepDef] = &[
             "editImage",
             "frameImage",
             "redactImage",
+            "annotateImage",
         ],
         &["-version"],
     ),
@@ -123,6 +124,7 @@ pub const DEPS: &[DepDef] = &[
     d("pandoc", "pandoc-cli", true, &["epub"], &["--version"]),
     d("rsvg-convert", "librsvg", true, &["svg"], &["--version"]),
     d("yt-dlp", "yt-dlp", true, &["download"], &["--version"]),
+    d("curl", "curl", true, &["download"], &["--version"]),
     d("libheif", "libheif", true, &["heic"], &[]),
 ];
 

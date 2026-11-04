@@ -38,7 +38,7 @@ public:
     QString error() const { return m_error; }
     WheelModel *model() const { return m_model; }
 
-    void setFiles(const QStringList &files);
+    Q_INVOKABLE void setFiles(const QStringList &files);
     Q_INVOKABLE void setUrls(const QList<QUrl> &urls) { setFiles(localFiles(urls)); }
     Q_INVOKABLE void clear() { setFiles({}); }
 

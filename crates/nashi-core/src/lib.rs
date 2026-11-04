@@ -4,11 +4,13 @@
 pub mod catalog;
 pub mod deps;
 pub mod detect;
+pub mod download;
 pub mod engines;
 pub mod events;
 pub mod fsops;
 pub mod job;
 pub mod options;
+pub mod preview;
 pub mod process;
 
 pub use catalog::Category;

@@ -108,6 +108,40 @@ void placeToastFallback(QWindow *window)
     window->setPosition(avail.right() - window->width() - 12, avail.top() + 12);
 }
 
+void configureShelf(QWindow *window)
+{
+#ifdef NASHI_HAVE_LAYERSHELL
+    if (layerShellActive()) {
+        window->setFlag(Qt::FramelessWindowHint);
+        auto *ls = LayerShellQt::Window::get(window);
+        ls->setLayer(LayerShellQt::Window::LayerTop);
+        ls->setAnchors(LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorRight));
+        ls->setMargins(QMargins(0, 16, 12, 16));
+        ls->setExclusiveZone(0);
+        ls->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityOnDemand);
+        ls->setActivateOnShow(false);
+        ls->setScope(QStringLiteral("nashi-shelf"));
+        ls->setWantsToBeOnActiveScreen(true);
+        return;
+    }
+#endif
+    window->setFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
+}
+
+void placeShelfFallback(QWindow *window)
+{
+    if (layerShellActive())
+        return;
+    QScreen *screen = QGuiApplication::screenAt(QCursor::pos());
+    if (!screen)
+        screen = QGuiApplication::primaryScreen();
+    if (!screen)
+        return;
+    const QRect avail = screen->availableGeometry();
+    const int y = avail.top() + qMax(16, (avail.height() - window->height()) / 2);
+    window->setPosition(avail.right() - window->width() - 12, y);
+}
+
 } // namespace Surfaces
 
 OverlaySurfaces::OverlaySurfaces(QQmlEngine *engine, OverlayController *controller, QObject *parent)

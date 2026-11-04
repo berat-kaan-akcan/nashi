@@ -14,6 +14,8 @@ struct WheelItem
     QString icon;
     bool available = true;
     QStringList missing;
+    // An editor tool that runs after the options dialog (OptionsWindow.qml).
+    bool needsOptions = false;
 };
 
 // Wheel items for one mode, built from `nashi-cli wheel --json`.
@@ -29,7 +31,7 @@ class WheelModel : public QAbstractListModel
     Q_PROPERTY(bool hasData READ hasData NOTIFY countChanged)
 
 public:
-    enum Roles { IdRole = Qt::UserRole + 1, KindRole, TitleRole, IconRole, AvailableRole, MissingRole };
+    enum Roles { IdRole = Qt::UserRole + 1, KindRole, TitleRole, IconRole, AvailableRole, MissingRole, NeedsOptionsRole };
 
     explicit WheelModel(QObject *parent = nullptr);
 
@@ -39,6 +41,9 @@ public:
     // Localised title from either a plain string or an {"en","tr"} object.
     static QString localizedTitle(const QJsonValue &title, const QString &language);
     static QString normalizeMode(const QString &mode);
+    // Editor tools (`needs_editor`) that OptionsWindow.qml has a form for.
+    // Others stay hidden until their visual editor exists.
+    static bool hasOptionsForm(const QString &toolId);
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role) const override;

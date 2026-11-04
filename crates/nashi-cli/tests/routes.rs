@@ -523,3 +523,28 @@ fn archive_routes_bsdtar_fallback() {
     need!("bsdtar");
     archive_routes_with(&[("NASHI_DISABLE_TOOLS", "7z")]);
 }
+
+#[test]
+fn html_to_pdf() {
+    need!("soffice");
+    let d = tempfile::tempdir().unwrap();
+    let page = text(
+        d.path(),
+        "page.html",
+        "<!doctype html><html><body><h1>Hello page</h1><script>document.write('SCRIPTED')</script></body></html>",
+    );
+    let r = convert("pdf", &[&page]);
+    r.ok();
+    let pdf = r.one();
+    sniff_is(&pdf, b"%PDF", 0);
+    if which("pdftotext") {
+        let out = std::process::Command::new("pdftotext")
+            .arg(&pdf)
+            .arg("-")
+            .output()
+            .unwrap();
+        let txt = String::from_utf8_lossy(&out.stdout);
+        assert!(txt.contains("Hello page"), "{txt}");
+        assert!(!txt.contains("SCRIPTED"), "script ran: {txt}");
+    }
+}

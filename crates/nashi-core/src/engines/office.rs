@@ -6,7 +6,7 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-use super::{epub, pdf, textclip, Ctx, Input, Produced};
+use super::{epub, htmlsafe, pdf, textclip, Ctx, Input, Produced};
 use crate::catalog::{category_of, Category};
 use crate::deps::require;
 use crate::events::{ErrorCode, JobError, JobResult};
@@ -422,14 +422,27 @@ pub fn convert(ctx: &Ctx, input: &Input, target: &str) -> JobResult<Produced> {
             let pdf_path = soffice(ctx, &src, "pdf", lo_infilter(&src_ext), &work)?;
             pdf::to_images(ctx, &pdf_path, input.stem(), &input.out_dir, target)
         }
-        "pdf" if src_ext == "html" => soffice_to_output(
-            ctx,
-            input,
-            &src,
-            "pdf:writer_pdf_Export",
-            lo_infilter("html"),
-            "pdf",
-        ),
+        "pdf" if src_ext == "html" => {
+            // A user's page is sanitised first (no scripts, nothing remote,
+            // only regular files from its own folder); generated HTML is ours.
+            let page = if input.ext() == "html" {
+                let base = input.path.parent().unwrap_or(Path::new("."));
+                let clean = htmlsafe::sanitize(&std::fs::read(&src)?, base);
+                let page = work.join("page.html");
+                std::fs::write(&page, clean)?;
+                page
+            } else {
+                src.clone()
+            };
+            soffice_to_output(
+                ctx,
+                input,
+                &page,
+                "pdf:writer_pdf_Export",
+                lo_infilter("html"),
+                "pdf",
+            )
+        }
         _ => {
             let filter = lo_filter(target).ok_or_else(|| {
                 JobError::unsupported(format!(".{} to .{target} is not supported", input.ext()))

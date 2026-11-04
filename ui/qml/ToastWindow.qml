@@ -18,42 +18,44 @@ Window {
     title: qsTr("Nashi progress")
     onHeightChanged: App.toast.contentResized()
 
-    SystemPalette { id: pal; colorGroup: SystemPalette.Active }
-
     Rectangle {
         anchors.fill: parent
-        radius: 10
-        color: pal.window
-        border.color: Qt.rgba(pal.text.r, pal.text.g, pal.text.b, 0.2)
+        radius: 18
+        color: Theme.surface
+        border.color: Theme.border
 
         HoverHandler { onHoveredChanged: App.toast.hold(hovered) }
 
         ColumnLayout {
             id: content
             anchors.fill: parent
-            anchors.margins: 8
-            spacing: 6
+            anchors.margins: 10
+            spacing: 8
 
             RowLayout {
                 Layout.fillWidth: true
-                Image {
-                    source: "image://icon/io.github.beratkaanakcan.Nashi"
-                    sourceSize: Qt.size(18, 18)
+                Layout.leftMargin: 4
+                spacing: 8
+                NashiMark {
+                    size: 22
+                    happy: App.jobs.activeCount === 0
                 }
-                Label {
+                Text {
                     Layout.fillWidth: true
-                    font.bold: true
-                    color: pal.windowText
+                    font.pixelSize: Theme.sizeBody
+                    font.weight: Font.Bold
+                    color: Theme.text
                     text: App.jobs.activeCount > 0 ? qsTr("Nashi — %n job(s) running", "", App.jobs.activeCount)
                                                    : qsTr("Nashi")
                 }
-                ToolButton {
-                    icon.name: "window-close"
-                    text: qsTr("Close")
-                    display: AbstractButton.IconOnly
+                NButton {
+                    kind: "quiet"
+                    compact: true
+                    iconName: "window-close"
+                    Accessible.name: qsTr("Close")
                     onClicked: App.toast.dismiss()
                     ToolTip.visible: hovered
-                    ToolTip.text: text
+                    ToolTip.text: qsTr("Close")
                 }
             }
 

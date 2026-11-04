@@ -16,13 +16,16 @@ Item {
     property real centerY: height / 2
     property int hoveredIndex: -1
     property bool overCenter: false
+    // Settings.wheelScale; scales both radii so drawing and hit-testing agree.
+    property real wheelScale: 1.0
 
     readonly property WheelModel model: selection ? selection.model : null
     readonly property bool showItems: (stage === OverlayController.Live || stage === OverlayController.Pick)
                                       && selection !== null && selection.ready
     readonly property int count: showItems && model ? model.count : 0
-    readonly property real innerRadius: WheelGeometry.innerRadius
-    readonly property real outerRadius: showItems ? WheelGeometry.outerRadius(count) : 118
+    readonly property real innerRadius: WheelGeometry.scaledInnerRadius(wheelScale)
+    readonly property real outerRadius: showItems ? WheelGeometry.scaledOuterRadius(count, wheelScale)
+                                                  : WheelGeometry.scaled(118, wheelScale)
     readonly property var hoveredItem: hoveredIndex >= 0 && model ? model.get(hoveredIndex) : null
 
     signal sliceClicked(int index)
@@ -53,23 +56,21 @@ Item {
         hoveredIndex = showItems ? s : -1
     }
 
-    SystemPalette { id: pal; colorGroup: SystemPalette.Active }
-
     Item {
         id: disc
         x: pie.centerX - pie.outerRadius
         y: pie.centerY - pie.outerRadius
         width: pie.outerRadius * 2
         height: pie.outerRadius * 2
-        scale: pie.visible ? 1 : 0.85
-        Behavior on scale { NumberAnimation { duration: 110; easing.type: Easing.OutCubic } }
+        scale: pie.visible || !Theme.motion ? 1 : 0.85
+        Behavior on scale { NumberAnimation { duration: Theme.quick; easing.type: Easing.OutCubic } }
 
         Rectangle {
             anchors.fill: parent
             radius: width / 2
-            color: Qt.rgba(pal.window.r, pal.window.g, pal.window.b, 0.94)
-            border.color: Qt.rgba(pal.text.r, pal.text.g, pal.text.b, 0.18)
-            border.width: 1
+            color: Qt.rgba(Theme.canvas.r, Theme.canvas.g, Theme.canvas.b, 0.94)
+            border.color: Qt.rgba(0.5, 0.5, 0.5, 0.17)
+            border.width: 0.7
         }
 
         // Stage 1: one big drop target labelled with the mode.
@@ -79,9 +80,17 @@ Item {
             width: parent.width - 16
             height: width
             radius: width / 2
-            color: Qt.rgba(pal.highlight.r, pal.highlight.g, pal.highlight.b, 0.22)
-            border.color: pal.highlight
+            color: Qt.rgba(Theme.gold.r, Theme.gold.g, Theme.gold.b, 0.22)
+            border.color: Theme.gold
             border.width: 2
+
+            NashiMark {
+                anchors.centerIn: parent
+                anchors.verticalCenterOffset: -parent.height * 0.22
+                size: parent.width * 0.22
+                happy: true
+                opacity: 0.9
+            }
         }
 
         Repeater {
@@ -103,10 +112,8 @@ Item {
                 enabledItem: sliceDelegate.available
                 missingText: sliceDelegate.missing
                 hovered: pie.hoveredIndex === sliceDelegate.index
-                accent: pal.highlight
-                textColor: pal.text
-                highlightedTextColor: pal.highlightedText
-                baseColor: pal.base
+                uppercase: pie.mode === "convert"
+                uiScale: pie.wheelScale
             }
         }
 
@@ -116,8 +123,8 @@ Item {
             width: pie.innerRadius * 2 - 6
             height: width
             radius: width / 2
-            color: pie.overCenter ? Qt.rgba(0.85, 0.2, 0.2, 0.85) : pal.button
-            border.color: Qt.rgba(pal.text.r, pal.text.g, pal.text.b, 0.25)
+            color: pie.overCenter ? Qt.rgba(0.85, 0.2, 0.2, 0.85) : Theme.surface
+            border.color: Theme.border
 
             BusyIndicator {
                 anchors.centerIn: parent
@@ -132,9 +139,9 @@ Item {
                 visible: !(pie.selection !== null && pie.selection.loading)
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
-                font.pixelSize: 12
-                font.bold: true
-                color: pie.overCenter ? "white" : pal.buttonText
+                font.pixelSize: Math.round(WheelGeometry.scaled(12, pie.wheelScale))
+                font.weight: Font.DemiBold
+                color: pie.overCenter ? "white" : Theme.text
                 text: pie.overCenter || pie.stage === OverlayController.Pick ? qsTr("Cancel")
                                                                                  : pie.modeTitle(pie.mode)
             }
@@ -150,8 +157,14 @@ Item {
         horizontalAlignment: Text.AlignHCenter
         wrapMode: Text.Wrap
         padding: 8
-        color: pal.windowText
-        background: Rectangle { radius: 6; color: Qt.rgba(pal.window.r, pal.window.g, pal.window.b, 0.94) }
+        color: Theme.text
+        font.pixelSize: Theme.sizeSmall + 1
+        font.weight: Font.Medium
+        background: Rectangle {
+            radius: 12
+            color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.96)
+            border.color: Theme.border
+        }
         text: {
             if (!pie.selection)
                 return ""

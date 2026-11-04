@@ -84,6 +84,45 @@ private Q_SLOTS:
         QCOMPARE(c.files, QStringList{QStringLiteral("/home/u/work/-odd.png")});
     }
 
+    void downloadAndShelfFlags()
+    {
+        const auto dl = p({QStringLiteral("--download"), QStringLiteral("https://example.org/watch?v=42")});
+        QCOMPARE(dl.action, CommandLine::Download);
+        QCOMPARE(dl.url, QStringLiteral("https://example.org/watch?v=42"));
+        const ForwardCall fdl = CliArgs::forwardCallFor(dl);
+        QCOMPARE(fdl.interface, CliArgs::kInterface);
+        QCOMPARE(fdl.method, QStringLiteral("Download"));
+        QCOMPARE(fdl.args, QVariantList{QStringLiteral("https://example.org/watch?v=42")});
+
+        const auto dlc = p({QStringLiteral("--download-clipboard")});
+        QCOMPARE(dlc.action, CommandLine::DownloadClipboard);
+        const ForwardCall fdlc = CliArgs::forwardCallFor(dlc);
+        QCOMPARE(fdlc.interface, CliArgs::kInterface);
+        QCOMPARE(fdlc.method, QStringLiteral("DownloadClipboard"));
+        QVERIFY(fdlc.args.isEmpty());
+
+        const auto st = p({QStringLiteral("--shelf")});
+        QCOMPARE(st.action, CommandLine::ToggleShelf);
+        const ForwardCall fst = CliArgs::forwardCallFor(st);
+        QCOMPARE(fst.interface, CliArgs::kInterface);
+        QCOMPARE(fst.method, QStringLiteral("ToggleShelf"));
+        QVERIFY(fst.args.isEmpty());
+
+        const auto sa = p({QStringLiteral("--shelf"), QStringLiteral("a.png"), QStringLiteral("/tmp/b.pdf")});
+        QCOMPARE(sa.action, CommandLine::AddToShelf);
+        QCOMPARE(sa.files, QStringList({QStringLiteral("/home/u/work/a.png"), QStringLiteral("/tmp/b.pdf")}));
+        const ForwardCall fsa = CliArgs::forwardCallFor(sa);
+        QCOMPARE(fsa.interface, CliArgs::kInterface);
+        QCOMPARE(fsa.method, QStringLiteral("AddToShelf"));
+        QCOMPARE(fsa.args, QVariantList{sa.files});
+
+        QCOMPARE(p({QStringLiteral("--download"), QStringLiteral("ftp://example.org/a")}).action, CommandLine::Error);
+        QCOMPARE(p({QStringLiteral("--download"), QStringLiteral("https://example.org"), QStringLiteral("extra.png")}).action,
+                 CommandLine::Error);
+        QCOMPARE(p({QStringLiteral("--download-clipboard"), QStringLiteral("extra.png")}).action, CommandLine::Error);
+        QCOMPARE(p({QStringLiteral("--shelf"), QStringLiteral("--wheel")}).action, CommandLine::Error);
+    }
+
     void errors()
     {
         QCOMPARE(p({QStringLiteral("--wheel"), QStringLiteral("--mode"), QStringLiteral("explode")}).action, CommandLine::Error);

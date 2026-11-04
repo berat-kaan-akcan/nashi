@@ -13,22 +13,36 @@ JobManager::JobManager(Settings *settings, QObject *parent)
 {
 }
 
-QStringList JobManager::buildArgs(const QString &kind, const QString &id, const QStringList &files, const QString &outDir)
+QStringList JobManager::buildArgs(const QString &kind, const QString &id, const QStringList &files, const QString &outDir,
+                                  const QString &options)
 {
+    if (kind == QLatin1String("download") && !files.isEmpty())
+        return buildDownloadArgs(files.constFirst(), id, outDir);
     QStringList args;
     args << (kind == QLatin1String("convert") ? QStringLiteral("convert") : QStringLiteral("tool")) << id;
     for (const QString &f : files)
         args << QFileInfo(f).absoluteFilePath(); // absolute paths never start with '-'
     if (!outDir.isEmpty())
         args << QStringLiteral("--out-dir") << QFileInfo(outDir).absoluteFilePath();
+    if (!options.isEmpty())
+        args << QStringLiteral("--options") << options;
     args << QStringLiteral("--json");
     return args;
 }
 
-JobRunner *JobManager::start(const QString &kind, const QString &id, const QString &title, const QStringList &files)
+QStringList JobManager::buildDownloadArgs(const QString &url, const QString &kind, const QString &outDir)
 {
-    if (files.isEmpty() || id.isEmpty() || (kind != QLatin1String("convert") && kind != QLatin1String("tool")))
-        return nullptr;
+    QStringList args;
+    args << QStringLiteral("download") << QStringLiteral("--kind")
+         << (kind.isEmpty() ? QStringLiteral("auto") : kind);
+    if (!outDir.isEmpty())
+        args << QStringLiteral("--out-dir") << QFileInfo(outDir).absoluteFilePath();
+    args << QStringLiteral("--json") << QStringLiteral("--") << url.trimmed();
+    return args;
+}
+
+JobRunner *JobManager::launch(const QString &title, const QStringList &args)
+{
     auto *job = new JobRunner(title, this);
     beginInsertRows({}, 0, 0);
     m_jobs.prepend(job);
@@ -45,9 +59,31 @@ JobRunner *JobManager::start(const QString &kind, const QString &id, const QStri
     });
     Q_EMIT countChanged();
     Q_EMIT jobStarted(job);
-    job->start(m_program, buildArgs(kind, id, files, m_settings ? m_settings->effectiveOutputDir() : QString()));
+    job->start(m_program, args);
     Q_EMIT activeCountChanged();
     return job;
+}
+
+JobRunner *JobManager::start(const QString &kind, const QString &id, const QString &title, const QStringList &files,
+                             const QString &options)
+{
+    if (files.isEmpty() || id.isEmpty() || (kind != QLatin1String("convert") && kind != QLatin1String("tool")))
+        return nullptr;
+    return launch(title, buildArgs(kind, id, files, m_settings ? m_settings->effectiveOutputDir() : QString(), options));
+}
+
+JobRunner *JobManager::startDownload(const QString &url, const QString &kind, const QString &outDir,
+                                     const QString &title)
+{
+    const QString trimmed = url.trimmed();
+    const QString k = kind.trimmed().isEmpty() ? QStringLiteral("auto") : kind.trimmed();
+    if (trimmed.isEmpty()
+        || (k != QLatin1String("auto") && k != QLatin1String("video") && k != QLatin1String("audio")
+            && k != QLatin1String("thumbnail") && k != QLatin1String("image"))) {
+        return nullptr;
+    }
+    const QString jobTitle = title.isEmpty() ? tr("Download") : title;
+    return launch(jobTitle, buildDownloadArgs(trimmed, k, outDir));
 }
 
 void JobManager::cancelAll()

@@ -20,6 +20,8 @@ void configureOverlay(QWindow *window, QScreen *screen);
 void setOverlayKeyboard(QWindow *window, bool wantsKeyboard);
 void configureToast(QWindow *window);
 void placeToastFallback(QWindow *window);
+void configureShelf(QWindow *window);
+void placeShelfFallback(QWindow *window);
 } // namespace Surfaces
 
 // One transparent full-screen OverlayWindow.qml per screen; all are shown

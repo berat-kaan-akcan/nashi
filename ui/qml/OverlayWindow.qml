@@ -37,6 +37,7 @@ Window {
         stage: root.stage
         mode: root.ctl.mode
         selection: root.ctl.selection
+        wheelScale: App.settings.wheelScale
         centerX: root.clamp(root.ctl.anchor.x, outerRadius + 8, Math.max(outerRadius + 8, root.width - outerRadius - 8))
         centerY: root.clamp(root.ctl.anchor.y, outerRadius + 8, Math.max(outerRadius + 8, root.height - outerRadius - 8))
         onSliceClicked: (index) => root.ctl.choose(index)

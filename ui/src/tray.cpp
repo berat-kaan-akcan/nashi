@@ -15,9 +15,12 @@ Tray::Tray(App *app, QObject *parent)
 {
     m_menu = new QMenu;
     m_open = m_menu->addAction(QString(), m_app, &App::showHome);
+    m_download = m_menu->addAction(QString(), m_app, &App::showDownloadFromClipboard);
+    m_shelf = m_menu->addAction(QString(), m_app, &App::toggleShelf);
     m_chords = m_menu->addAction(QString());
     m_chords->setCheckable(true);
     connect(m_chords, &QAction::triggered, this, [this](bool on) { m_app->inputd()->setEnabled(on); });
+    m_welcome = m_menu->addAction(QString(), m_app, &App::showWelcome);
     m_menu->addSeparator();
     m_quit = m_menu->addAction(QString(), m_app, &App::quit);
 
@@ -42,7 +45,10 @@ Tray::~Tray()
 void Tray::retranslate()
 {
     m_open->setText(tr("Open Nashi"));
+    m_download->setText(tr("Download from link…"));
+    m_shelf->setText(tr("Toggle Float Shelf"));
     m_chords->setText(tr("Enable drag chords"));
+    m_welcome->setText(tr("Welcome tour"));
     m_quit->setText(tr("Quit"));
     m_icon->setToolTip(tr("Nashi — drag a file and hold Shift, Ctrl or Alt"));
     syncChords();

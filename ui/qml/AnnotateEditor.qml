@@ -1,0 +1,730 @@
+pragma ComponentBehavior: Bound
+
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import NashiApp
+
+// Vector annotation editor over an image: Pen, Highlighter, Line, Arrow,
+// Rectangle, Ellipse, and Text. Renders only annotations onto a transparent
+// full-resolution Canvas so exportOverlay() saves a clean alpha PNG.
+Item {
+    id: root
+    objectName: "annotateEditor"
+
+    property string filePath: ""
+    property int mediaWidth: 0
+    property int mediaHeight: 0
+
+    property string currentTool: "pen" // "pen"|"highlighter"|"line"|"arrow"|"rect"|"ellipse"|"text"
+    property string currentColor: "#e03131"
+    property string strokePreset: "medium" // "thin"|"medium"|"thick"
+
+    property var items: []
+    property var redoStack: []
+    property var draftItem: null
+    property string lastExportPath: ""
+
+    // Pending click position for Text tool (in canvas coordinates)
+    property real pendingTextX: -1
+    property real pendingTextY: -1
+
+    // Preview loading state
+    property int previewReqId: -1
+    property int previewWidth: 0
+    property int previewHeight: 0
+    property string resolvedImageUrl: ""
+    property string fallbackPreviewPath: ""
+    property bool loadingPreview: false
+
+    readonly property int effWidth: mediaWidth > 0 ? mediaWidth
+                                  : (previewWidth > 0 ? previewWidth
+                                  : (bgImg.implicitWidth > 0 ? bgImg.implicitWidth : 800))
+    readonly property int effHeight: mediaHeight > 0 ? mediaHeight
+                                   : (previewHeight > 0 ? previewHeight
+                                   : (bgImg.implicitHeight > 0 ? bgImg.implicitHeight : 520))
+
+    readonly property real canvasDownscale: Math.min(1.0, 2400.0 / Math.max(1, Math.max(effWidth, effHeight)))
+    readonly property int canvasWidth: Math.max(1, Math.round(effWidth * canvasDownscale))
+    readonly property int canvasHeight: Math.max(1, Math.round(effHeight * canvasDownscale))
+    readonly property real unitScale: Math.max(1.0, Math.min(canvasWidth, canvasHeight) / 540.0)
+
+    readonly property real activeStrokePx: {
+        const base = strokePreset === "thin" ? 3 : (strokePreset === "thick" ? 11 : 6)
+        return Math.max(2, Math.round(base * unitScale))
+    }
+
+    implicitWidth: 680
+    implicitHeight: mainCol.implicitHeight
+
+    function fileUrl(path) {
+        if (!path || path.length === 0)
+            return ""
+        return "file://" + String(path).split("/").map(encodeURIComponent).join("/")
+    }
+
+    function isBuiltInRaster(path) {
+        return /\.(png|jpe?g|bmp)$/i.test(String(path))
+    }
+
+    function resetEditor() {
+        previewReqId = -1
+        previewWidth = 0
+        previewHeight = 0
+        resolvedImageUrl = ""
+        fallbackPreviewPath = ""
+        loadingPreview = false
+        currentTool = "pen"
+        currentColor = "#e03131"
+        strokePreset = "medium"
+        items = []
+        redoStack = []
+        draftItem = null
+        lastExportPath = ""
+        pendingTextX = -1
+        pendingTextY = -1
+        noteField.text = ""
+        annotationCanvas.requestPaint()
+        requestFramePreview()
+    }
+
+    function requestFramePreview() {
+        if (!filePath || filePath.length === 0) {
+            resolvedImageUrl = ""
+            loadingPreview = false
+            return
+        }
+        loadingPreview = true
+        previewReqId = App.preview.request(filePath, "frame", { width: 1600 })
+    }
+
+    onFilePathChanged: {
+        resolvedImageUrl = ""
+        fallbackPreviewPath = ""
+        requestFramePreview()
+    }
+
+    Connections {
+        target: App.preview
+        function onReady(requestId, kind, files, width, height) {
+            if (requestId !== root.previewReqId || kind !== "frame")
+                return
+            root.loadingPreview = false
+            if (width > 0 && height > 0) {
+                root.previewWidth = width
+                root.previewHeight = height
+            }
+            const first = files && files.length > 0 ? String(files[0]) : ""
+            root.fallbackPreviewPath = first
+            if (root.isBuiltInRaster(root.filePath))
+                root.resolvedImageUrl = root.fileUrl(root.filePath)
+            else if (first.length > 0)
+                root.resolvedImageUrl = root.fileUrl(first)
+        }
+        function onFailed(requestId, message) {
+            if (requestId !== root.previewReqId)
+                return
+            root.loadingPreview = false
+        }
+    }
+
+    function pushAction(item) {
+        const next = items.slice()
+        next.push(item)
+        items = next
+        redoStack = []
+        lastExportPath = ""
+        annotationCanvas.requestPaint()
+    }
+
+    function undo() {
+        if (items.length === 0)
+            return
+        const next = items.slice()
+        const popped = next.pop()
+        const r = redoStack.slice()
+        r.push(popped)
+        items = next
+        redoStack = r
+        lastExportPath = ""
+        annotationCanvas.requestPaint()
+    }
+
+    function redo() {
+        if (redoStack.length === 0)
+            return
+        const r = redoStack.slice()
+        const restored = r.pop()
+        const next = items.slice()
+        next.push(restored)
+        redoStack = r
+        items = next
+        lastExportPath = ""
+        annotationCanvas.requestPaint()
+    }
+
+    function clearAll() {
+        if (items.length === 0 && !draftItem)
+            return
+        items = []
+        redoStack = []
+        draftItem = null
+        lastExportPath = ""
+        pendingTextX = -1
+        pendingTextY = -1
+        annotationCanvas.requestPaint()
+    }
+
+    // Programmatic helpers (coordinates in source image pixels)
+    function addStroke(points, color, widthPx) {
+        if (!points || points.length === 0)
+            return
+        const s = canvasDownscale
+        const mapped = []
+        if (typeof points[0] === "number" && points.length >= 2) {
+            for (let i = 0; i + 1 < points.length; i += 2)
+                mapped.push({ x: Number(points[i]) * s, y: Number(points[i + 1]) * s })
+        } else {
+            for (let i = 0; i < points.length; ++i) {
+                const pt = points[i]
+                if (!pt)
+                    continue
+                const px = pt.x !== undefined ? Number(pt.x) : Number(pt[0])
+                const py = pt.y !== undefined ? Number(pt.y) : Number(pt[1])
+                if (!isNaN(px) && !isNaN(py))
+                    mapped.push({ x: px * s, y: py * s })
+            }
+        }
+        if (mapped.length === 0)
+            return
+        pushAction({
+            kind: "pen",
+            color: color && String(color).length > 0 ? String(color) : currentColor,
+            size: widthPx && widthPx > 0 ? Number(widthPx) * s : activeStrokePx,
+            alpha: 1.0,
+            points: mapped
+        })
+    }
+
+    function addArrow(x1, y1, x2, y2, color, widthPx) {
+        const s = canvasDownscale
+        pushAction({
+            kind: "arrow",
+            color: color && String(color).length > 0 ? String(color) : currentColor,
+            size: widthPx && widthPx > 0 ? Number(widthPx) * s : activeStrokePx,
+            x1: Number(x1) * s,
+            y1: Number(y1) * s,
+            x2: Number(x2) * s,
+            y2: Number(y2) * s
+        })
+    }
+
+    function addText(x, y, textStr, color, fontPx) {
+        const t = String(textStr || "").trim()
+        if (t.length === 0)
+            return
+        const s = canvasDownscale
+        pushAction({
+            kind: "text",
+            color: color && String(color).length > 0 ? String(color) : currentColor,
+            size: fontPx && fontPx > 0 ? Number(fontPx) * s : Math.max(18, Math.round(activeStrokePx * 3.6)),
+            x: Number(x) * s,
+            y: Number(y) * s,
+            text: t
+        })
+    }
+
+    function placePendingText() {
+        const t = noteField.text.trim()
+        if (t.length === 0)
+            return
+        const tx = pendingTextX >= 0 ? pendingTextX : Math.round(canvasWidth * 0.5)
+        const ty = pendingTextY >= 0 ? pendingTextY : Math.round(canvasHeight * 0.5)
+        pushAction({
+            kind: "text",
+            color: currentColor,
+            size: Math.max(18, Math.round(activeStrokePx * 3.8)),
+            x: tx,
+            y: ty,
+            text: t
+        })
+        pendingTextX = -1
+        pendingTextY = -1
+    }
+
+    function paintSingleItem(ctx, it) {
+        if (!it || !it.kind)
+            return
+        ctx.save()
+        ctx.globalAlpha = it.alpha !== undefined ? Number(it.alpha) : 1.0
+        ctx.strokeStyle = it.color || "#e03131"
+        ctx.fillStyle = it.color || "#e03131"
+        ctx.lineWidth = Math.max(1.5, Number(it.size || 4))
+        ctx.lineCap = "round"
+        ctx.lineJoin = "round"
+
+        const kind = String(it.kind)
+        if (kind === "pen" || kind === "highlighter") {
+            const pts = it.points || []
+            if (pts.length === 1) {
+                ctx.beginPath()
+                ctx.arc(pts[0].x, pts[0].y, ctx.lineWidth / 2, 0, Math.PI * 2)
+                ctx.fill()
+            } else if (pts.length > 1) {
+                ctx.beginPath()
+                ctx.moveTo(pts[0].x, pts[0].y)
+                for (let i = 1; i < pts.length; ++i)
+                    ctx.lineTo(pts[i].x, pts[i].y)
+                ctx.stroke()
+            }
+        } else if (kind === "line") {
+            ctx.beginPath()
+            ctx.moveTo(it.x1, it.y1)
+            ctx.lineTo(it.x2, it.y2)
+            ctx.stroke()
+        } else if (kind === "arrow") {
+            const dx = it.x2 - it.x1
+            const dy = it.y2 - it.y1
+            const len = Math.sqrt(dx * dx + dy * dy)
+            const angle = Math.atan2(dy, dx)
+            const headLen = Math.min(Math.max(14, ctx.lineWidth * 3.8), Math.max(14, len * 0.65))
+            const wing = Math.PI / 6.2
+
+            const shaftEndX = len > headLen * 0.6 ? (it.x2 - headLen * 0.55 * Math.cos(angle)) : it.x2
+            const shaftEndY = len > headLen * 0.6 ? (it.y2 - headLen * 0.55 * Math.sin(angle)) : it.y2
+
+            ctx.beginPath()
+            ctx.moveTo(it.x1, it.y1)
+            ctx.lineTo(shaftEndX, shaftEndY)
+            ctx.stroke()
+
+            ctx.beginPath()
+            ctx.moveTo(it.x2, it.y2)
+            ctx.lineTo(it.x2 - headLen * Math.cos(angle - wing),
+                       it.y2 - headLen * Math.sin(angle - wing))
+            ctx.lineTo(it.x2 - headLen * Math.cos(angle + wing),
+                       it.y2 - headLen * Math.sin(angle + wing))
+            ctx.closePath()
+            ctx.fill()
+        } else if (kind === "rect") {
+            const rx = Math.min(it.x1, it.x2)
+            const ry = Math.min(it.y1, it.y2)
+            const rw = Math.abs(it.x2 - it.x1)
+            const rh = Math.abs(it.y2 - it.y1)
+            ctx.strokeRect(rx, ry, rw, rh)
+        } else if (kind === "ellipse") {
+            const cx = (it.x1 + it.x2) / 2
+            const cy = (it.y1 + it.y2) / 2
+            const radX = Math.max(1, Math.abs(it.x2 - it.x1) / 2)
+            const radY = Math.max(1, Math.abs(it.y2 - it.y1) / 2)
+            ctx.save()
+            ctx.translate(cx, cy)
+            ctx.scale(radX, radY)
+            ctx.beginPath()
+            ctx.arc(0, 0, 1, 0, Math.PI * 2)
+            ctx.restore()
+            ctx.stroke()
+        } else if (kind === "text" && it.text) {
+            const fontPx = Math.max(14, Math.round(Number(it.size || 24)))
+            ctx.font = "bold " + fontPx + "px sans-serif"
+            ctx.textBaseline = "middle"
+            // Subtle contrast outline so white or dark text stays legible anywhere
+            ctx.lineWidth = Math.max(2, Math.round(fontPx * 0.12))
+            ctx.strokeStyle = (String(it.color).toLowerCase() === "#1d2117")
+                              ? "rgba(255, 255, 255, 0.72)"
+                              : "rgba(0, 0, 0, 0.55)"
+            ctx.strokeText(String(it.text), it.x, it.y)
+            ctx.fillText(String(it.text), it.x, it.y)
+        }
+
+        ctx.restore()
+    }
+
+    function paintAll(ctx, w, h, includeDraft) {
+        ctx.clearRect(0, 0, w, h)
+        for (let i = 0; i < items.length; ++i)
+            paintSingleItem(ctx, items[i])
+        if (includeDraft && draftItem)
+            paintSingleItem(ctx, draftItem)
+    }
+
+    function exportOverlay() {
+        if (!items || items.length === 0)
+            return ""
+        draftItem = null
+        if (canvasWidth <= 0 || canvasHeight <= 0)
+            return ""
+        const p = App.preview.renderAnnotationOverlay(canvasWidth, canvasHeight, items)
+        if (!p || p.length === 0)
+            return ""
+        lastExportPath = p
+        return p
+    }
+
+    component ToolBtn: NButton {
+        property bool on: false
+        compact: true
+        kind: on ? "primary" : "secondary"
+    }
+
+    Shortcut {
+        sequences: [StandardKey.Undo]
+        enabled: root.visible && root.items.length > 0
+        onActivated: root.undo()
+    }
+    Shortcut {
+        sequences: [StandardKey.Redo, "Ctrl+Shift+Z"]
+        enabled: root.visible && root.redoStack.length > 0
+        onActivated: root.redo()
+    }
+
+    ColumnLayout {
+        id: mainCol
+        anchors.left: parent.left
+        anchors.right: parent.right
+        spacing: 10
+
+        // Row 1: Drawing tools
+        Flow {
+            Layout.fillWidth: true
+            spacing: 6
+
+            Repeater {
+                model: [
+                    ["pen", qsTr("Pen")],
+                    ["highlighter", qsTr("Highlighter")],
+                    ["line", qsTr("Line")],
+                    ["arrow", qsTr("Arrow")],
+                    ["rect", qsTr("Rectangle")],
+                    ["ellipse", qsTr("Ellipse")],
+                    ["text", qsTr("Text")]
+                ]
+                delegate: ToolBtn {
+                    required property var modelData
+                    objectName: "tool_" + String(modelData[0])
+                    text: String(modelData[1])
+                    on: root.currentTool === String(modelData[0])
+                    onClicked: {
+                        root.currentTool = String(modelData[0])
+                        if (root.currentTool === "text")
+                            noteField.forceActiveFocus()
+                    }
+                }
+            }
+        }
+
+        // Row 2: Colour swatches + Stroke width + Undo / Redo / Clear
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 8
+
+            Row {
+                spacing: 6
+                Repeater {
+                    model: ["#e03131", "#e3b859", "#2f9e44", "#1971c2", "#ffffff", "#1d2117"]
+                    delegate: AbstractButton {
+                        id: colorSwatch
+                        required property string modelData
+                        width: 26
+                        height: 26
+                        Accessible.name: modelData
+                        onClicked: root.currentColor = modelData
+                        background: Rectangle {
+                            radius: 13
+                            color: colorSwatch.modelData
+                            border.width: root.currentColor === colorSwatch.modelData ? 3 : 1
+                            border.color: root.currentColor === colorSwatch.modelData ? Theme.goldInk : Theme.border
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                width: 1
+                height: 20
+                color: Theme.border
+            }
+
+            Row {
+                spacing: 4
+                Repeater {
+                    model: [
+                        ["thin", qsTr("Thin")],
+                        ["medium", qsTr("Medium")],
+                        ["thick", qsTr("Thick")]
+                    ]
+                    delegate: ToolBtn {
+                        required property var modelData
+                        text: String(modelData[1])
+                        on: root.strokePreset === String(modelData[0])
+                        onClicked: root.strokePreset = String(modelData[0])
+                    }
+                }
+            }
+
+            Item { Layout.fillWidth: true }
+
+            NButton {
+                objectName: "annotateUndoButton"
+                compact: true
+                kind: "quiet"
+                iconName: "edit-undo"
+                text: qsTr("Undo")
+                enabled: root.items.length > 0
+                onClicked: root.undo()
+            }
+
+            NButton {
+                objectName: "annotateRedoButton"
+                compact: true
+                kind: "quiet"
+                iconName: "edit-redo"
+                text: qsTr("Redo")
+                enabled: root.redoStack.length > 0
+                onClicked: root.redo()
+            }
+
+            NButton {
+                objectName: "annotateClearButton"
+                compact: true
+                kind: "quiet"
+                iconName: "edit-clear"
+                text: qsTr("Clear")
+                enabled: root.items.length > 0
+                onClicked: root.clearAll()
+            }
+        }
+
+        // Inline Text Tool input bar
+        RowLayout {
+            Layout.fillWidth: true
+            visible: root.currentTool === "text"
+            spacing: 8
+
+            TextField {
+                id: noteField
+                objectName: "annotateTextInput"
+                Layout.fillWidth: true
+                selectByMouse: true
+                placeholderText: qsTr("Type text here, then click on the image to place it…")
+                onAccepted: root.placePendingText()
+            }
+
+            NButton {
+                compact: true
+                kind: "primary"
+                text: qsTr("Place")
+                enabled: noteField.text.trim().length > 0
+                onClicked: root.placePendingText()
+            }
+        }
+
+        // Main drawing viewport
+        Rectangle {
+            id: viewport
+            Layout.fillWidth: true
+            Layout.preferredHeight: 370
+            radius: Theme.radiusRow
+            color: Theme.pick("#e9e4d5", "#141d17")
+            border.width: 1
+            border.color: Theme.border
+            clip: true
+
+            readonly property real pad: 14
+            readonly property real availW: Math.max(1, width - pad * 2)
+            readonly property real availH: Math.max(1, height - pad * 2)
+            readonly property real fitScale: Math.min(availW / Math.max(1, root.effWidth),
+                                                      availH / Math.max(1, root.effHeight))
+            readonly property real dispW: Math.max(1, root.effWidth * fitScale)
+            readonly property real dispH: Math.max(1, root.effHeight * fitScale)
+
+            Item {
+                id: stage
+                x: Math.round((viewport.width - viewport.dispW) / 2)
+                y: Math.round((viewport.height - viewport.dispH) / 2)
+                width: viewport.dispW
+                height: viewport.dispH
+
+                Rectangle {
+                    anchors.fill: parent
+                    color: Theme.pick("#dfd9c8", "#1b261e")
+                    border.width: 1
+                    border.color: Theme.border
+
+                    Text {
+                        anchors.centerIn: parent
+                        visible: bgImg.status !== Image.Ready
+                        text: root.loadingPreview ? qsTr("Loading image…")
+                                                  : (root.effWidth + " × " + root.effHeight)
+                        font.pixelSize: Theme.sizeSmall
+                        color: Theme.secondaryText
+                    }
+                }
+
+                // Background photo (NOT part of annotationCanvas!)
+                Image {
+                    id: bgImg
+                    anchors.fill: parent
+                    source: root.resolvedImageUrl
+                    fillMode: Image.Stretch
+                    autoTransform: true
+                    asynchronous: true
+                    smooth: true
+                    onStatusChanged: {
+                        if (status === Image.Error && root.fallbackPreviewPath.length > 0) {
+                            const fb = root.fileUrl(root.fallbackPreviewPath)
+                            if (root.resolvedImageUrl !== fb)
+                                root.resolvedImageUrl = fb
+                        }
+                    }
+                }
+
+                // Transparent full-resolution annotation Canvas, visually scaled to stage
+                Canvas {
+                    id: annotationCanvas
+                    objectName: "annotationCanvas"
+                    x: 0
+                    y: 0
+                    width: root.canvasWidth
+                    height: root.canvasHeight
+                    transformOrigin: Item.TopLeft
+                    scale: stage.width / Math.max(1, root.canvasWidth)
+                    renderTarget: Canvas.Image
+                    renderStrategy: Canvas.Immediate
+
+                    onAvailableChanged: if (available) requestPaint()
+                    onWidthChanged: if (available) requestPaint()
+                    onHeightChanged: if (available) requestPaint()
+
+                    onPaint: {
+                        if (width <= 0 || height <= 0)
+                            return
+                        const ctx = getContext("2d")
+                        if (!ctx)
+                            return
+                        root.paintAll(ctx, width, height, true)
+                    }
+                }
+
+                // Pending text target reticle when user clicked image before typing text
+                Rectangle {
+                    visible: root.currentTool === "text" && root.pendingTextX >= 0 && root.pendingTextY >= 0
+                    x: (root.pendingTextX / Math.max(1, root.canvasWidth)) * stage.width - 7
+                    y: (root.pendingTextY / Math.max(1, root.canvasHeight)) * stage.height - 7
+                    width: 14
+                    height: 14
+                    radius: 7
+                    color: "transparent"
+                    border.width: 2
+                    border.color: Theme.gold
+                }
+
+                MouseArea {
+                    id: drawMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: root.currentTool === "text" ? Qt.IBeamCursor : Qt.CrossCursor
+
+                    function toCanvas(mx, my) {
+                        const cx = Math.max(0, Math.min(root.canvasWidth,
+                                    mx * root.canvasWidth / Math.max(1, stage.width)))
+                        const cy = Math.max(0, Math.min(root.canvasHeight,
+                                    my * root.canvasHeight / Math.max(1, stage.height)))
+                        return { x: cx, y: cy }
+                    }
+
+                    onPressed: mouse => {
+                        const pt = toCanvas(mouse.x, mouse.y)
+                        if (root.currentTool === "text") {
+                            root.pendingTextX = pt.x
+                            root.pendingTextY = pt.y
+                            if (noteField.text.trim().length > 0)
+                                root.placePendingText()
+                            else
+                                noteField.forceActiveFocus()
+                            return
+                        }
+
+                        if (root.currentTool === "pen" || root.currentTool === "highlighter") {
+                            const isHi = root.currentTool === "highlighter"
+                            root.draftItem = {
+                                kind: root.currentTool,
+                                color: root.currentColor,
+                                size: isHi ? Math.round(root.activeStrokePx * 3.2) : root.activeStrokePx,
+                                alpha: isHi ? 0.38 : 1.0,
+                                points: [pt]
+                            }
+                        } else {
+                            root.draftItem = {
+                                kind: root.currentTool,
+                                color: root.currentColor,
+                                size: root.activeStrokePx,
+                                alpha: 1.0,
+                                x1: pt.x,
+                                y1: pt.y,
+                                x2: pt.x,
+                                y2: pt.y
+                            }
+                        }
+                        annotationCanvas.requestPaint()
+                    }
+
+                    onPositionChanged: mouse => {
+                        if (!pressed || !root.draftItem)
+                            return
+                        const pt = toCanvas(mouse.x, mouse.y)
+                        const cur = root.draftItem
+                        if (cur.kind === "pen" || cur.kind === "highlighter") {
+                            const pts = cur.points.slice()
+                            const last = pts[pts.length - 1]
+                            const dx = pt.x - last.x
+                            const dy = pt.y - last.y
+                            if (dx * dx + dy * dy < 2.2)
+                                return
+                            pts.push(pt)
+                            root.draftItem = {
+                                kind: cur.kind,
+                                color: cur.color,
+                                size: cur.size,
+                                alpha: cur.alpha,
+                                points: pts
+                            }
+                        } else {
+                            root.draftItem = {
+                                kind: cur.kind,
+                                color: cur.color,
+                                size: cur.size,
+                                alpha: cur.alpha,
+                                x1: cur.x1,
+                                y1: cur.y1,
+                                x2: pt.x,
+                                y2: pt.y
+                            }
+                        }
+                        annotationCanvas.requestPaint()
+                    }
+
+                    onReleased: {
+                        if (!root.draftItem)
+                            return
+                        const finished = root.draftItem
+                        root.draftItem = null
+                        if (finished.kind !== "pen" && finished.kind !== "highlighter") {
+                            const dist = Math.hypot(finished.x2 - finished.x1, finished.y2 - finished.y1)
+                            if (dist < 2) {
+                                annotationCanvas.requestPaint()
+                                return
+                            }
+                        }
+                        root.pushAction(finished)
+                    }
+
+                    onCanceled: {
+                        root.draftItem = null
+                        annotationCanvas.requestPaint()
+                    }
+                }
+            }
+        }
+    }
+}

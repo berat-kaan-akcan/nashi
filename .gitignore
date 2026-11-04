@@ -9,3 +9,7 @@ CMakeLists.txt.user
 /packaging/arch/src/
 /packaging/arch/*.pkg.tar.*
 /packaging/arch/nashi/
+
+# Local reference clone of upstream and editor settings
+/nashi-app/
+/.vscode/

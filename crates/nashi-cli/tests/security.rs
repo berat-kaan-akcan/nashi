@@ -429,3 +429,46 @@ fn libreoffice_does_not_fetch_remote_images() {
         "LibreOffice connected to a remote URL"
     );
 }
+
+/// HTML → PDF: nothing remote is fetched and files outside the page's folder
+/// are never loaded (upstream Nashi's policy).
+#[test]
+fn html_page_loads_only_its_own_folder() {
+    need!("soffice", "pdfimages");
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    listener.set_nonblocking(true).unwrap();
+    let root = tempfile::tempdir().unwrap();
+    let site = root.path().join("site");
+    std::fs::create_dir(&site).unwrap();
+    let secret = png(root.path(), "secret.png");
+    png(&site, "inside.png");
+    let page = text(
+        &site,
+        "page.html",
+        &format!(
+            r#"<html><body><p>x</p><img src="http://127.0.0.1:{port}/a.png">
+<link rel=stylesheet href="http://127.0.0.1:{port}/s.css">
+<img src="../secret.png"><img src="{}"><img src="inside.png"></body></html>"#,
+            secret.display()
+        ),
+    );
+    let r = convert("pdf", &[&page]);
+    r.ok();
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    assert!(
+        listener.accept().is_err(),
+        "HTML conversion fetched a remote URL"
+    );
+    let list = std::process::Command::new("pdfimages")
+        .arg("-list")
+        .arg(r.one())
+        .output()
+        .unwrap();
+    let images = String::from_utf8_lossy(&list.stdout)
+        .lines()
+        .count()
+        .saturating_sub(2);
+    // Only the image next to the page.
+    assert_eq!(images, 1, "outside file embedded or local image missing");
+}

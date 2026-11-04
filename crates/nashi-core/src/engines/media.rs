@@ -355,6 +355,7 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
         "cropVideo" => {
             let r = o
                 .rect
+                .as_ref()
                 .ok_or_else(|| JobError::invalid_options("cropVideo needs a rect option"))?;
             let staged = input.stage("-cropped", &ext)?;
             let f = format!(
@@ -368,32 +369,72 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
             finish(cmd, staged, p.duration, "Cropping")
         }
         "redactVideo" => {
+            use crate::options::RedactStyle;
+
             let rects = o
                 .rects
                 .as_ref()
                 .filter(|r| !r.is_empty())
                 .ok_or_else(|| JobError::invalid_options("redactVideo needs rects"))?;
-            let f = rects
+            let styles: Vec<RedactStyle> = rects
                 .iter()
-                .map(|r| {
-                    let en = match (r.t0, r.t1) {
-                        (None, None) => String::new(),
-                        (a, b) => format!(
-                            ":enable='between(t,{},{})'",
-                            a.unwrap_or(0.0),
-                            b.unwrap_or(1e9)
-                        ),
-                    };
-                    format!(
-                        "drawbox=x={}:y={}:w={}:h={}:color=black:t=fill{en}",
-                        r.x.round(),
-                        r.y.round(),
-                        r.w.round(),
-                        r.h.round()
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join(",");
+                .map(|r| r.redact_style())
+                .collect::<JobResult<_>>()?;
+            let mut steps = Vec::new();
+            for (i, (r, style)) in rects.iter().zip(styles).enumerate() {
+                let en = match (r.t0, r.t1) {
+                    (None, None) => String::new(),
+                    (a, b) => format!(
+                        ":enable='between(t,{},{})'",
+                        a.unwrap_or(0.0),
+                        b.unwrap_or(1e9)
+                    ),
+                };
+                match style {
+                    RedactStyle::Black => {
+                        steps.push(format!(
+                            "drawbox=x={}:y={}:w={}:h={}:color=black:t=fill{en}",
+                            r.x.round(),
+                            r.y.round(),
+                            r.w.round().max(1.0),
+                            r.h.round().max(1.0)
+                        ));
+                    }
+                    RedactStyle::Blur | RedactStyle::Pixelate => {
+                        let mut x = r.x.round() as u32;
+                        let mut y = r.y.round() as u32;
+                        let mut cw = (r.w.round() as u32).max(2);
+                        let mut ch = (r.h.round() as u32).max(2);
+                        if let (Some(vw), Some(vh)) = (p.width, p.height) {
+                            if vw < 2 || vh < 2 || x >= vw || y >= vh {
+                                continue;
+                            }
+                            cw = cw.min(vw - x).max(2).min(vw);
+                            ch = ch.min(vh - y).max(2).min(vh);
+                            if x + cw > vw {
+                                x = vw - cw;
+                            }
+                            if y + ch > vh {
+                                y = vh - ch;
+                            }
+                        }
+                        if style == RedactStyle::Blur {
+                            steps.push(format!(
+                                "split[base{i}][tmp{i}];[tmp{i}]crop={cw}:{ch}:{x}:{y},boxblur=luma_radius='min(16,max(0,min(w,h)/2-1))':luma_power=2:chroma_radius='min(16,max(0,min(cw,ch)/2-1))':chroma_power=2[fg{i}];[base{i}][fg{i}]overlay=x={x}:y={y}{en}"
+                            ));
+                        } else {
+                            steps.push(format!(
+                                "split[base{i}][tmp{i}];[tmp{i}]crop={cw}:{ch}:{x}:{y},scale='max(1,iw/12)':'max(1,ih/12)':flags=neighbor,scale={cw}:{ch}:flags=neighbor[fg{i}];[base{i}][fg{i}]overlay=x={x}:y={y}{en}"
+                            ));
+                        }
+                    }
+                }
+            }
+            let f = if steps.is_empty() {
+                "null".to_string()
+            } else {
+                steps.join(",")
+            };
             let staged = input.stage("-redacted", &ext)?;
             let cmd = ffin(ffmpeg(ctx)?).args(reencode(Some(f), None));
             finish(cmd, staged, p.duration, "Redacting")

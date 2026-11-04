@@ -19,6 +19,10 @@ public Q_SLOTS:
     void ShowWheel(const QStringList &paths, const QString &mode);
     void ShowWheelFromClipboard(const QString &mode);
     void Activate();
+    void Download(const QString &url);
+    void DownloadClipboard();
+    void ToggleShelf();
+    void AddToShelf(const QStringList &paths);
 
 private:
     App *m_app;

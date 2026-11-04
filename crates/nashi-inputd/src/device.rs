@@ -51,7 +51,7 @@ const MULTI_FINGER: [KeyCode; 4] = [
 ];
 
 /// The only keys ever looked at. Index = bit in [`Translator::held`].
-const KEYS: [KeyCode; 7] = [
+const KEYS: [KeyCode; 9] = [
     KeyCode::BTN_LEFT,
     KeyCode::KEY_LEFTSHIFT,
     KeyCode::KEY_RIGHTSHIFT,
@@ -59,15 +59,19 @@ const KEYS: [KeyCode; 7] = [
     KeyCode::KEY_RIGHTCTRL,
     KeyCode::KEY_LEFTALT,
     KeyCode::KEY_RIGHTALT,
+    KeyCode::KEY_LEFTMETA,
+    KeyCode::KEY_RIGHTMETA,
 ];
 
-const MODS: [(Modifier, Side); 6] = [
+const MODS: [(Modifier, Side); 8] = [
     (Modifier::Shift, Side::Left),
     (Modifier::Shift, Side::Right),
     (Modifier::Ctrl, Side::Left),
     (Modifier::Ctrl, Side::Right),
     (Modifier::Alt, Side::Left),
     (Modifier::Alt, Side::Right),
+    (Modifier::Meta, Side::Left),
+    (Modifier::Meta, Side::Right),
 ];
 
 /// What a device can contribute.
@@ -162,7 +166,7 @@ pub struct Translator {
     device: DeviceId,
     caps: Caps,
     /// Bitmask over [`KEYS`] of what this device currently holds.
-    held: u8,
+    held: u16,
     rel: (f64, f64),
     abs: (Option<f64>, Option<f64>),
     dropping: bool,
@@ -275,7 +279,7 @@ impl Translator {
     }
 
     fn set_key(&mut self, idx: usize, down: bool, out: &mut Vec<Input>) {
-        let bit = 1u8 << idx;
+        let bit = 1u16 << idx;
         if down == (self.held & bit != 0) {
             return;
         }
@@ -769,6 +773,11 @@ mod tests {
                     device: 2,
                     modifier: Modifier::Shift,
                     side: Side::Right
+                },
+                Input::ModifierDown {
+                    device: 2,
+                    modifier: Modifier::Meta,
+                    side: Side::Left
                 },
                 Input::ModifierUp {
                     device: 2,

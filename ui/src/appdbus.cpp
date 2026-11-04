@@ -33,6 +33,27 @@ void NashiAdaptor::Activate()
     m_app->showHome();
 }
 
+void NashiAdaptor::Download(const QString &url)
+{
+    if (m_app->isValidWebUrl(url))
+        m_app->showDownload(url.trimmed(), false);
+}
+
+void NashiAdaptor::DownloadClipboard()
+{
+    m_app->showDownloadFromClipboard();
+}
+
+void NashiAdaptor::ToggleShelf()
+{
+    m_app->toggleShelf();
+}
+
+void NashiAdaptor::AddToShelf(const QStringList &paths)
+{
+    m_app->addToShelf(paths);
+}
+
 FdoApplicationAdaptor::FdoApplicationAdaptor(App *app)
     : QDBusAbstractAdaptor(app)
     , m_app(app)
@@ -62,6 +83,8 @@ void FdoApplicationAdaptor::ActivateAction(const QString &name, const QVariantLi
     applyActivationToken(platformData);
     if (name == QLatin1String("quit"))
         m_app->quit();
+    else if (name == QLatin1String("DownloadClipboard"))
+        m_app->showDownloadFromClipboard();
     else
         m_app->showHome();
 }

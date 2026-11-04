@@ -25,6 +25,16 @@ namespace {
 QStringList g_messages;
 QtMessageHandler g_previous = nullptr;
 
+// Development aid: with NASHI_SCREENSHOT_DIR set, windows are saved as PNGs.
+void shot(QQuickWindow *w, const QString &name)
+{
+    const QString dir = qEnvironmentVariable("NASHI_SCREENSHOT_DIR");
+    if (dir.isEmpty())
+        return;
+    QTest::qWait(150);
+    w->grabWindow().save(dir + QLatin1Char('/') + name + QStringLiteral(".png"));
+}
+
 void captureHandler(QtMsgType type, const QMessageLogContext &ctx, const QString &msg)
 {
     if (type != QtDebugMsg && type != QtInfoMsg)
@@ -67,13 +77,17 @@ private Q_SLOTS:
         QTest::addColumn<QString>("url");
         QDirIterator it(QStringLiteral(":/qt/qml/NashiApp/qml"), {QStringLiteral("*.qml")}, QDir::Files,
                         QDirIterator::Subdirectories);
-        int n = 0;
+        QStringList inModule;
         while (it.hasNext()) {
             const QString path = it.next();
-            QTest::newRow(qPrintable(QFileInfo(path).fileName())) << (QStringLiteral("qrc") + path);
-            ++n;
+            inModule << QFileInfo(path).fileName();
+            QTest::newRow(qPrintable(inModule.constLast())) << (QStringLiteral("qrc") + path);
         }
-        QVERIFY2(n >= 11, "QML files missing from the module resources");
+        // Every QML file in the source tree must be registered in the module.
+        QStringList inSource = QDir(QStringLiteral(NASHI_QML_SRC_DIR)).entryList({QStringLiteral("*.qml")}, QDir::Files);
+        inModule.sort();
+        inSource.sort();
+        QCOMPARE(inModule, inSource);
     }
 
     void loadAll()
@@ -115,8 +129,10 @@ private Q_SLOTS:
         ctl->dragEntered(w, {QUrl::fromLocalFile(QStringLiteral("/tmp/clip.mp4"))}, QPointF(20, 20));
         QTRY_COMPARE_WITH_TIMEOUT(ctl->stage(), OverlayController::Live, 10000);
         QTest::qWait(50);
+        shot(w, QStringLiteral("wheel-convert"));
         ctl->onChordStarted(QStringLiteral("tools"));
         QTest::qWait(50);
+        shot(w, QStringLiteral("wheel-tools"));
         ctl->dropped(w, {}, QPointF(20, 20), -3);
         QCOMPARE(ctl->stage(), OverlayController::Hidden); // -3 in Live = cancel
         ctl->showForFiles({QStringLiteral("/tmp/clip.mp4")}, QStringLiteral("actions"), w, QPointF(640, 400));
@@ -152,10 +168,10 @@ private Q_SLOTS:
 
         // Like QGuiApplicationPrivate::processDrag: DragEnter, then DragMove whose
         // accepted action is what the platform reports back to the source.
-        QDragEnterEvent enter(anchor, offered, &mime, Qt::LeftButton, Qt::ShiftModifier);
+        QDragEnterEvent enter(anchor.toPoint(), offered, &mime, Qt::LeftButton, Qt::ShiftModifier);
         enter.setDropAction(Qt::MoveAction);
         QCoreApplication::sendEvent(w, &enter);
-        QDragMoveEvent firstMove(anchor, offered, &mime, Qt::LeftButton, Qt::ShiftModifier);
+        QDragMoveEvent firstMove(anchor.toPoint(), offered, &mime, Qt::LeftButton, Qt::ShiftModifier);
         firstMove.setDropAction(Qt::MoveAction);
         QCoreApplication::sendEvent(w, &firstMove);
         QVERIFY(firstMove.isAccepted());
@@ -165,7 +181,7 @@ private Q_SLOTS:
 
         // Slice 0 (MP3) is straight above the centre.
         const QPointF onSlice0 = anchor + QPointF(0, -(WheelGeometry::kInnerRadius + 40));
-        QDragMoveEvent move(onSlice0, offered, &mime, Qt::LeftButton, Qt::ShiftModifier);
+        QDragMoveEvent move(onSlice0.toPoint(), offered, &mime, Qt::LeftButton, Qt::ShiftModifier);
         move.setDropAction(Qt::MoveAction);
         QCoreApplication::sendEvent(w, &move);
         QVERIFY(move.isAccepted());
@@ -200,10 +216,10 @@ private Q_SLOTS:
         ctl->onChordStarted(QStringLiteral("tools"));
 
         QMimeData empty; // nothing readable before the drop
-        QDragEnterEvent enter(QPointF(300, 300), Qt::CopyAction | Qt::MoveAction, &empty, Qt::LeftButton, Qt::ShiftModifier);
+        QDragEnterEvent enter(QPoint(300, 300), Qt::CopyAction | Qt::MoveAction, &empty, Qt::LeftButton, Qt::ShiftModifier);
         enter.setDropAction(Qt::MoveAction);
         QCoreApplication::sendEvent(w, &enter);
-        QDragMoveEvent move(QPointF(300, 300), Qt::CopyAction | Qt::MoveAction, &empty, Qt::LeftButton, Qt::ShiftModifier);
+        QDragMoveEvent move(QPoint(300, 300), Qt::CopyAction | Qt::MoveAction, &empty, Qt::LeftButton, Qt::ShiftModifier);
         move.setDropAction(Qt::MoveAction);
         QCoreApplication::sendEvent(w, &move);
         QCOMPARE(move.dropAction(), Qt::CopyAction);
@@ -238,6 +254,8 @@ private Q_SLOTS:
                                            {QStringLiteral("/tmp/code.png")});
         QVERIFY(ok && fail && slow && qr);
         QVERIFY(app->toast()->shown());
+        if (auto *tw = app->toast()->window())
+            shot(tw, QStringLiteral("toast-running"));
         QTRY_VERIFY_WITH_TIMEOUT(ok->finished() && fail->finished() && qr->finished(), 10000);
         QCOMPARE(qr->outputMessages().size(), 1);
         QTest::qWait(100);
@@ -248,6 +266,45 @@ private Q_SLOTS:
         app->toast()->dismiss();
         QVERIFY(!app->toast()->shown());
         QCOMPARE(app->recent()->rowCount() >= 1, true);
+        QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
+    }
+
+    // Options dialog: every form loads, validates and starts a job.
+    void optionsWindow()
+    {
+        g_messages.clear();
+        const QStringList tools = {QStringLiteral("changeVideoSpeed"), QStringLiteral("trimVideo"),
+                                   QStringLiteral("trimAudio"),        QStringLiteral("cropVideo"),
+                                   QStringLiteral("cropImage"),        QStringLiteral("editImage"),
+                                   QStringLiteral("frameImage"),       QStringLiteral("redactImage"),
+                                   QStringLiteral("redactVideo"),      QStringLiteral("redactAudio"),
+                                   QStringLiteral("organizePDF")};
+        app->showOptions(tools.constFirst(), tools.constFirst(), {QStringLiteral("/tmp/clip.mp4")});
+        auto *w = qobject_cast<QQuickWindow *>(app->optionsWindow());
+        QVERIFY(w);
+        w->resize(520, 680);
+        w->show();
+        QVERIFY(QTest::qWaitForWindowExposed(w));
+        for (const QString &id : tools) {
+            app->showOptions(id, id, {QStringLiteral("/tmp/clip.mp4")});
+            // Simulated `inspect` facts.
+            const QVariantMap facts{{QStringLiteral("duration"), 12.5},
+                                    {QStringLiteral("width"), 640},
+                                    {QStringLiteral("height"), 360},
+                                    {QStringLiteral("pages"), 4}};
+            QMetaObject::invokeMethod(w, "applyInfo", Q_ARG(QVariant, QVariant(facts)));
+            QTest::qWait(20);
+            const QVariant result = w->property("result");
+            const bool needsChoice = id == QLatin1String("editImage");
+            QVERIFY2(needsChoice == (result.typeId() == QMetaType::QString),
+                     qPrintable(id + QStringLiteral(": ") + result.toString()));
+            shot(w, QStringLiteral("options-") + id);
+        }
+        const int before = app->jobs()->rowCount();
+        app->showOptions(QStringLiteral("changeVideoSpeed"), QStringLiteral("Speed"), {QStringLiteral("/tmp/clip.mp4")});
+        QMetaObject::invokeMethod(w, "run");
+        QCOMPARE(app->jobs()->rowCount(), before + 1);
+        QVERIFY(!w->isVisible());
         QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
     }
 
@@ -271,6 +328,19 @@ private Q_SLOTS:
         for (int i : {1, 2, 3, 0}) {
             tabs->setProperty("currentIndex", i);
             QTest::qWait(50);
+        }
+        if (!qEnvironmentVariableIsEmpty("NASHI_SCREENSHOT_DIR")) {
+            const QString before = app->settings()->appearance();
+            w->resize(960, 820);
+            for (const QString &look : {QStringLiteral("light"), QStringLiteral("dark")}) {
+                app->settings()->setAppearance(look);
+                for (int i : {0, 1, 2, 3}) {
+                    tabs->setProperty("currentIndex", i);
+                    shot(w, QStringLiteral("home-%1-%2").arg(look).arg(i));
+                }
+            }
+            app->settings()->setAppearance(before);
+            tabs->setProperty("currentIndex", 0);
         }
         app->home()->model()->setMode(QStringLiteral("tools"));
         QTest::qWait(30);

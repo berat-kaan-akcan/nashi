@@ -1,6 +1,7 @@
 #include "app.h"
 #include "cliargs.h"
 #include "iconprovider.h"
+#include "shelfmodel.h"
 
 #include <QApplication>
 #include <QDBusConnection>
@@ -91,6 +92,18 @@ int main(int argc, char *argv[])
         break;
     case CommandLine::OpenFiles:
         app.openFiles(cmd.files);
+        break;
+    case CommandLine::Download:
+        app.showDownload(cmd.url, false);
+        break;
+    case CommandLine::DownloadClipboard:
+        app.showDownloadFromClipboard();
+        break;
+    case CommandLine::ToggleShelf:
+        app.shelf()->show();
+        break;
+    case CommandLine::AddToShelf:
+        app.addToShelf(cmd.files);
         break;
     default:
         app.showHome();

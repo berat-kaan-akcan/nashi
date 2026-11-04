@@ -2,6 +2,7 @@
 
 pub mod archive;
 pub mod epub;
+pub mod htmlsafe;
 pub mod image;
 pub mod media;
 pub mod office;

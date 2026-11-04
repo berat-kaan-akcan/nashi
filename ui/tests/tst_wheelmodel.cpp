@@ -52,6 +52,30 @@ private Q_SLOTS:
             QVERIFY(i.id != QLatin1String("trim"));
     }
 
+    // Editor tools with an options form are shown (and flagged); others stay hidden.
+    void editorToolsWithFormsAreShown()
+    {
+        QJsonObject wheel = sampleWheel();
+        QJsonArray tools = wheel.value(QStringLiteral("tools")).toArray();
+        tools.append(QJsonObject{{QStringLiteral("id"), QStringLiteral("cropImage")},
+                                 {QStringLiteral("title"), QStringLiteral("Crop Image")},
+                                 {QStringLiteral("needs_editor"), true}});
+        tools.append(QJsonObject{{QStringLiteral("id"), QStringLiteral("annotateImage")},
+                                 {QStringLiteral("title"), QStringLiteral("Annotate Image")},
+                                 {QStringLiteral("needs_editor"), true}});
+        wheel.insert(QStringLiteral("tools"), tools);
+        const auto items = WheelModel::buildItems(wheel, QStringLiteral("tools"), QStringLiteral("en"));
+        QCOMPARE(items.size(), 4);
+        QCOMPARE(items.at(2).id, QStringLiteral("cropImage"));
+        QVERIFY(items.at(2).needsOptions);
+        QCOMPARE(items.at(3).id, QStringLiteral("annotateImage"));
+        QVERIFY(items.at(3).needsOptions);
+        QVERIFY(!items.at(0).needsOptions);
+        QVERIFY(WheelModel::hasOptionsForm(QStringLiteral("trimVideo")));
+        QVERIFY(WheelModel::hasOptionsForm(QStringLiteral("annotateImage")));
+        QVERIFY(!WheelModel::hasOptionsForm(QStringLiteral("trim")));
+    }
+
     void actionsAndModeNormalisation()
     {
         const auto a = WheelModel::buildItems(sampleWheel(), QStringLiteral("ACTIONS"), QStringLiteral("en"));

@@ -34,7 +34,10 @@ drag_move_px = 8
 shift = "convert"
 ctrl  = "tools"
 alt   = "actions"
+meta  = "none"
 ```
+
+`[chords]` keys: `shift`, `ctrl`, `alt`, `meta` (Super/Windows key); values `"convert"`, `"tools"`, `"actions"` or `"none"`/`""` (unmapped). Keys left out keep the defaults above (`meta` is unmapped by default because KWin uses Meta+drag to move windows). Unknown keys make the file invalid. The Nashi app's Settings page rewrites this file (it keeps `enabled`, `drag_hold_ms`, `drag_move_px` and any comments it does not understand, writes all four chord keys, renames a temp file into place) and then calls `Reload()`.
 
 ### Semantics (clients must handle)
 
@@ -57,3 +60,9 @@ Touchpad tap-and-drag: the compositor (libinput) turns "tap, then touch again an
 - The same object also implements the standard `org.freedesktop.Application` interface (`Activate(a{sv})`, `Open(as uris, a{sv})`, `ActivateAction`). `nashi FILE…` forwards to `Open` (opens Home with the files queued); both read the `activation-token` platform-data key so Wayland can raise the window. `Nashi1.Activate()` is kept for scripts but cannot pass a token.
 - `nashi --wheel [--mode m]` with no files maps to `ShowWheelFromClipboard(mode)`.
 - On Wayland the cursor position is unknown to clients, so `ShowWheel` centres the wheel on the primary screen.
+
+### Additions (v0.2)
+
+- `Download(s url)` — open the download dialog for this URL (http/https only).
+- `DownloadClipboard()` — open the download dialog with the link from the clipboard (Wayland: the dialog takes focus and reads the clipboard then). Bound to `nashi --download-clipboard` and the `.desktop` action `DownloadClipboard`, so users can give it a global shortcut (default suggestion Ctrl+Shift+D) in System Settings → Shortcuts.
+- `ToggleShelf()` / `AddToShelf(as paths)` — show/hide the Float shelf, or add files to it (shows it).

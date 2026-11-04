@@ -3,6 +3,8 @@
 #include <QTest>
 #include <QtMath>
 
+#include <cmath>
+
 class TestWheelGeometry : public QObject
 {
     Q_OBJECT
@@ -84,6 +86,44 @@ private Q_SLOTS:
         QVERIFY(WheelGeometry::outerRadiusFor(20) > WheelGeometry::outerRadiusFor(8));
         QCOMPARE(WheelGeometry::outerRadiusFor(500), 360.0);
         QVERIFY(WheelGeometry::outerRadiusFor(6) > WheelGeometry::kInnerRadius * 2);
+    }
+
+    void scaleIsClampedAndDefaultsToOne()
+    {
+        QCOMPARE(WheelGeometry::clampScale(1.0), 1.0);
+        QCOMPARE(WheelGeometry::clampScale(0.1), WheelGeometry::kMinScale);
+        QCOMPARE(WheelGeometry::clampScale(9.0), WheelGeometry::kMaxScale);
+        QCOMPARE(WheelGeometry::clampScale(std::nan("")), 1.0);
+        QCOMPARE(WheelGeometry::innerRadiusFor(1.0), WheelGeometry::kInnerRadius);
+        QCOMPARE(WheelGeometry::outerRadiusFor(6, 1.0), WheelGeometry::outerRadiusFor(6));
+        QCOMPARE(WheelGeometry::outerRadiusFor(6, 1.4), WheelGeometry::outerRadiusFor(6) * 1.4);
+    }
+
+    void scaledDrawingMatchesHitTest_data()
+    {
+        QTest::addColumn<double>("scale");
+        for (double s : {0.8, 1.0, 1.2, 1.4})
+            QTest::addRow("%.1f", s) << s;
+    }
+    void scaledDrawingMatchesHitTest()
+    {
+        // The wheel draws and hit-tests with the same scaled radii: the
+        // middle of each drawn ring maps to its slice, the drawn centre disc
+        // cancels and points just beyond the scaled reach are outside.
+        QFETCH(double, scale);
+        for (int n : {3, 8}) {
+            const double inner = WheelGeometry::innerRadiusFor(scale);
+            const double outer = WheelGeometry::outerRadiusFor(n, scale);
+            const double ring = (inner + outer) / 2;
+            for (int i = 0; i < n; ++i) {
+                const double mid = qDegreesToRadians(WheelGeometry::sliceStartAngle(i, n) + WheelGeometry::sliceSweep(n) / 2);
+                QCOMPARE(WheelGeometry::sliceAt(std::cos(mid) * ring, std::sin(mid) * ring, n, inner, outer), i);
+            }
+            QCOMPARE(WheelGeometry::sliceAt(0, -(inner - 1), n, inner, outer), int(WheelGeometry::Cancel));
+            QCOMPARE(WheelGeometry::sliceAt(0, -(inner + 1), n, inner, outer), 0);
+            QCOMPARE(WheelGeometry::sliceAt(0, -(outer * WheelGeometry::kOuterReach + 1), n, inner, outer),
+                     int(WheelGeometry::Outside));
+        }
     }
 };
 

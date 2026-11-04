@@ -29,6 +29,17 @@ QString WheelModel::localizedTitle(const QJsonValue &title, const QString &langu
     return obj.isEmpty() ? QString() : obj.begin().value().toString();
 }
 
+bool WheelModel::hasOptionsForm(const QString &toolId)
+{
+    static const QStringList forms = {
+        QStringLiteral("changeVideoSpeed"), QStringLiteral("trimVideo"),   QStringLiteral("trimAudio"),
+        QStringLiteral("cropVideo"),        QStringLiteral("cropImage"),   QStringLiteral("editImage"),
+        QStringLiteral("frameImage"),       QStringLiteral("redactImage"), QStringLiteral("redactVideo"),
+        QStringLiteral("redactAudio"),      QStringLiteral("organizePDF"), QStringLiteral("annotateImage"),
+    };
+    return forms.contains(toolId);
+}
+
 QList<WheelItem> WheelModel::buildItems(const QJsonObject &wheel, const QString &mode, const QString &language)
 {
     const QString m = normalizeMode(mode);
@@ -43,8 +54,11 @@ QList<WheelItem> WheelModel::buildItems(const QJsonObject &wheel, const QString 
         item.id = o.value(QStringLiteral("id")).toString();
         if (item.id.isEmpty())
             continue;
-        if (o.value(QStringLiteral("needs_editor")).toBool())
-            continue; // editors do not exist yet (docs/CLI-PROTOCOL.md)
+        if (o.value(QStringLiteral("needs_editor")).toBool()) {
+            if (kind != QLatin1String("tool") || !hasOptionsForm(item.id))
+                continue; // no editor for it yet (docs/CLI-PROTOCOL.md)
+            item.needsOptions = true;
+        }
         item.kind = kind;
         item.title = localizedTitle(o.value(QStringLiteral("title")), language);
         if (item.title.isEmpty())
@@ -82,6 +96,8 @@ QVariant WheelModel::data(const QModelIndex &index, int role) const
         return it.available;
     case MissingRole:
         return it.missing.join(QStringLiteral(", "));
+    case NeedsOptionsRole:
+        return it.needsOptions;
     default:
         return {};
     }
@@ -90,7 +106,8 @@ QVariant WheelModel::data(const QModelIndex &index, int role) const
 QHash<int, QByteArray> WheelModel::roleNames() const
 {
     return {{IdRole, "itemId"},       {KindRole, "kind"},           {TitleRole, "title"},
-            {IconRole, "iconName"},   {AvailableRole, "available"}, {MissingRole, "missing"}};
+            {IconRole, "iconName"},   {AvailableRole, "available"}, {MissingRole, "missing"},
+            {NeedsOptionsRole, "needsOptions"}};
 }
 
 void WheelModel::setMode(const QString &mode)

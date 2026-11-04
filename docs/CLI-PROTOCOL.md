@@ -12,6 +12,8 @@ Stable contract. Changing it requires updating `ui/` and this file in the same c
 | `nashi-cli deps --json` | External tool availability, version, and Arch package name |
 | `nashi-cli convert TARGET FILE... [--out-dir DIR] [--options JSON] --json` | Convert each file to `TARGET` extension |
 | `nashi-cli tool TOOL_ID FILE... [--out-dir DIR] [--options JSON] --json` | Run a tool (single-input tools run per file; multi-input tools take all files) |
+| `nashi-cli preview FILE --kind frame\|waveform\|pages --out-dir DIR [...] --json` | Render editor preview PNGs (frame, waveform, PDF pages) into `DIR` |
+| `nashi-cli download URL [--kind auto\|video\|audio\|thumbnail\|image] [--out-dir DIR] --json` | Download an `http`/`https` URL via `yt-dlp` or `curl` |
 
 Without `--json` the CLI prints human-readable text. Exit codes: `0` all succeeded, `1` one or more inputs failed, `2` usage error, `3` required external tool missing, `130` cancelled (SIGINT/SIGTERM).
 
@@ -28,7 +30,7 @@ Without `--json` the CLI prints human-readable text. Exit codes: `0` all succeed
 
 - `convert`: targets valid for **every** input (intersection). Empty when inputs mix categories with no common target.
 - `tools`: for one file → `singleTools[ext]`; for several files → `multipleTools[ext]` when all share the ext, otherwise tools valid for all.
-- `needs_editor: true` means the UI must collect options (crop rect, trim range…) before running; until editors exist the UI may hide such tools.
+- `needs_editor: true` means the UI must collect options (crop rect, trim range…) before running. The UI shows such tools when it has an options form for them (`OptionsWindow.qml`: speed, trim, crop, edit, frame, redact, organizePDF) and hides the rest (`annotateImage`) until a visual editor exists.
 - `available: false` when a required external tool is missing; include `"missing": ["ffmpeg"]`.
 - `actions` are handled by the UI itself. The CLI only lists them. Fixed ids: `copy` (put the files on the clipboard as `text/uri-list`), `copyPath` (paths as text), `terminal` (open a terminal in the file's folder), `openFolder`, `reveal` (show in the file manager, selected). There is no `move` action: Nashi never moves user files.
 - `title` for formats is a plain string (the uppercase extension); for tools and actions it is `{"en","tr"}`.
@@ -45,7 +47,7 @@ Without `--json` the CLI prints human-readable text. Exit codes: `0` all succeed
 ]}
 ```
 
-`package` is the Arch Linux package name. Tool ids: `ffmpeg`, `ffprobe`, `magick`, `soffice`, `exiftool`, `qpdf`, `pdftoppm`, `pdftotext`, `gs`, `7z`, `zbarimg`, `pandoc`, `rsvg-convert`, `yt-dlp`.
+`package` is the Arch Linux package name. Tool ids: `ffmpeg`, `ffprobe`, `magick`, `soffice`, `exiftool`, `qpdf`, `pdftoppm`, `pdftotext`, `gs`, `7z`, `zbarimg`, `pandoc`, `rsvg-convert`, `yt-dlp`, `curl`.
 
 ## `inspect` output
 
@@ -83,6 +85,7 @@ One JSON object per line on **stdout**; nothing else is printed to stdout. Diagn
 - `fraction` is 0..1 for the current input, or `null` when unknown (indeterminate).
 - Multi-input tools (merge, join, collage, createPDF) use `index: null` and `input: null` for the combined output.
 - Error codes: `unsupported_route`, `missing_dependency`, `tool_failed`, `invalid_input`, `invalid_options`, `io`, `cancelled`.
+- A PDF with no extractable text (a scan) converted to `txt`, `md` or `epub` is `invalid_input`; no output file is produced.
 - On SIGTERM/SIGINT: kill child processes, delete temp files, emit `done` with `"cancelled": true`, exit 130.
 
 ## Output naming
@@ -113,3 +116,53 @@ Optional; unknown keys are ignored. Defaults are sensible so every route works w
 - Extra output suffixes: `stem-parts/` (splitVideo), `stem-qr.txt`, `stem-<speed>x.ext`, `stem-trimmed|-cropped|-edited|-framed|-redacted|-bleeped|-organized.ext`, `stem-visualizer.mp4`, `stem-mono|-stereo.ext`, and `stem.tar.gz` when the target is `gz`.
 - Tools with `needs_editor: true` return `invalid_options` when called without their options.
 - Testing: `NASHI_DISABLE_TOOLS=a,b` makes those tools appear missing. Child processes run with `LC_ALL=C.UTF-8` (ImageMagick breaks under `tr_TR`).
+
+## Additions (v0.2 — editors, download)
+
+### Orientation
+
+`cropImage`, `redactImage`, `annotateImage`, `frameImage` and `editImage` work on the **auto-oriented** image (`-auto-orient` first). `inspect` reports image `width`/`height` after EXIF orientation and video `width`/`height` after rotation metadata (what ffmpeg filters see), so editor coordinates always match what the user sees.
+
+### `preview` command (editor/preview helpers)
+
+```
+nashi-cli preview FILE --kind frame|waveform|pages --out-dir DIR
+          [--at SEC] [--width PX] [--height PX] [--pages SPEC] [--color #RRGGBB] --json
+```
+
+Writes PNGs into `DIR` (created if missing; the caller owns and deletes it) and prints **one** JSON object:
+
+```json
+{"kind": "pages", "files": ["/DIR/page-001.png", "/DIR/page-002.png"], "width": 240, "height": 339}
+```
+
+- `frame`: images (any readable format, incl. HEIC/SVG/TIFF, first frame, auto-oriented) or video/gif (frame at `--at`, default 0, clamped to the duration). Scaled to fit `--width` (default 1600), never upscaled. `width`/`height` are those of the PNG.
+- `waveform`: audio or video → one transparent PNG `--width`×`--height` (defaults 1200×160), mono waveform in `--color` (default `#30543b`).
+- `pages`: PDF → one PNG per page, `--width` default 240, `--pages` limits the set (same syntax as the `pages` option). `files` is in page order; `width`/`height` are those of the first PNG.
+- Errors: prints `{"error": {"code": "invalid_input", "message": "..."}}` (codes as in the event stream) and exits 1 (3 for a missing tool, 2 for usage).
+
+### `annotateImage` options
+
+`{"overlay": "/abs/path/overlay.png"}` — a PNG with alpha drawn by the UI at the pixel size of the auto-oriented input; it is composited over the input (scaled to the input size if it differs). The path must be an existing regular `.png` file and must not be the input itself. Output: `stem-annotated.ext`. The UI writes overlays to `~/.cache/nashi/annotate/` and deletes them after the job.
+
+### `organizePDF` options
+
+`{"pages": "3,1,2", "rotations": [0, 90, 270]}` — `rotations` (optional) is parallel to the **expanded** output page list (one entry per output page), degrees clockwise, each a multiple of 90 (0/90/180/270; negative values are normalised). Length must match the page count of the result, otherwise `invalid_options`.
+
+### `redactImage` / `redactVideo` styles
+
+`rects[].style` (optional): `"black"` (default), `"blur"` or `"pixelate"`.
+
+### `download` command
+
+```
+nashi-cli download URL [--kind auto|video|audio|thumbnail|image] [--out-dir DIR] --json
+```
+
+- Only `http`/`https` URLs (else `invalid_input`); the URL is passed after `--` and never interpreted as an option.
+- Default `--out-dir`: the XDG download directory (`$XDG_DOWNLOAD_DIR` / `user-dirs.dirs`, else `~/Downloads`).
+- `auto`: a URL whose path ends in a known image/video/audio/document extension is fetched directly (like `image`); everything else goes through `yt-dlp` as `video`.
+- `video` (yt-dlp, best video+audio merged to mp4 when possible), `audio` (yt-dlp `-x --audio-format mp3`), `thumbnail` (yt-dlp, thumbnail only, converted to png/jpg), `image` (direct file via `curl`, http/https only, also for redirects, size limit 2 GiB).
+- yt-dlp runs with `--ignore-config --no-playlist --newline`; downloads go to a temp dir inside `DIR` and are renamed into place with a unique name (never overwrite). Title-based names are sanitised (no `/`, no leading `-`/`.`, ≤ 150 bytes).
+- Emits the normal event stream (`start` total 1, `progress` with `fraction` from yt-dlp/curl, `output`, `error`, `done`), `input` is the URL, `index` 0. Cancel: SIGTERM as for jobs.
+- Missing `yt-dlp` / `curl` → `missing_dependency` (exit 3). `deps` lists `curl`.

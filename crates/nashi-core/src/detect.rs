@@ -247,6 +247,58 @@ pub struct Probe {
     pub signature: String,
 }
 
+/// Read `(width, height)` directly from a PNG file's 24-byte IHDR header.
+pub fn png_dimensions(path: &Path) -> Option<(u32, u32)> {
+    let mut buf = [0u8; 24];
+    let mut f = File::open(path).ok()?;
+    f.read_exact(&mut buf).ok()?;
+    if &buf[0..8] != b"\x89PNG\r\n\x1a\n" || &buf[12..16] != b"IHDR" {
+        return None;
+    }
+    let w = u32::from_be_bytes([buf[16], buf[17], buf[18], buf[19]]);
+    let h = u32::from_be_bytes([buf[20], buf[21], buf[22], buf[23]]);
+    (w > 0 && h > 0).then_some((w, h))
+}
+
+/// Normalised video stream rotation (`0..360`) from `tags.rotate` or
+/// `side_data_list` displaymatrix.
+pub fn stream_rotation(s: &serde_json::Value) -> i32 {
+    let parse_deg = |v: &serde_json::Value| -> Option<f64> {
+        v.as_f64()
+            .or_else(|| v.as_i64().map(|n| n as f64))
+            .or_else(|| v.as_str()?.trim().parse().ok())
+    };
+    if let Some(d) = parse_deg(&s["tags"]["rotate"]) {
+        return (d.round() as i32).rem_euclid(360);
+    }
+    for sd in s["side_data_list"].as_array().into_iter().flatten() {
+        if let Some(d) = parse_deg(&sd["rotation"]) {
+            return (d.round() as i32).rem_euclid(360);
+        }
+        if let Some(dm) = sd["displaymatrix"].as_str() {
+            // Rows look like `00000000:            0      -65536           0`.
+            let rows: Vec<Vec<i64>> = dm
+                .lines()
+                .filter_map(|l| l.split_once(':').map(|(_, r)| r))
+                .map(|r| {
+                    r.split_whitespace()
+                        .filter_map(|t| t.parse().ok())
+                        .collect()
+                })
+                .filter(|v: &Vec<i64>| v.len() >= 2)
+                .collect();
+            if rows.len() >= 2
+                && rows[0][0] == 0
+                && rows[1][1] == 0
+                && (rows[0][1] != 0 || rows[1][0] != 0)
+            {
+                return 90;
+            }
+        }
+    }
+    0
+}
+
 /// Run ffprobe on a file.
 pub fn ffprobe(deps: &Deps, path: &Path) -> Option<Probe> {
     let ff = deps.path("ffprobe")?;
@@ -288,8 +340,12 @@ pub fn ffprobe(deps: &Deps, path: &Path) -> Option<Probe> {
                 p.has_video = true;
                 p.width = s["width"].as_u64().map(|x| x as u32);
                 p.height = s["height"].as_u64().map(|x| x as u32);
+                let rot = stream_rotation(s);
+                if matches!(rot, 90 | 270) {
+                    std::mem::swap(&mut p.width, &mut p.height);
+                }
                 vsig = format!(
-                    "{}:{}:{}:{}:{}",
+                    "{}:{}:{}:{rot}:{}:{}",
                     s["codec_name"].as_str().unwrap_or("?"),
                     p.width.unwrap_or(0),
                     p.height.unwrap_or(0),
@@ -401,12 +457,17 @@ pub fn inspect(deps: &Deps, path: &Path) -> Inspect {
             }
         }
         Category::Image => {
-            if let Some(p) = ffprobe(deps, path).filter(|p| p.width.is_some()) {
-                r.width = p.width;
-                r.height = p.height;
-            } else if let Some((w, h)) = crate::engines::image::identify_size(deps, path, &d.ext) {
+            if let Some((w, h)) = crate::engines::image::identify_size(deps, path, &d.ext) {
                 r.width = Some(w);
                 r.height = Some(h);
+            } else if let Some(p) = ffprobe(deps, path).filter(|p| p.width.is_some()) {
+                r.width = p.width;
+                r.height = p.height;
+            } else if d.ext == "png" {
+                if let Some((w, h)) = png_dimensions(path) {
+                    r.width = Some(w);
+                    r.height = Some(h);
+                }
             }
         }
         Category::Pdf => r.pages = pdf_pages(deps, path),
@@ -469,5 +530,19 @@ mod tests {
             detect(Path::new("/nonexistent/x.flac")).category,
             Category::Audio
         );
+    }
+
+    #[test]
+    fn rotation_parsing() {
+        let s1 = serde_json::json!({"tags": {"rotate": "90"}});
+        assert_eq!(stream_rotation(&s1), 90);
+        let s2 = serde_json::json!({"side_data_list": [{"rotation": -90}]});
+        assert_eq!(stream_rotation(&s2), 270);
+        let s3 = serde_json::json!({"side_data_list": [{"rotation": 180}]});
+        assert_eq!(stream_rotation(&s3), 180);
+        let s4 = serde_json::json!({"side_data_list": [{"displaymatrix": "\n00000000: 0 -65536 0\n00000001: 65536 0 0\n"}]});
+        assert_eq!(stream_rotation(&s4), 90);
+        let s5 = serde_json::json!({});
+        assert_eq!(stream_rotation(&s5), 0);
     }
 }

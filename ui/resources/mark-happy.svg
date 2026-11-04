@@ -1,0 +1,20 @@
+<!-- Nashi pear, after NashiArtwork.swift (github.com/orkunisitmak/nashi-app, MIT). -->
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+  <defs><linearGradient id="g" gradientUnits="userSpaceOnUse" x1="20" y1="25" x2="85" y2="95"><stop offset="0" stop-color="#FADB94"/><stop offset="1" stop-color="#E3B859"/></linearGradient></defs>
+  <path d="M50 23.5C60 17 79 23 86.5 36C99 56 85 85 66 90.5C43 99 16 88 13 64C8 39 26 18 43 22.8Q46.8 25 50 23.5Z" fill="url(#g)"/>
+  <path d="M49 17C53 3 73 6.5 74 11.5C66 24 56 23 49 17Z" fill="#7D9E5C"/>
+  <ellipse cx="28.25" cy="40" rx="4.25" ry="8" fill="#FFFFFF" fill-opacity="0.24"/>
+  <circle cx="27.8" cy="48.8" r="0.8" fill="#334024" fill-opacity="0.19"/>
+  <circle cx="65.8" cy="37.8" r="0.8" fill="#334024" fill-opacity="0.19"/>
+  <circle cx="34.8" cy="75.8" r="0.8" fill="#334024" fill-opacity="0.19"/>
+  <circle cx="72.8" cy="69.8" r="0.8" fill="#334024" fill-opacity="0.19"/>
+  <circle cx="21.8" cy="61.8" r="0.8" fill="#334024" fill-opacity="0.19"/>
+  <circle cx="77.8" cy="50.8" r="0.8" fill="#334024" fill-opacity="0.19"/>
+  <circle cx="57.8" cy="82.8" r="0.8" fill="#334024" fill-opacity="0.19"/>
+  <circle cx="68.8" cy="77.8" r="0.8" fill="#334024" fill-opacity="0.19"/>
+  <circle cx="38.8" cy="34.8" r="0.8" fill="#334024" fill-opacity="0.19"/>
+  <rect x="39" y="51" width="4.5" height="3.5" rx="2.25" fill="#334024"/>
+  <rect x="59" y="51" width="4.5" height="3.5" rx="2.25" fill="#334024"/>
+  <path d="M45 64Q50 71 55 64" fill="none" stroke="#334024" stroke-width="2.8" stroke-linecap="round"/>
+  <path d="M49 24Q45.5 18 47 12" fill="none" stroke="#614A26" stroke-width="3.5" stroke-linecap="round"/>
+</svg>

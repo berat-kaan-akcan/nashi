@@ -20,7 +20,7 @@
 //!   position of the same device; the first sample after a press, a
 //!   [`Input::AbsReset`] (finger lifted) or a device removal only sets the
 //!   reference point.
-//! * **Modifiers**: shift/ctrl/alt with left and right keys tracked as separate
+//! * **Modifiers**: shift/ctrl/alt/meta with left and right keys tracked as separate
 //!   keys per device, so releasing one of two held shifts keeps "shift" held.
 //!   Only modifiers mapped in the config take part; unmapped ones are ignored.
 //! * **Mode priority**: when several mapped modifiers are held, the **most
@@ -47,6 +47,7 @@ pub enum Modifier {
     Shift,
     Ctrl,
     Alt,
+    Meta,
 }
 
 /// Which physical key of a modifier family.
@@ -143,6 +144,7 @@ pub struct Settings {
     pub shift: Option<Mode>,
     pub ctrl: Option<Mode>,
     pub alt: Option<Mode>,
+    pub meta: Option<Mode>,
 }
 
 impl Default for Settings {
@@ -153,6 +155,7 @@ impl Default for Settings {
             shift: Some(Mode::Convert),
             ctrl: Some(Mode::Tools),
             alt: Some(Mode::Actions),
+            meta: None,
         }
     }
 }
@@ -163,6 +166,7 @@ impl Settings {
             Modifier::Shift => self.shift,
             Modifier::Ctrl => self.ctrl,
             Modifier::Alt => self.alt,
+            Modifier::Meta => self.meta,
         }
     }
 }
@@ -711,6 +715,19 @@ mod tests {
                 ],
             ),
             (
+                "meta: ignored by default, a chord when mapped",
+                vec![
+                    At(0, DOWN, &[]),
+                    At(200, rel(9.0), &[DragStarted]),
+                    At(210, md(Meta, Left), &[]),
+                    State(true, ""),
+                    Apply(220, meta_actions, &[ChordStarted(Mode::Actions)]),
+                    At(230, mu(Meta, Left), &[ChordReleased]),
+                    At(240, md(Meta, Right), &[ChordStarted(Mode::Actions)]),
+                    At(250, UP, &[DragEnded]),
+                ],
+            ),
+            (
                 "reload with new mappings re-evaluates active chord",
                 vec![
                     At(0, DOWN, &[]),
@@ -845,6 +862,13 @@ mod tests {
     fn unmapped_shift() -> Settings {
         Settings {
             shift: None,
+            ..Settings::default()
+        }
+    }
+    fn meta_actions() -> Settings {
+        Settings {
+            alt: None,
+            meta: Some(Mode::Actions),
             ..Settings::default()
         }
     }

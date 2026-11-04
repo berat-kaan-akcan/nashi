@@ -104,6 +104,7 @@ pub const FORMATS: &[(&str, Category)] = &[
     ("rtf", Category::Document),
     ("rtfd", Category::Document),
     ("textclipping", Category::Text),
+    ("html", Category::Document),
     ("epub", Category::Document),
     ("txt", Category::Text),
     ("xlsx", Category::Spreadsheet),
@@ -890,7 +891,7 @@ mod tests {
             ours, theirs,
             "FORMATS must match upstream conversionMatrix keys"
         );
-        assert_eq!(FORMATS.len(), 45);
+        assert_eq!(FORMATS.len(), 46);
         for k in u.single_tools.keys().chain(u.multiple_tools.keys()) {
             assert!(ours.contains(k.as_str()), "tool list for unknown ext {k}");
         }

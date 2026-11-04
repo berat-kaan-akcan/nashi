@@ -91,7 +91,9 @@ pub fn run_env(args: &[&str], env: &[(&str, &str)]) -> Run {
     let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
     let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
     let mut events = Vec::new();
-    if args.contains(&"--json") && (args[0] == "convert" || args[0] == "tool") {
+    if args.contains(&"--json")
+        && (args[0] == "convert" || args[0] == "tool" || args[0] == "download")
+    {
         for line in stdout.lines() {
             let v: Value = serde_json::from_str(line)
                 .unwrap_or_else(|e| panic!("non-JSON line {line:?}: {e}"));

@@ -36,6 +36,7 @@ struct RawChords {
     shift: Option<String>,
     ctrl: Option<String>,
     alt: Option<String>,
+    meta: Option<String>,
 }
 
 /// Default config path: `$XDG_CONFIG_HOME/nashi/inputd.toml`, falling back to
@@ -90,6 +91,7 @@ pub fn parse(text: &str) -> Result<Config, String> {
         conv("shift", ch.shift, &mut cfg.settings.shift)?;
         conv("ctrl", ch.ctrl, &mut cfg.settings.ctrl)?;
         conv("alt", ch.alt, &mut cfg.settings.alt)?;
+        conv("meta", ch.meta, &mut cfg.settings.meta)?;
     }
     Ok(cfg)
 }
@@ -134,6 +136,7 @@ drag_move_px = 8
 shift = "convert"
 ctrl  = "tools"
 alt   = "actions"
+meta  = "none"
 "#;
         assert_eq!(parse(text).unwrap(), Config::default());
     }
@@ -150,6 +153,15 @@ alt   = "actions"
         assert_eq!(c.settings.shift, Some(Mode::Tools));
         assert_eq!(c.settings.ctrl, Some(Mode::Tools));
         assert_eq!(c.settings.alt, None);
+        assert_eq!(c.settings.meta, None);
+    }
+
+    #[test]
+    fn meta_chord() {
+        let c = parse("[chords]\nalt = \"none\"\nmeta = \"actions\"\n").unwrap();
+        assert_eq!(c.settings.alt, None);
+        assert_eq!(c.settings.meta, Some(Mode::Actions));
+        assert!(parse("[chords]\nmeta = \"menu\"").is_err());
     }
 
     #[test]

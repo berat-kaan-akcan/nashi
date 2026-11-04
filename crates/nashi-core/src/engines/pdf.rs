@@ -53,6 +53,15 @@ fn pdftotext(ctx: &Ctx, pdf: &Path, out: &Path) -> JobResult<()> {
         .arg(pdf)
         .arg(out)
         .run_ok()?;
+    // pdftotext succeeds on a scan, leaving only form feeds.
+    if String::from_utf8_lossy(&std::fs::read(out)?)
+        .trim()
+        .is_empty()
+    {
+        return Err(JobError::invalid_input(
+            "This PDF has no text to extract (it may be a scan)",
+        ));
+    }
     Ok(())
 }
 
@@ -299,6 +308,13 @@ fn organize(ctx: &Ctx, input: &Input) -> JobResult<Produced> {
     })?;
     let d = ctx.deps;
     let pages = parse_pages(spec, pdf_pages(d, &input.path))?;
+    let rotations = match &ctx.opts.rotations {
+        Some(r) => Some(crate::options::normalize_rotations(r, pages.len())?),
+        None => None,
+    };
+    let has_rotations = rotations
+        .as_ref()
+        .is_some_and(|r| r.iter().any(|&deg| deg != 0));
     ctx.progress(None, "Reordering pages");
     let staged = input.stage("-organized", "pdf")?;
     let list = pages
@@ -307,17 +323,37 @@ fn organize(ctx: &Ctx, input: &Input) -> JobResult<Produced> {
         .collect::<Vec<_>>()
         .join(",");
     if let Some(qpdf) = d.path("qpdf") {
+        let work = WorkDir::new_in(&input.out_dir)?;
+        let first_dst = if has_rotations {
+            work.join("reordered.pdf")
+        } else {
+            staged.path().to_path_buf()
+        };
         let r = Cmd::new(qpdf)
             .arg("--empty")
             .arg("--pages")
             .arg(&input.path)
             .arg(&list)
             .arg("--")
-            .arg(staged.path())
+            .arg(&first_dst)
             .run()?;
         if !matches!(r.status.code(), Some(0) | Some(3)) {
             return Err(crate::process::failure("qpdf", &r));
         }
+        if let Some(rots) = rotations.filter(|_| has_rotations) {
+            let mut cmd = Cmd::new(qpdf).arg(&first_dst);
+            for (idx, deg) in rots.iter().enumerate() {
+                if *deg != 0 {
+                    cmd = cmd.arg(format!("--rotate=+{deg}:{}", idx + 1));
+                }
+            }
+            let r2 = cmd.arg(staged.path()).run()?;
+            if !matches!(r2.status.code(), Some(0) | Some(3)) {
+                return Err(crate::process::failure("qpdf", &r2));
+            }
+        }
+    } else if has_rotations {
+        require(d, "qpdf")?;
     } else {
         let unite = require(d, "pdfunite")?;
         let work = WorkDir::new_in(&input.out_dir)?;

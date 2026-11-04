@@ -118,6 +118,21 @@ impl Cmd {
     /// Run, calling `on_line` for each stdout line. Cancellation kills the
     /// process group and returns `cancelled`. Non-zero exit is *not* an error.
     pub fn run_lines(self, on_line: &mut dyn FnMut(&str)) -> JobResult<RunOut> {
+        self.run_lines_with_stderr(on_line, &mut |_| {})
+    }
+
+    /// Like [`Cmd::run_lines`], also calling `on_stderr` for each `\n`- or
+    /// `\r`-terminated stderr chunk (e.g. `curl -#` progress updates).
+    pub fn run_lines_with_stderr(
+        self,
+        on_line: &mut dyn FnMut(&str),
+        on_stderr: &mut dyn FnMut(&str),
+    ) -> JobResult<RunOut> {
+        enum Chunk {
+            Out(String),
+            Err(String),
+        }
+
         check_cancel()?;
         let name = self.name();
         let mut c = Command::new(&self.prog);
@@ -149,16 +164,43 @@ impl Cmd {
             .map_err(|e| JobError::tool_failed(format!("could not start {name}: {e}")))?;
         let pid = child.id() as i32;
 
+        let (tx, rx) = mpsc::channel::<Chunk>();
+        let err_tx = tx.clone();
         let mut err_pipe = child.stderr.take().expect("stderr piped");
         let err_thread = std::thread::spawn(move || {
-            let mut buf = Vec::new();
-            let _ = err_pipe.read_to_end(&mut buf);
-            // Keep only the tail; some tools are chatty.
-            let start = buf.len().saturating_sub(16 * 1024);
-            String::from_utf8_lossy(&buf[start..]).into_owned()
+            const TAIL: usize = 16 * 1024;
+            let mut tail = Vec::with_capacity(TAIL * 2);
+            let mut cur = Vec::new();
+            let mut tmp = [0u8; 1024];
+            while let Ok(n) = err_pipe.read(&mut tmp) {
+                if n == 0 {
+                    break;
+                }
+                let slice = &tmp[..n];
+                tail.extend_from_slice(slice);
+                if tail.len() > TAIL * 2 {
+                    let drop_n = tail.len() - TAIL;
+                    tail.drain(..drop_n);
+                }
+                for &b in slice {
+                    if b == b'\n' || b == b'\r' {
+                        if !cur.is_empty() {
+                            let s = String::from_utf8_lossy(&cur).into_owned();
+                            cur.clear();
+                            let _ = err_tx.send(Chunk::Err(s));
+                        }
+                    } else if cur.len() < 4096 {
+                        cur.push(b);
+                    }
+                }
+            }
+            if !cur.is_empty() {
+                let _ = err_tx.send(Chunk::Err(String::from_utf8_lossy(&cur).into_owned()));
+            }
+            let start = tail.len().saturating_sub(TAIL);
+            String::from_utf8_lossy(&tail[start..]).into_owned()
         });
-        let (tx, rx) = mpsc::channel::<String>();
-        let out_thread = child.stdout.take().map(|out| {
+        let out_thread = child.stdout.take().map(move |out| {
             std::thread::spawn(move || {
                 let mut r = BufReader::new(out);
                 let mut line = Vec::new();
@@ -168,7 +210,7 @@ impl Cmd {
                         Ok(0) | Err(_) => break,
                         Ok(_) => {
                             if tx
-                                .send(String::from_utf8_lossy(&line).into_owned())
+                                .send(Chunk::Out(String::from_utf8_lossy(&line).into_owned()))
                                 .is_err()
                             {
                                 break;
@@ -180,15 +222,20 @@ impl Cmd {
         });
 
         let mut stdout = String::new();
-        let mut handle = |line: String, stdout: &mut String| {
-            on_line(line.trim_end_matches(['\n', '\r']));
-            if stdout.len() < 8 * 1024 * 1024 {
-                stdout.push_str(&line);
+        let mut handle = |chunk: Chunk, stdout: &mut String| match chunk {
+            Chunk::Out(line) => {
+                on_line(line.trim_end_matches(['\n', '\r']));
+                if stdout.len() < 8 * 1024 * 1024 {
+                    stdout.push_str(&line);
+                }
+            }
+            Chunk::Err(s) => {
+                on_stderr(s.trim_matches(['\n', '\r']));
             }
         };
         let status = loop {
             match rx.recv_timeout(Duration::from_millis(50)) {
-                Ok(line) => handle(line, &mut stdout),
+                Ok(chunk) => handle(chunk, &mut stdout),
                 Err(mpsc::RecvTimeoutError::Timeout) => {}
                 Err(mpsc::RecvTimeoutError::Disconnected) => {
                     std::thread::sleep(Duration::from_millis(30))
@@ -207,10 +254,10 @@ impl Cmd {
         if let Some(t) = out_thread {
             let _ = t.join();
         }
-        while let Ok(line) = rx.try_recv() {
-            handle(line, &mut stdout);
-        }
         let stderr = err_thread.join().unwrap_or_default();
+        while let Ok(chunk) = rx.try_recv() {
+            handle(chunk, &mut stdout);
+        }
         Ok(RunOut {
             status,
             stdout,
@@ -229,8 +276,16 @@ impl Cmd {
     }
 
     pub fn run_ok_lines(self, on_line: &mut dyn FnMut(&str)) -> JobResult<RunOut> {
+        self.run_ok_lines_with_stderr(on_line, &mut |_| {})
+    }
+
+    pub fn run_ok_lines_with_stderr(
+        self,
+        on_line: &mut dyn FnMut(&str),
+        on_stderr: &mut dyn FnMut(&str),
+    ) -> JobResult<RunOut> {
         let name = self.name();
-        let out = self.run_lines(on_line)?;
+        let out = self.run_lines_with_stderr(on_line, on_stderr)?;
         if out.status.success() {
             Ok(out)
         } else {

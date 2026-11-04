@@ -17,10 +17,10 @@ Item {
     property bool enabledItem: true
     property string missingText: ""
     property bool hovered: false
-    property color accent: "steelblue"
-    property color textColor: "black"
-    property color highlightedTextColor: "white"
-    property color baseColor: "white"
+    property bool uppercase: false
+    // Wheel size factor (Settings.wheelScale) for the icon and text.
+    property real uiScale: 1.0
+    readonly property bool lit: hovered && enabledItem
 
     readonly property real cx: width / 2
     readonly property real cy: height / 2
@@ -30,15 +30,24 @@ Item {
     readonly property real labelRadius: (innerRadius + outerRadius) / 2 + 4
     readonly property real gap: sliceCount > 1 ? 1.2 : 0
 
+    LinearGradient {
+        id: goldFill
+        x1: slice.cx + Math.cos(slice.midRad) * slice.innerRadius
+        y1: slice.cy + Math.sin(slice.midRad) * slice.innerRadius
+        x2: slice.cx + Math.cos(slice.midRad) * slice.outerRadius
+        y2: slice.cy + Math.sin(slice.midRad) * slice.outerRadius
+        GradientStop { position: 0; color: Theme.gold }
+        GradientStop { position: 1; color: Theme.goldEnd }
+    }
+
     Shape {
         anchors.fill: parent
         preferredRendererType: Shape.CurveRenderer
         ShapePath {
-            strokeColor: Qt.rgba(slice.textColor.r, slice.textColor.g, slice.textColor.b, 0.12)
-            strokeWidth: 1
-            fillColor: slice.hovered && slice.enabledItem ? slice.accent
-                       : slice.hovered ? Qt.rgba(slice.textColor.r, slice.textColor.g, slice.textColor.b, 0.12)
-                       : Qt.rgba(slice.baseColor.r, slice.baseColor.g, slice.baseColor.b, 0.55)
+            strokeColor: Qt.rgba(0.5, 0.5, 0.5, 0.24)
+            strokeWidth: 0.7
+            fillColor: slice.hovered ? Theme.hover : Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.9)
+            fillGradient: slice.lit ? goldFill : null
             PathAngleArc {
                 centerX: slice.cx
                 centerY: slice.cy
@@ -62,7 +71,7 @@ Item {
 
     Column {
         id: content
-        width: Math.min(96, 2 * Math.PI * slice.labelRadius / Math.max(1, slice.sliceCount) - 6)
+        width: Math.min(96 * slice.uiScale, 2 * Math.PI * slice.labelRadius / Math.max(1, slice.sliceCount) - 6)
         x: slice.cx + Math.cos(slice.midRad) * slice.labelRadius - width / 2
         y: slice.cy + Math.sin(slice.midRad) * slice.labelRadius - height / 2
         spacing: 2
@@ -72,9 +81,9 @@ Item {
             anchors.horizontalCenter: parent.horizontalCenter
             visible: slice.icon.length > 0
             source: slice.icon.length > 0 ? "image://icon/" + slice.icon : ""
-            sourceSize: Qt.size(22, 22)
-            width: 22
-            height: 22
+            width: Math.round(22 * slice.uiScale)
+            height: width
+            sourceSize: Qt.size(width, height)
         }
         Label {
             width: parent.width
@@ -82,18 +91,19 @@ Item {
             elide: Text.ElideRight
             maximumLineCount: 2
             wrapMode: Text.Wrap
-            font.pixelSize: 12
-            font.bold: slice.hovered
-            color: slice.hovered && slice.enabledItem ? slice.highlightedTextColor : slice.textColor
-            text: slice.label
+            font.pixelSize: Math.round((slice.uppercase ? 13 : 11) * slice.uiScale)
+            font.weight: Font.DemiBold
+            font.letterSpacing: slice.uppercase ? 0.5 : 0
+            color: slice.lit ? Theme.ink : Theme.text
+            text: slice.uppercase ? slice.label.toUpperCase() : slice.label
         }
         Label {
             width: parent.width
             visible: !slice.enabledItem && slice.missingText.length > 0
             horizontalAlignment: Text.AlignHCenter
             elide: Text.ElideRight
-            font.pixelSize: 9
-            color: slice.textColor
+            font.pixelSize: Math.round(9 * slice.uiScale)
+            color: Theme.secondaryText
             text: qsTr("needs %1").arg(slice.missingText)
         }
     }

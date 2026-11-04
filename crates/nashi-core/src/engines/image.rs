@@ -123,7 +123,7 @@ fn place(p: &Path, ext: &str, work: &WorkDir) -> JobResult<String> {
 }
 
 /// Input spec: explicit coder + relative name (+ `[0]` for the first frame).
-fn ispec(work: &WorkDir, p: &Path, ext: &str, first_frame: bool) -> JobResult<OsString> {
+pub(crate) fn ispec(work: &WorkDir, p: &Path, ext: &str, first_frame: bool) -> JobResult<OsString> {
     let rel = place(p, ext, work)?;
     let mut s = format!("{}:{rel}", im_format(ext));
     if first_frame {
@@ -133,7 +133,7 @@ fn ispec(work: &WorkDir, p: &Path, ext: &str, first_frame: bool) -> JobResult<Os
 }
 
 /// Output spec: explicit coder + plain relative name inside the work dir.
-fn ospec(ext: &str, name: &str) -> OsString {
+pub(crate) fn ospec(ext: &str, name: &str) -> OsString {
     format!("{}:{name}", im_format(ext)).into()
 }
 
@@ -145,15 +145,18 @@ fn flatten_args(target: &str) -> Vec<&'static str> {
     }
 }
 
-/// A raster source ImageMagick (or ffmpeg) can read, decoding HEIC/AVIF/SVG
-/// through helpers when needed. Returns `(path, ext)`.
-fn readable_source(ctx: &Ctx, input: &Input, work: &WorkDir) -> JobResult<(PathBuf, String)> {
-    let d = ctx.deps;
-    let ext = input.ext();
+/// Decode `path` (of format `ext`) into a raster source ImageMagick can read,
+/// rendering SVG/HEIC/AVIF/TIFF through helpers when needed. Returns `(path, ext)`.
+pub(crate) fn decode_source(
+    deps: &Deps,
+    path: &Path,
+    ext: &str,
+    work: &WorkDir,
+) -> JobResult<(PathBuf, String)> {
     match ext {
         "svg" => {
-            if let Some(rsvg) = d.path("rsvg-convert") {
-                let rel = place(&input.path, "svg", work)?;
+            if let Some(rsvg) = deps.path("rsvg-convert") {
+                let rel = place(path, "svg", work)?;
                 let out = work.join("render.png");
                 Cmd::new(rsvg)
                     .args(["-f", "png", "-o"])
@@ -163,25 +166,21 @@ fn readable_source(ctx: &Ctx, input: &Input, work: &WorkDir) -> JobResult<(PathB
                 return Ok((out, "png".into()));
             }
         }
-        "heic" if !d.magick_can("HEIC", false) => {
-            if let Some(dec) = d.path("heif-dec") {
+        "heic" if !deps.magick_can("HEIC", false) => {
+            if let Some(dec) = deps.path("heif-dec") {
                 let out = work.join("decoded.png");
-                Cmd::new(dec)
-                    .arg("-o")
-                    .arg(&out)
-                    .arg(&input.path)
-                    .run_ok()?;
+                Cmd::new(dec).arg("-o").arg(&out).arg(path).run_ok()?;
                 return Ok((out, "png".into()));
             }
             return Err(JobError::missing("libheif", "libheif"));
         }
-        e if ff_encoder(e).is_some() && !d.magick_can(im_format(e), false) => {
+        e if ff_encoder(e).is_some() && !deps.magick_can(im_format(e), false) => {
             // ImageMagick lacks this coder (e.g. TIFF/AVIF): decode with ffmpeg.
-            let ff = require(d, "ffmpeg")?;
+            let ff = require(deps, "ffmpeg")?;
             let out = work.join("decoded.png");
             Cmd::new(ff)
                 .args(["-hide_banner", "-nostdin", "-y", "-loglevel", "error", "-i"])
-                .arg_cat("file:", &input.path)
+                .arg_cat("file:", path)
                 .args(["-frames:v", "1", "-c:v", "png", "-f", "image2pipe"])
                 .arg_cat("file:", &out)
                 .run_ok()?;
@@ -189,23 +188,29 @@ fn readable_source(ctx: &Ctx, input: &Input, work: &WorkDir) -> JobResult<(PathB
         }
         _ => {}
     }
-    Ok((input.path.clone(), ext.to_string()))
+    Ok((path.to_path_buf(), ext.to_string()))
+}
+
+fn readable_source(ctx: &Ctx, input: &Input, work: &WorkDir) -> JobResult<(PathBuf, String)> {
+    decode_source(ctx.deps, &input.path, input.ext(), work)
 }
 
 /// Write `src` (of format `src_ext`) as `target` into `staged`.
+#[allow(clippy::too_many_arguments)]
 fn write_as(
     ctx: &Ctx,
     src: &Path,
     src_ext: &str,
     target: &str,
     extra: &[OsString],
+    first_only: bool,
     staged: &Staged,
     work: &WorkDir,
 ) -> JobResult<()> {
     let d = ctx.deps;
     // Keep every frame when both sides can hold several (animated GIF/WebP,
     // multi-page TIFF) and for PDF output; otherwise use the first frame.
-    let first = !(target == "pdf" || (multi_frame(src_ext) && multi_frame(target)));
+    let first = first_only || !(target == "pdf" || (multi_frame(src_ext) && multi_frame(target)));
     match target {
         "heic" if !d.magick_can("HEIC", true) => {
             let enc = d
@@ -269,21 +274,40 @@ fn write_as(
     Ok(())
 }
 
-/// Image dimensions via ImageMagick `identify` (confined, explicit coder).
+fn oriented_size_in_work(
+    deps: &Deps,
+    work: &WorkDir,
+    src: &Path,
+    src_ext: &str,
+) -> Option<(u32, u32)> {
+    if let Ok(cmd) = magick(deps, work) {
+        if let Ok(spec) = ispec(work, src, src_ext, true) {
+            if let Ok(out) = cmd
+                .arg(spec)
+                .args(["-auto-orient", "-format", "%w %h\n", "INFO:"])
+                .run_ok()
+            {
+                let mut it = out.stdout.split_whitespace();
+                if let (Some(w), Some(h)) = (
+                    it.next().and_then(|s| s.parse().ok()),
+                    it.next().and_then(|s| s.parse().ok()),
+                ) {
+                    return Some((w, h));
+                }
+            }
+        }
+    }
+    if src_ext == "png" {
+        return crate::detect::png_dimensions(src);
+    }
+    None
+}
+
+/// Auto-oriented image dimensions via ImageMagick (confined, explicit coder).
 pub fn identify_size(deps: &Deps, path: &Path, ext: &str) -> Option<(u32, u32)> {
     let work = WorkDir::system().ok()?;
-    let cmd = if deps.is_magick6() {
-        im_cmd(deps.path("identify").or(None)?, &work).ok()?
-    } else {
-        magick(deps, &work).ok()?.arg("identify")
-    };
-    let out = cmd
-        .args(["-format", "%w %h"])
-        .arg(ispec(&work, path, ext, true).ok()?)
-        .run_ok()
-        .ok()?;
-    let mut it = out.stdout.split_whitespace();
-    Some((it.next()?.parse().ok()?, it.next()?.parse().ok()?))
+    let (src, src_ext) = decode_source(deps, path, ext, &work).ok()?;
+    oriented_size_in_work(deps, &work, &src, &src_ext)
 }
 
 /// Convert an image to another image format or PDF.
@@ -310,7 +334,7 @@ pub fn convert(ctx: &Ctx, input: &Input, target: &str) -> JobResult<PathBuf> {
         extra.push("-quality".into());
         extra.push(ctx.opts.quality.unwrap_or(90).to_string().into());
     }
-    write_as(ctx, &src, &src_ext, target, &extra, &staged, &work)?;
+    write_as(ctx, &src, &src_ext, target, &extra, false, &staged, &work)?;
     Ok(staged.commit()?)
 }
 
@@ -322,7 +346,7 @@ fn process(ctx: &Ctx, input: &Input, suffix: &str, ops: Vec<OsString>) -> JobRes
     let staged = input.stage(suffix, out_ext)?;
     let work = WorkDir::new_in(&input.out_dir)?;
     let (src, src_ext) = readable_source(ctx, input, &work)?;
-    write_as(ctx, &src, &src_ext, out_ext, &ops, &staged, &work)?;
+    write_as(ctx, &src, &src_ext, out_ext, &ops, false, &staged, &work)?;
     Ok(staged.commit()?.into())
 }
 
@@ -352,6 +376,7 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
         "cropImage" => {
             let r = o
                 .rect
+                .as_ref()
                 .ok_or_else(|| JobError::invalid_options("cropImage needs a rect option"))?;
             let geo = format!(
                 "{}x{}+{}+{}",
@@ -364,7 +389,7 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
                 ctx,
                 input,
                 "-cropped",
-                os(&["-crop".into(), geo, "+repage".into()]),
+                os(&["-auto-orient".into(), "-crop".into(), geo, "+repage".into()]),
             )
         }
         "editImage" => {
@@ -411,6 +436,7 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
                 input,
                 "-framed",
                 os(&[
+                    "-auto-orient".into(),
                     "-bordercolor".into(),
                     b.color,
                     "-border".into(),
@@ -418,33 +444,181 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
                 ]),
             )
         }
-        "redactImage" => {
-            let rects = o
-                .rects
-                .as_ref()
-                .filter(|r| !r.is_empty())
-                .ok_or_else(|| JobError::invalid_options("redactImage needs rects"))?;
-            let mut ops: Vec<String> = vec!["-fill".into(), "black".into()];
-            for r in rects {
-                ops.push("-draw".into());
-                ops.push(format!(
-                    "rectangle {},{} {},{}",
-                    r.x.round(),
-                    r.y.round(),
-                    (r.x + r.w).round(),
-                    (r.y + r.h).round()
-                ));
-            }
-            process(ctx, input, "-redacted", os(&ops))
-        }
-        "annotateImage" => Err(JobError::invalid_options(
-            "annotateImage needs the annotation editor (not available yet)",
-        )),
+        "redactImage" => redact_image(ctx, input),
+        "annotateImage" => annotate_image(ctx, input),
         "readQRCode" => read_qr(ctx, input),
         _ => Err(JobError::unsupported(format!(
             "{tool} is not an image tool"
         ))),
     }
+}
+
+fn redact_image(ctx: &Ctx, input: &Input) -> JobResult<Produced> {
+    use crate::options::RedactStyle;
+
+    let rects = ctx
+        .opts
+        .rects
+        .as_ref()
+        .filter(|r| !r.is_empty())
+        .ok_or_else(|| JobError::invalid_options("redactImage needs rects"))?;
+    let styles: Vec<RedactStyle> = rects
+        .iter()
+        .map(|r| r.redact_style())
+        .collect::<JobResult<_>>()?;
+    let needs_comp = styles.iter().any(|s| *s != RedactStyle::Black);
+
+    ctx.progress(None, "Redacting");
+    let ext = input.ext();
+    let out_ext = if ext == "svg" { "png" } else { ext };
+    let staged = input.stage("-redacted", out_ext)?;
+    let work = WorkDir::new_in(&input.out_dir)?;
+    let (src, src_ext) = readable_source(ctx, input, &work)?;
+    let dims = if needs_comp {
+        oriented_size_in_work(ctx.deps, &work, &src, &src_ext)
+    } else {
+        None
+    };
+
+    let mut ops: Vec<String> = vec!["-auto-orient".into(), "-gravity".into(), "NorthWest".into()];
+    for (r, style) in rects.iter().zip(styles) {
+        match style {
+            RedactStyle::Black => {
+                ops.extend([
+                    "-fill".into(),
+                    "black".into(),
+                    "-draw".into(),
+                    format!(
+                        "rectangle {},{} {},{}",
+                        r.x.round(),
+                        r.y.round(),
+                        (r.x + r.w).round(),
+                        (r.y + r.h).round()
+                    ),
+                ]);
+            }
+            RedactStyle::Blur | RedactStyle::Pixelate => {
+                let x = r.x.round() as u32;
+                let y = r.y.round() as u32;
+                let mut cw = (r.w.round() as u32).max(1);
+                let mut ch = (r.h.round() as u32).max(1);
+                if let Some((iw, ih)) = dims {
+                    if x >= iw || y >= ih {
+                        continue;
+                    }
+                    cw = cw.min(iw - x).max(1);
+                    ch = ch.min(ih - y).max(1);
+                }
+                ops.extend([
+                    "(".into(),
+                    "+clone".into(),
+                    "-crop".into(),
+                    format!("{cw}x{ch}+{x}+{y}"),
+                    "+repage".into(),
+                ]);
+                if style == RedactStyle::Blur {
+                    ops.extend(["-blur".into(), "0x18".into()]);
+                } else {
+                    let pw = (cw / 12).max(1);
+                    let ph = (ch / 12).max(1);
+                    ops.extend([
+                        "-scale".into(),
+                        format!("{pw}x{ph}!"),
+                        "-sample".into(),
+                        format!("{cw}x{ch}!"),
+                    ]);
+                }
+                ops.extend([
+                    ")".into(),
+                    "-geometry".into(),
+                    format!("+{x}+{y}"),
+                    "-composite".into(),
+                    "+geometry".into(),
+                ]);
+            }
+        }
+    }
+    write_as(
+        ctx,
+        &src,
+        &src_ext,
+        out_ext,
+        &os(&ops),
+        needs_comp,
+        &staged,
+        &work,
+    )?;
+    Ok(staged.commit()?.into())
+}
+
+fn annotate_image(ctx: &Ctx, input: &Input) -> JobResult<Produced> {
+    use std::os::unix::fs::MetadataExt;
+
+    let ov_str = ctx
+        .opts
+        .overlay
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| JobError::invalid_options("annotateImage needs an overlay PNG path"))?;
+    let ov_path = Path::new(ov_str);
+    if !ov_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("png"))
+    {
+        return Err(JobError::invalid_options("overlay must be a .png file"));
+    }
+    let ov_meta = std::fs::symlink_metadata(ov_path)
+        .map_err(|e| JobError::invalid_options(format!("overlay: {e}")))?;
+    if !ov_meta.file_type().is_file() {
+        return Err(JobError::invalid_options(
+            "overlay must be an existing regular file",
+        ));
+    }
+    let in_meta = std::fs::metadata(&input.path)
+        .map_err(|e| JobError::invalid_input(format!("{}: {e}", input.path.display())))?;
+    let canon_in = std::fs::canonicalize(&input.path)
+        .map_err(|e| JobError::invalid_input(format!("{}: {e}", input.path.display())))?;
+    let canon_ov = std::fs::canonicalize(ov_path)
+        .map_err(|e| JobError::invalid_options(format!("overlay: {e}")))?;
+    if canon_in == canon_ov || (in_meta.dev() == ov_meta.dev() && in_meta.ino() == ov_meta.ino()) {
+        return Err(JobError::invalid_options(
+            "overlay must not be the same file as the input",
+        ));
+    }
+    let (ov_w, ov_h) = crate::detect::png_dimensions(ov_path)
+        .ok_or_else(|| JobError::invalid_options("overlay is not a valid PNG file"))?;
+
+    ctx.progress(None, "Annotating");
+    let ext = input.ext();
+    let out_ext = if ext == "svg" { "png" } else { ext };
+    let staged = input.stage("-annotated", out_ext)?;
+    let work = WorkDir::new_in(&input.out_dir)?;
+    let (src, src_ext) = readable_source(ctx, input, &work)?;
+    let (w, h) = oriented_size_in_work(ctx.deps, &work, &src, &src_ext)
+        .ok_or_else(|| JobError::tool_failed("could not determine image dimensions"))?;
+    let ov_spec = ispec(&work, ov_path, "png", true)?;
+    let mut ops: Vec<OsString> = vec!["-auto-orient".into()];
+    if (ov_w, ov_h) != (w, h) {
+        ops.push("(".into());
+        ops.push(ov_spec);
+        ops.push("-resize".into());
+        ops.push(format!("{w}x{h}!").into());
+        ops.push(")".into());
+    } else {
+        ops.push(ov_spec);
+    }
+    ops.extend([
+        "-gravity".into(),
+        "NorthWest".into(),
+        "-compose".into(),
+        "Over".into(),
+        "-composite".into(),
+        "+geometry".into(),
+    ]);
+    write_as(ctx, &src, &src_ext, out_ext, &ops, true, &staged, &work)?;
+    Ok(staged.commit()?.into())
 }
 
 /// Strip metadata (exiftool, else `magick -strip`).

@@ -2,6 +2,8 @@
 
 #include <QtMath>
 
+#include <cmath>
+
 int WheelGeometry::sliceAt(double dx, double dy, int count, double innerRadius, double outerRadius)
 {
     const double r = std::hypot(dx, dy);
@@ -34,4 +36,9 @@ double WheelGeometry::sliceStartAngle(int index, int count)
 {
     const double sweep = sliceSweep(count);
     return -90.0 - sweep / 2.0 + index * sweep;
+}
+
+double WheelGeometry::clampScale(double scale)
+{
+    return std::isfinite(scale) ? qBound(kMinScale, scale, kMaxScale) : 1.0;
 }

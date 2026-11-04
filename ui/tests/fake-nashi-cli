@@ -20,8 +20,24 @@ If $FAKE_CLI_ARGV_LOG is set, argv (one per line) is written there.
 import json
 import os
 import signal
+import struct
 import sys
 import time
+import zlib
+
+
+def write_png(path, w, h, rgba=(227, 184, 89, 255)):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    row = b"\x00" + bytes(rgba) * w
+    raw = row * h
+
+    def chunk(tag, data):
+        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+
+    ihdr = struct.pack(">IIBBBBB", w, h, 8, 6, 0, 0, 0)
+    data = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b"")
+    with open(path, "wb") as fh:
+        fh.write(data)
 
 
 def emit(obj, partial=False):
@@ -84,6 +100,125 @@ def deps():
         {"id": "pandoc", "available": False, "version": None, "path": None,
          "package": "pandoc-cli", "optional": True, "used_for": ["document"]},
     ]}))
+    return 0
+
+
+def inspect_cmd(files):
+    items = []
+    for f in files:
+        ext = f.rsplit(".", 1)[-1].lower() if "." in f else ""
+        cat = {
+            "mp4": "video", "mkv": "video", "webm": "video",
+            "mp3": "audio", "wav": "audio", "flac": "audio",
+            "png": "image", "jpg": "image", "jpeg": "image", "webp": "image",
+            "gif": "gif", "pdf": "pdf", "txt": "text", "md": "text",
+        }.get(ext, "unknown")
+        items.append({
+            "path": f,
+            "ext": ext,
+            "category": cat,
+            "size": 12345,
+            "duration": 12.5 if cat in ("video", "audio", "gif") else None,
+            "width": 640 if cat in ("video", "image", "gif") else None,
+            "height": 360 if cat in ("video", "image", "gif") else None,
+            "pages": 4 if cat == "pdf" else None,
+        })
+    print(json.dumps({"files": items}))
+    return 0
+
+
+def preview_cmd(args):
+    if not args:
+        return 2
+    src = args[0]
+    kind = "frame"
+    out_dir = ""
+    width = 0
+    height = 0
+    pages_spec = ""
+    i = 1
+    while i < len(args):
+        k = args[i]
+        v = args[i + 1] if i + 1 < len(args) else ""
+        if k == "--kind":
+            kind = v
+            i += 2
+        elif k == "--out-dir":
+            out_dir = v
+            i += 2
+        elif k == "--width":
+            width = int(v)
+            i += 2
+        elif k == "--height":
+            height = int(v)
+            i += 2
+        elif k == "--pages":
+            pages_spec = v
+            i += 2
+        elif k in ("--at", "--color"):
+            i += 2
+        else:
+            i += 1
+    if not out_dir or src.endswith(".bad"):
+        print(json.dumps({"error": {"code": "invalid_input", "message": "cannot preview file"}}))
+        return 1
+    if kind == "waveform":
+        w = min(width or 320, 320)
+        h = min(height or 80, 160)
+        p = os.path.join(out_dir, "waveform.png")
+        write_png(p, w, h, (48, 84, 59, 180))
+        print(json.dumps({"kind": "waveform", "files": [p], "width": w, "height": h}))
+        return 0
+    if kind == "pages":
+        w = min(width or 120, 240)
+        h = int(w * 1.41)
+        count = 4 if not pages_spec else len(pages_spec.split(","))
+        out = []
+        for idx in range(1, max(1, count) + 1):
+            p = os.path.join(out_dir, f"page-{idx:03d}.png")
+            write_png(p, w, h, (245 - idx * 15, 240 - idx * 10, 225, 255))
+            out.append(p)
+        print(json.dumps({"kind": "pages", "files": out, "width": w, "height": h}))
+        return 0
+    w = min(width or 320, 320)
+    h = int(w * 9 / 16)
+    p = os.path.join(out_dir, "frame.png")
+    write_png(p, w, h, (95, 135, 110, 255))
+    print(json.dumps({"kind": "frame", "files": [p], "width": w, "height": h}))
+    return 0
+
+
+def download_cmd(args):
+    url = ""
+    kind = "auto"
+    out_dir = "/tmp"
+    i = 0
+    while i < len(args):
+        if args[i] == "--":
+            if i + 1 < len(args):
+                url = args[i + 1]
+            break
+        if args[i] == "--kind" and i + 1 < len(args):
+            kind = args[i + 1]
+            i += 2
+        elif args[i] == "--out-dir" and i + 1 < len(args):
+            out_dir = args[i + 1]
+            i += 2
+        elif not url:
+            url = args[i]
+            i += 1
+        else:
+            i += 1
+    emit({"event": "start", "job": "dl01", "total": 1})
+    if not (url.startswith("http://") or url.startswith("https://")):
+        emit({"event": "error", "input": url, "index": 0, "code": "invalid_input", "message": "Only http/https URLs"})
+        emit({"event": "done", "outputs": [], "failed": 1, "cancelled": False})
+        return 1
+    ext = {"audio": "mp3", "thumbnail": "png", "image": "png"}.get(kind, "mp4")
+    out = os.path.join(out_dir, f"downloaded.{ext}")
+    emit({"event": "progress", "input": url, "index": 0, "fraction": 0.5, "message": "Downloading"})
+    emit({"event": "output", "input": url, "index": 0, "path": out})
+    emit({"event": "done", "outputs": [out], "failed": 0, "cancelled": False})
     return 0
 
 
@@ -164,6 +299,12 @@ def main(argv):
         return wheel(args[1:])
     if cmd == "deps":
         return deps()
+    if cmd == "inspect":
+        return inspect_cmd(args[1:])
+    if cmd == "preview":
+        return preview_cmd(args[1:])
+    if cmd == "download":
+        return download_cmd(args[1:])
     if cmd in ("convert", "tool") and len(args) >= 3:
         rest = args[2:]
         files = []

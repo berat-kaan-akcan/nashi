@@ -8,11 +8,15 @@
 struct CommandLine
 {
     enum Action {
-        Start,        // `nashi`: start or raise Home
-        Background,   // `nashi --background`: tray only
-        Wheel,        // `nashi --wheel [--mode m] FILE…`
-        WheelClipboard, // `nashi --wheel [--mode m]` without files: use the clipboard
-        OpenFiles,    // `nashi FILE…`: Home with these files queued
+        Start,             // `nashi`: start or raise Home
+        Background,        // `nashi --background`: tray only
+        Wheel,             // `nashi --wheel [--mode m] FILE…`
+        WheelClipboard,    // `nashi --wheel [--mode m]` without files: use the clipboard
+        OpenFiles,         // `nashi FILE…`: Home with these files queued
+        Download,          // `nashi --download URL`
+        DownloadClipboard, // `nashi --download-clipboard`
+        ToggleShelf,       // `nashi --shelf`
+        AddToShelf,        // `nashi --shelf FILE…`
         ShowHelp,
         ShowVersion,
         Error,
@@ -20,6 +24,7 @@ struct CommandLine
 
     Action action = Start;
     QString mode;        // convert | tools | actions (only for Wheel*)
+    QString url;         // http(s) URL (only for Download)
     QStringList files;   // absolute paths
     QString error;       // for Error
     QString helpText;

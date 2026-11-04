@@ -7,14 +7,54 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::Mutex;
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use nashi_core::catalog;
 use nashi_core::deps::{self, Deps};
 use nashi_core::detect;
-use nashi_core::events::{Event, Sink};
+use nashi_core::download;
+use nashi_core::events::{ErrorCode, Event, Sink};
 use nashi_core::job::{self, JobKind};
 use nashi_core::options::Options;
+use nashi_core::preview;
 use nashi_core::process;
+
+#[derive(Clone, Copy, ValueEnum)]
+enum CliPreviewKind {
+    Frame,
+    Waveform,
+    Pages,
+}
+
+impl From<CliPreviewKind> for preview::PreviewKind {
+    fn from(k: CliPreviewKind) -> Self {
+        match k {
+            CliPreviewKind::Frame => preview::PreviewKind::Frame,
+            CliPreviewKind::Waveform => preview::PreviewKind::Waveform,
+            CliPreviewKind::Pages => preview::PreviewKind::Pages,
+        }
+    }
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum CliDownloadKind {
+    Auto,
+    Video,
+    Audio,
+    Thumbnail,
+    Image,
+}
+
+impl From<CliDownloadKind> for download::DownloadKind {
+    fn from(k: CliDownloadKind) -> Self {
+        match k {
+            CliDownloadKind::Auto => download::DownloadKind::Auto,
+            CliDownloadKind::Video => download::DownloadKind::Video,
+            CliDownloadKind::Audio => download::DownloadKind::Audio,
+            CliDownloadKind::Thumbnail => download::DownloadKind::Thumbnail,
+            CliDownloadKind::Image => download::DownloadKind::Image,
+        }
+    }
+}
 
 #[derive(Parser)]
 #[command(name = "nashi-cli", version, about = "Nashi conversion engine")]
@@ -61,6 +101,32 @@ enum Cmd {
         out_dir: Option<PathBuf>,
         #[arg(long)]
         options: Option<String>,
+    },
+    /// Render preview PNGs (frame, waveform, PDF pages) into DIR.
+    Preview {
+        file: PathBuf,
+        #[arg(long)]
+        kind: CliPreviewKind,
+        #[arg(long)]
+        out_dir: PathBuf,
+        #[arg(long, allow_hyphen_values = true)]
+        at: Option<f64>,
+        #[arg(long)]
+        width: Option<u32>,
+        #[arg(long)]
+        height: Option<u32>,
+        #[arg(long)]
+        pages: Option<String>,
+        #[arg(long)]
+        color: Option<String>,
+    },
+    /// Download a URL via yt-dlp or curl.
+    Download {
+        url: String,
+        #[arg(long, default_value = "auto")]
+        kind: CliDownloadKind,
+        #[arg(long)]
+        out_dir: Option<PathBuf>,
     },
 }
 
@@ -321,6 +387,88 @@ fn main() -> ExitCode {
             out_dir,
             options,
         } => return run_job(json, JobKind::Tool(tool_id), files, out_dir, options),
+        Cmd::Preview {
+            file,
+            kind,
+            out_dir,
+            at,
+            width,
+            height,
+            pages,
+            color,
+        } => {
+            if let Err(e) = process::install_signal_handlers() {
+                eprintln!("nashi-cli: cannot install signal handlers: {e}");
+            }
+            let req = preview::PreviewRequest {
+                file,
+                kind: kind.into(),
+                out_dir,
+                at,
+                width,
+                height,
+                pages,
+                color,
+            };
+            match preview::run(Deps::global(), &req) {
+                Ok(out) => {
+                    if json {
+                        print_json(&out);
+                    } else {
+                        println!(
+                            "{} ({}x{}): {} file(s)",
+                            out.kind.as_str(),
+                            out.width,
+                            out.height,
+                            out.files.len()
+                        );
+                        for f in &out.files {
+                            println!("  {f}");
+                        }
+                    }
+                }
+                Err(err) => {
+                    let code_num: u8 =
+                        if err.code == ErrorCode::Cancelled || process::is_cancelled() {
+                            130
+                        } else if err.code == ErrorCode::MissingDependency {
+                            3
+                        } else {
+                            1
+                        };
+                    if json {
+                        print_json(&serde_json::json!({
+                            "error": {
+                                "code": err.code,
+                                "message": err.message,
+                            }
+                        }));
+                    } else {
+                        let code_str = serde_json::to_value(err.code)
+                            .ok()
+                            .and_then(|v| v.as_str().map(String::from))
+                            .unwrap_or_default();
+                        eprintln!("error [{code_str}]: {}", err.message);
+                    }
+                    return ExitCode::from(code_num);
+                }
+            }
+        }
+        Cmd::Download { url, kind, out_dir } => {
+            if let Err(e) = process::install_signal_handlers() {
+                eprintln!("nashi-cli: cannot install signal handlers: {e}");
+            }
+            let deps = Deps::global();
+            let summary = if json {
+                download::run(&url, kind.into(), out_dir.as_deref(), deps, &JsonSink)
+            } else {
+                let sink = HumanSink {
+                    last: Mutex::new(None),
+                };
+                download::run(&url, kind.into(), out_dir.as_deref(), deps, &sink)
+            };
+            return ExitCode::from(summary.exit_code() as u8);
+        }
     }
     ExitCode::SUCCESS
 }

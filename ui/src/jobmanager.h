@@ -29,11 +29,17 @@ public:
     void setProgram(const QString &program) { m_program = program; }
     QString program() const { return m_program; }
 
-    // Builds the argv for `nashi-cli convert|tool` (pure, unit-tested).
-    static QStringList buildArgs(const QString &kind, const QString &id, const QStringList &files, const QString &outDir);
+    // Builds the argv for `nashi-cli convert|tool|download` (pure, unit-tested).
+    static QStringList buildArgs(const QString &kind, const QString &id, const QStringList &files, const QString &outDir,
+                                 const QString &options = QString());
+    static QStringList buildDownloadArgs(const QString &url, const QString &kind, const QString &outDir);
 
     // kind: "convert" (id = target ext) or "tool" (id = tool id).
-    Q_INVOKABLE JobRunner *start(const QString &kind, const QString &id, const QString &title, const QStringList &files);
+    // `options`: `--options` JSON (docs/CLI-PROTOCOL.md), empty for none.
+    Q_INVOKABLE JobRunner *start(const QString &kind, const QString &id, const QString &title, const QStringList &files,
+                                 const QString &options = QString());
+    Q_INVOKABLE JobRunner *startDownload(const QString &url, const QString &kind = QStringLiteral("auto"),
+                                         const QString &outDir = QString(), const QString &title = QString());
     Q_INVOKABLE void cancelAll();
     Q_INVOKABLE void clearFinished();
     Q_INVOKABLE void remove(JobRunner *job);
@@ -54,6 +60,7 @@ Q_SIGNALS:
     void jobFinished(JobRunner *job);
 
 private:
+    JobRunner *launch(const QString &title, const QStringList &args);
     void prune();
 
     Settings *m_settings;

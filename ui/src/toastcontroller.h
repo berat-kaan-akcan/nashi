@@ -7,7 +7,7 @@
 
 class JobManager;
 class QQmlEngine;
-class QQuickWindow;
+#include <QQuickWindow>
 
 // Shows ToastWindow.qml while jobs run and for a few seconds after they end.
 class ToastController : public QObject
@@ -25,6 +25,7 @@ public:
     void setEngine(QQmlEngine *engine) { m_engine = engine; }
 
     bool shown() const { return m_shown; }
+    QQuickWindow *window() const { return m_window; }
     Q_INVOKABLE void hold(bool on);
     Q_INVOKABLE void dismiss();
     Q_INVOKABLE void contentResized();
