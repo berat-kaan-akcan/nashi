@@ -68,6 +68,8 @@ int PreviewClient::request(const QString &file, const QString &kind, const QVari
         args << QStringLiteral("--height") << QString::number(opts.value(QStringLiteral("height")).toInt());
     if (opts.contains(QStringLiteral("pages")) && !opts.value(QStringLiteral("pages")).toString().trimmed().isEmpty())
         args << QStringLiteral("--pages") << opts.value(QStringLiteral("pages")).toString().trimmed();
+    if (opts.contains(QStringLiteral("adjust")) && !opts.value(QStringLiteral("adjust")).toString().isEmpty())
+        args << QStringLiteral("--adjust") << opts.value(QStringLiteral("adjust")).toString();
     if (opts.contains(QStringLiteral("color")) && !opts.value(QStringLiteral("color")).toString().trimmed().isEmpty())
         args << QStringLiteral("--color") << opts.value(QStringLiteral("color")).toString().trimmed();
     args << QStringLiteral("--json");

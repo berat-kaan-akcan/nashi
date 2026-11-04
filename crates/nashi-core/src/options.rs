@@ -70,9 +70,39 @@ impl Default for Border {
     }
 }
 
+/// `editImage` picture adjustments. A missing value leaves that control alone.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub struct Adjust {
+    /// Stops, -5..=5.
+    pub exposure: Option<f64>,
+    /// -100..=100.
+    pub brightness: Option<f64>,
+    /// -100..=100.
+    pub contrast: Option<f64>,
+    /// 0.1..=5, where 1 changes nothing.
+    pub gamma: Option<f64>,
+    /// -100..=100; -100 removes all colour.
+    pub saturation: Option<f64>,
+    /// -100..=100.
+    pub hue: Option<f64>,
+    /// -100..=100, cooler to warmer.
+    pub temperature: Option<f64>,
+    /// 0..=100.
+    pub sharpen: Option<f64>,
+    /// 0..=100.
+    pub blur: Option<f64>,
+    /// 0..=100.
+    pub grain: Option<f64>,
+    /// `grayscale` or `sepia`.
+    pub filter: Option<String>,
+}
+
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct Options {
+    /// `editImage`: picture adjustments.
+    pub adjust: Option<Adjust>,
     /// `removeMetadata`: set these fields instead of removing everything.
     pub metadata_set: Option<std::collections::BTreeMap<String, String>>,
     /// `removeMetadata`: remove only these fields.

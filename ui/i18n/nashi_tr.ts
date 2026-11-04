@@ -823,10 +823,6 @@
         <translation>Yeni boyut için tam sayılar girin.</translation>
     </message>
     <message>
-        <source>Choose a rotation, a flip or a new size.</source>
-        <translation>Bir döndürme, çevirme ya da yeni boyut seçin.</translation>
-    </message>
-    <message>
         <source>Use a colour like #ffffff.</source>
         <translation>#ffffff gibi bir renk kullanın.</translation>
     </message>
@@ -901,6 +897,46 @@
         <translation>Bu alanı tut (piksel)</translation>
     </message>
     <message>
+        <source>Exposure</source>
+        <translation>Pozlama</translation>
+    </message>
+    <message>
+        <source>Brightness</source>
+        <translation>Parlaklık</translation>
+    </message>
+    <message>
+        <source>Contrast</source>
+        <translation>Kontrast</translation>
+    </message>
+    <message>
+        <source>Gamma</source>
+        <translation>Gama</translation>
+    </message>
+    <message>
+        <source>Saturation</source>
+        <translation>Doygunluk</translation>
+    </message>
+    <message>
+        <source>Hue</source>
+        <translation>Ton</translation>
+    </message>
+    <message>
+        <source>Temperature</source>
+        <translation>Sıcaklık</translation>
+    </message>
+    <message>
+        <source>Sharpen</source>
+        <translation>Keskinleştir</translation>
+    </message>
+    <message>
+        <source>Blur</source>
+        <translation>Bulanıklaştır</translation>
+    </message>
+    <message>
+        <source>Grain</source>
+        <translation>Gren</translation>
+    </message>
+    <message>
         <source>Change at least one field.</source>
         <translation>En az bir alanı değiştirin.</translation>
     </message>
@@ -927,6 +963,10 @@
     <message>
         <source>Add at least one frame.</source>
         <translation>En az bir kare ekleyin.</translation>
+    </message>
+    <message>
+        <source>Choose an adjustment, a rotation, a flip or a new size.</source>
+        <translation>Bir ayar, döndürme, çevirme ya da yeni boyut seçin.</translation>
     </message>
     <message>
         <source>Left</source>
@@ -1151,6 +1191,30 @@
     <message>
         <source>Nashi lowers quality until the file fits, and also shrinks images if needed. It reports an error if it cannot, and the original stays safe.</source>
         <translation>Nashi dosya sığana kadar kaliteyi düşürür, gerekirse görselleri de küçültür. Sığdıramazsa hata bildirir; orijinal dosya korunur.</translation>
+    </message>
+    <message>
+        <source>Adjustments</source>
+        <translation>Ayarlar</translation>
+    </message>
+    <message>
+        <source>Preview of the adjustments</source>
+        <translation>Ayarların önizlemesi</translation>
+    </message>
+    <message>
+        <source>No filter</source>
+        <translation>Filtre yok</translation>
+    </message>
+    <message>
+        <source>Grayscale</source>
+        <translation>Gri tonlama</translation>
+    </message>
+    <message>
+        <source>Sepia</source>
+        <translation>Sepya</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation>Sıfırla</translation>
     </message>
     <message>
         <source>Rotate and flip</source>

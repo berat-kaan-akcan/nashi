@@ -81,6 +81,35 @@ ApplicationWindow {
     property string borderColor: "#ffffff"
     property var ranges: [[0, 1]]
     property string audioMode: "mute"
+    // Picture adjustments: name, label, lowest, highest, neutral, step.
+    readonly property var adjustControls: [
+        ["exposure", qsTr("Exposure"), -3, 3, 0, 0.1],
+        ["brightness", qsTr("Brightness"), -100, 100, 0, 1],
+        ["contrast", qsTr("Contrast"), -100, 100, 0, 1],
+        ["gamma", qsTr("Gamma"), 0.2, 3, 1, 0.1],
+        ["saturation", qsTr("Saturation"), -100, 100, 0, 1],
+        ["hue", qsTr("Hue"), -100, 100, 0, 1],
+        ["temperature", qsTr("Temperature"), -100, 100, 0, 1],
+        ["sharpen", qsTr("Sharpen"), 0, 100, 0, 1],
+        ["blur", qsTr("Blur"), 0, 100, 0, 1],
+        ["grain", qsTr("Grain"), 0, 100, 0, 1]
+    ]
+    property var adjustValues: ({})
+    property string adjustFilter: ""
+    property string adjustPreviewUrl: ""
+    property int adjustPreviewRequest: -1
+    readonly property var adjustOptions: {
+        const options = {}
+        for (const control of adjustControls) {
+            const value = adjustValues[control[0]]
+            if (value !== undefined && value !== control[4])
+                options[control[0]] = value
+        }
+        if (adjustFilter.length > 0)
+            options.filter = adjustFilter
+        return options
+    }
+    onAdjustOptionsChanged: if (group === "edit") adjustPreviewDelay.restart()
     property string metadataMode: "all"
     property var metadataFields: []
     property string metadataError: ""
@@ -127,6 +156,12 @@ ApplicationWindow {
         borderColor = "#ffffff"
         ranges = [[0, 1]]
         audioMode = "mute"
+        adjustValues = ({})
+        adjustFilter = ""
+        adjustPreviewUrl = ""
+        adjustPreviewRequest = -1
+        if (group === "edit")
+            adjustPreviewDelay.restart()
         metadataMode = "all"
         metadataFields = []
         metadataError = ""
@@ -346,6 +381,17 @@ ApplicationWindow {
         if (duration > 0 && a >= duration)
             return qsTr("The start is past the end of the file (%1).").arg(formatTime(duration))
         return [a, Math.min(b, duration > 0 ? duration : b)]
+    }
+
+    function setAdjustment(name, value) {
+        const values = Object.assign({}, adjustValues)
+        values[name] = Number(value)
+        adjustValues = values
+    }
+
+    function resetAdjustments() {
+        adjustValues = ({})
+        adjustFilter = ""
     }
 
     function metadataField(key) {
@@ -586,8 +632,10 @@ ApplicationWindow {
                 return qsTr("Enter whole numbers for the new size.")
             if (w > 0 || h > 0)
                 o.resize = { w: w > 0 ? w : null, h: h > 0 ? h : null }
+            if (Object.keys(adjustOptions).length > 0)
+                o.adjust = adjustOptions
             if (Object.keys(o).length === 0)
-                return qsTr("Choose a rotation, a flip or a new size.")
+                return qsTr("Choose an adjustment, a rotation, a flip or a new size.")
             return o
         }
         case "frame":
@@ -662,8 +710,24 @@ ApplicationWindow {
         kind: on ? "primary" : "secondary"
     }
 
+    // Waits for the slider to rest, so a drag does not start a render per step.
+    Timer {
+        id: adjustPreviewDelay
+        interval: 200
+        onTriggered: {
+            if (win.group !== "edit" || win.firstFile.length === 0)
+                return
+            win.adjustPreviewRequest = App.preview.request(win.firstFile, "frame",
+                                                          { width: 640, adjust: JSON.stringify(win.adjustOptions) })
+        }
+    }
+
     Connections {
         target: App.preview
+        function onReady(requestId, kind, previewFiles, width, height) {
+            if (requestId === win.adjustPreviewRequest && previewFiles.length > 0)
+                win.adjustPreviewUrl = App.fileUrlsFor([String(previewFiles[0])])[0]
+        }
         function onMetadataRead(requestId, fields) {
             if (requestId === win.metadataRequest)
                 win.metadataFields = fields
@@ -1407,6 +1471,88 @@ ApplicationWindow {
             }
 
             // Edit photo
+            SectionBox {
+                visible: win.group === "edit"
+                title: qsTr("Adjustments")
+                Image {
+                    objectName: "adjustPreview"
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 260
+                    visible: win.adjustPreviewUrl.length > 0
+                    source: win.adjustPreviewUrl
+                    fillMode: Image.PreserveAspectFit
+                    asynchronous: true
+                    cache: false
+                    Accessible.name: qsTr("Preview of the adjustments")
+                }
+                GridLayout {
+                    Layout.fillWidth: true
+                    columns: 3
+                    columnSpacing: 10
+                    rowSpacing: 2
+                    Repeater {
+                        model: win.adjustControls.length * 3
+                        delegate: Item {
+                            id: adjustCell
+                            required property int index
+                            readonly property var control: win.adjustControls[Math.floor(index / 3)]
+                            readonly property real current: {
+                                const v = win.adjustValues[control[0]]
+                                return v === undefined ? control[4] : v
+                            }
+                            readonly property int part: index % 3
+                            Layout.fillWidth: part === 1
+                            Layout.preferredWidth: part === 0 ? 92 : part === 2 ? 44 : 200
+                            Layout.preferredHeight: 30
+                            FieldLabel {
+                                visible: adjustCell.part === 0
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: String(adjustCell.control[1])
+                            }
+                            Slider {
+                                visible: adjustCell.part === 1
+                                anchors.fill: parent
+                                from: Number(adjustCell.control[2])
+                                to: Number(adjustCell.control[3])
+                                stepSize: Number(adjustCell.control[5])
+                                snapMode: Slider.SnapAlways
+                                value: adjustCell.current
+                                Accessible.name: String(adjustCell.control[1])
+                                onMoved: win.setAdjustment(adjustCell.control[0], Math.round(value * 100) / 100)
+                            }
+                            Text {
+                                visible: adjustCell.part === 2
+                                anchors.fill: parent
+                                horizontalAlignment: Text.AlignRight
+                                verticalAlignment: Text.AlignVCenter
+                                text: String(adjustCell.current)
+                                font.pixelSize: Theme.sizeSmall
+                                color: Theme.secondaryText
+                            }
+                        }
+                    }
+                }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 6
+                    Repeater {
+                        model: [["", qsTr("No filter")], ["grayscale", qsTr("Grayscale")], ["sepia", qsTr("Sepia")]]
+                        delegate: Choice {
+                            required property var modelData
+                            text: String(modelData[1])
+                            on: win.adjustFilter === String(modelData[0])
+                            onClicked: win.adjustFilter = String(modelData[0])
+                        }
+                    }
+                    NButton {
+                        compact: true
+                        kind: "quiet"
+                        text: qsTr("Reset")
+                        enabled: Object.keys(win.adjustOptions).length > 0
+                        onClicked: win.resetAdjustments()
+                    }
+                }
+            }
             SectionBox {
                 visible: win.group === "edit"
                 title: qsTr("Rotate and flip")

@@ -22,7 +22,7 @@ public:
     QString program() const { return m_program; }
 
     // Runs `nashi-cli preview FILE --kind KIND --out-dir ... [opts] --json`.
-    // Supported opts keys: at (double), width (int), height (int), pages (string), color (string).
+    // Supported opts keys: at (double), width (int), height (int), pages (string), color (string), adjust (JSON string).
     // Returns a positive requestId; emits ready() or failed() asynchronously.
     Q_INVOKABLE int request(const QString &file, const QString &kind, const QVariantMap &opts = QVariantMap());
 

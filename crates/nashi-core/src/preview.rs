@@ -44,6 +44,8 @@ pub struct PreviewRequest {
     pub height: Option<u32>,
     pub pages: Option<String>,
     pub color: Option<String>,
+    /// `frame` of an image: `editImage` adjustments as JSON, applied to the preview.
+    pub adjust: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -156,9 +158,18 @@ fn render_frame(
             require(deps, "magick")?;
             let (src, src_ext) = image::decode_source(deps, file, ext, work)?;
             let h_bound = req.height.unwrap_or(w);
+            let adjust = match req.adjust.as_deref() {
+                Some(json) => {
+                    let parsed = serde_json::from_str(json)
+                        .map_err(|e| JobError::invalid_options(format!("adjust: {e}")))?;
+                    image::adjust_ops(&parsed)?
+                }
+                None => Vec::new(),
+            };
             image::magick(deps, work)?
                 .arg(image::ispec(work, &src, &src_ext, true)?)
                 .args(["-auto-orient", "-thumbnail", &format!("{w}x{h_bound}>")])
+                .args(adjust)
                 .arg(image::ospec("png", "frame.png"))
                 .run_ok()?;
             let tmp = work.join("frame.png");

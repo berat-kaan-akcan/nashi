@@ -122,6 +122,8 @@ enum Cmd {
         pages: Option<String>,
         #[arg(long)]
         color: Option<String>,
+        #[arg(long)]
+        adjust: Option<String>,
     },
     /// Download a URL via yt-dlp or curl.
     Download {
@@ -453,6 +455,7 @@ fn real_main() -> ExitCode {
             height,
             pages,
             color,
+            adjust,
         } => {
             if let Err(e) = process::install_signal_handlers() {
                 eprintln!("nashi-cli: cannot install signal handlers: {e}");
@@ -466,6 +469,7 @@ fn real_main() -> ExitCode {
                 height,
                 pages,
                 color,
+                adjust,
             };
             match preview::run(Deps::global(), &req) {
                 Ok(out) => {

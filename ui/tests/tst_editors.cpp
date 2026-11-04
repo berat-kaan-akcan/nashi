@@ -604,6 +604,40 @@ private Q_SLOTS:
         QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
     }
 
+    void editImageFormSendsAndPreviewsAdjustments()
+    {
+        g_messages.clear();
+        QQuickWindow *w = openEditor(QStringLiteral("editImage"), QStringLiteral("Edit Image"), photoPath);
+        QVERIFY(w);
+        const auto adjust = [w] {
+            return w->property("result").toMap().value(QStringLiteral("adjust")).toMap();
+        };
+        QCOMPARE(w->property("result").typeId(), QMetaType::QString); // nothing chosen yet
+
+        QMetaObject::invokeMethod(w, "setAdjustment", Q_ARG(QVariant, QStringLiteral("brightness")), Q_ARG(QVariant, 40));
+        QCOMPARE(adjust().value(QStringLiteral("brightness")).toInt(), 40);
+        QTRY_VERIFY_WITH_TIMEOUT(!w->property("adjustPreviewUrl").toString().isEmpty(), 10000);
+
+        // Back at neutral a control sends nothing at all.
+        QMetaObject::invokeMethod(w, "setAdjustment", Q_ARG(QVariant, QStringLiteral("brightness")), Q_ARG(QVariant, 0));
+        QCOMPARE(w->property("result").typeId(), QMetaType::QString);
+        QMetaObject::invokeMethod(w, "setAdjustment", Q_ARG(QVariant, QStringLiteral("gamma")), Q_ARG(QVariant, 1.0));
+        QCOMPARE(w->property("result").typeId(), QMetaType::QString);
+
+        w->setProperty("adjustFilter", QStringLiteral("sepia"));
+        QCOMPARE(adjust().value(QStringLiteral("filter")).toString(), QStringLiteral("sepia"));
+        saveEditorScreenshots(app, w, QStringLiteral("editImage"));
+        QMetaObject::invokeMethod(w, "resetAdjustments");
+        QCOMPARE(w->property("result").typeId(), QMetaType::QString);
+
+        // Nothing carries over to the next file.
+        QMetaObject::invokeMethod(w, "setAdjustment", Q_ARG(QVariant, QStringLiteral("contrast")), Q_ARG(QVariant, 20));
+        app->showOptions(QStringLiteral("editImage"), QStringLiteral("Edit Image"), {photoPath});
+        QCOMPARE(w->property("result").typeId(), QMetaType::QString);
+        w->hide();
+        QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
+    }
+
     void organizePdfReorderRotateDuplicateDelete()
     {
         g_messages.clear();

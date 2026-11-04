@@ -168,7 +168,7 @@ def preview_cmd(args):
         elif k == "--pages":
             pages_spec = v
             i += 2
-        elif k in ("--at", "--color"):
+        elif k in ("--at", "--color", "--adjust"):
             i += 2
         else:
             i += 1

@@ -355,6 +355,99 @@ fn os(v: &[String]) -> Vec<OsString> {
     v.iter().map(OsString::from).collect()
 }
 
+/// ImageMagick operations for picture adjustments. Each is limited to the colour
+/// channels, since on alpha they would reveal transparent areas or fade opaque ones.
+pub fn adjust_ops(a: &crate::options::Adjust) -> JobResult<Vec<String>> {
+    let checked = |value: Option<f64>, name: &str, low: f64, high: f64, neutral: f64| match value {
+        Some(v) if !v.is_finite() || v < low || v > high => Err(JobError::invalid_options(
+            format!("{name} must be between {low} and {high}"),
+        )),
+        Some(v) if v != neutral => Ok(Some(v)),
+        _ => Ok(None),
+    };
+    let mut colour: Vec<String> = Vec::new();
+    let mut push = |args: &[String]| colour.extend_from_slice(args);
+    if let Some(stops) = checked(a.exposure, "exposure", -5.0, 5.0, 0.0)? {
+        push(&[
+            "-evaluate".into(),
+            "Multiply".into(),
+            2f64.powf(stops).to_string(),
+        ]);
+    }
+    let brightness = checked(a.brightness, "brightness", -100.0, 100.0, 0.0)?;
+    let contrast = checked(a.contrast, "contrast", -100.0, 100.0, 0.0)?;
+    if brightness.is_some() || contrast.is_some() {
+        push(&[
+            "-brightness-contrast".into(),
+            format!("{}x{}", brightness.unwrap_or(0.0), contrast.unwrap_or(0.0)),
+        ]);
+    }
+    if let Some(g) = checked(a.gamma, "gamma", 0.1, 5.0, 1.0)? {
+        push(&["-gamma".into(), g.to_string()]);
+    }
+    let saturation = checked(a.saturation, "saturation", -100.0, 100.0, 0.0)?;
+    let hue = checked(a.hue, "hue", -100.0, 100.0, 0.0)?;
+    if saturation.is_some() || hue.is_some() {
+        push(&[
+            "-modulate".into(),
+            format!(
+                "100,{},{}",
+                100.0 + saturation.unwrap_or(0.0),
+                100.0 + hue.unwrap_or(0.0)
+            ),
+        ]);
+    }
+    if let Some(amount) = checked(a.sharpen, "sharpen", 0.0, 100.0, 0.0)? {
+        push(&["-sharpen".into(), format!("0x{}", amount / 25.0)]);
+    }
+    if let Some(amount) = checked(a.blur, "blur", 0.0, 100.0, 0.0)? {
+        push(&["-blur".into(), format!("0x{}", amount / 5.0)]);
+    }
+    if let Some(amount) = checked(a.grain, "grain", 0.0, 100.0, 0.0)? {
+        push(&[
+            "-attenuate".into(),
+            (amount / 100.0).to_string(),
+            "+noise".into(),
+            "Gaussian".into(),
+        ]);
+    }
+    match a.filter.as_deref() {
+        None | Some("") => {}
+        // Gray pixels, not a gray colorspace: the output format may not offer one.
+        Some("grayscale") => push(&["-modulate".into(), "100,0,100".into()]),
+        // A fixed matrix: -sepia-tone normalizes the result, so its look depends on the image.
+        Some("sepia") => push(&[
+            "-color-matrix".into(),
+            "0.393 0.769 0.189 0.349 0.686 0.168 0.272 0.534 0.131".into(),
+        ]),
+        Some(other) => {
+            return Err(JobError::invalid_options(format!(
+                "unknown filter '{other}'"
+            )))
+        }
+    }
+    let mut ops = Vec::new();
+    if !colour.is_empty() {
+        ops.extend(["-channel".to_string(), "RGB".to_string()]);
+        ops.append(&mut colour);
+        ops.push("+channel".to_string());
+    }
+    if let Some(warmth) = checked(a.temperature, "temperature", -100.0, 100.0, 0.0)? {
+        let shift = warmth / 100.0 * 0.3;
+        for (channel, factor) in [("R", 1.0 + shift), ("B", 1.0 - shift)] {
+            ops.extend([
+                "-channel".to_string(),
+                channel.to_string(),
+                "-evaluate".to_string(),
+                "Multiply".to_string(),
+                factor.to_string(),
+            ]);
+        }
+        ops.push("+channel".to_string());
+    }
+    Ok(ops)
+}
+
 /// `-resize` operations for the size options of `compress`.
 fn compress_resize(o: &crate::options::Options) -> JobResult<Vec<String>> {
     let mut ops = Vec::new();
@@ -508,9 +601,12 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
                     ops.extend(["-resize".into(), g]);
                 }
             }
+            if let Some(adjust) = &o.adjust {
+                ops.extend(adjust_ops(adjust)?);
+            }
             if ops.len() == 1 {
                 return Err(JobError::invalid_options(
-                    "editImage needs rotate, flip or resize",
+                    "editImage needs rotate, flip, resize or an adjustment",
                 ));
             }
             process(ctx, input, "-edited", os(&ops))
