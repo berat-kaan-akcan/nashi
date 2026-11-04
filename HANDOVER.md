@@ -80,7 +80,8 @@ Nashi ([`orkunisitmak/nashi-app`](https://github.com/orkunisitmak/nashi-app), MI
 **Önce kurulum:** Sistemdeki `nashi-git` paketi 31 Ekim tarihli eski sürümdür (`preview`/`download` yok). Faz 5'ten önce bu daldan derlenen paket kurulmalıdır:
 ```bash
 cd packaging/arch
-NASHI_LOCAL_SRC="$(git rev-parse --show-toplevel)" makepkg -f
+# -d: cargo rustup'tan geliyor, pacman onu göremiyor
+NASHI_LOCAL_SRC="$(git rev-parse --show-toplevel)" makepkg -f -d
 sudo pacman -U ./nashi-git-*.pkg.tar.zst
 systemctl --user restart nashi-inputd.service
 ```
