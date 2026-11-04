@@ -342,6 +342,14 @@ void App::runItem(const QString &kind, const QString &id, const QString &title, 
     if (files.isEmpty())
         return;
     if (kind == QLatin1String("action")) {
+        if (id == QLatin1String("share")) {
+            showShare(files);
+            return;
+        }
+        if (id == QLatin1String("float")) {
+            addToShelf(files);
+            return;
+        }
         if (!m_actions->run(id, files))
             postMessage(tr("Unknown action: %1").arg(id));
         return;
@@ -350,7 +358,16 @@ void App::runItem(const QString &kind, const QString &id, const QString &title, 
         showOptions(id, title, files);
         return;
     }
-    startJob(kind, id, title, files, QString());
+    startJob(kind, id, title, files, kind == QLatin1String("convert") ? convertOptions(id) : QString());
+}
+
+QString App::convertOptions(const QString &target) const
+{
+    if (target != QLatin1String("jpg") && target != QLatin1String("png"))
+        return {};
+    QJsonObject options;
+    options.insert(QStringLiteral("dpi"), m_settings->pdfImageDpi());
+    return QString::fromUtf8(QJsonDocument(options).toJson(QJsonDocument::Compact));
 }
 
 void App::runWithOptions(const QString &id, const QString &title, const QStringList &files, const QString &options)
@@ -644,9 +661,26 @@ void App::showPreview(const QString &path, const QStringList &siblings)
         presentWindow(m_previewWindow);
 }
 
+namespace {
+// Lowercasing İ gives "i" plus a combining dot, and ı stays apart from i, so Turkish
+// names would not match their ASCII spelling or their other case.
+QString foldForSearch(const QString &text)
+{
+    QString folded = text.toLower();
+    folded.remove(QChar(0x0307));
+    folded.replace(QChar(0x0131), QLatin1Char('i'));
+    return folded;
+}
+} // namespace
+
+bool App::matchesSearch(const QString &query, const QString &name, const QString &folder) const
+{
+    const QString q = foldForSearch(query.trimmed());
+    return q.isEmpty() || foldForSearch(name).contains(q) || foldForSearch(folder).contains(q);
+}
+
 QStringList App::filteredRecentPaths(const QString &query) const
 {
-    const QString q = query.trimmed().toLower();
     QStringList out;
     const int n = m_recent->rowCount();
     for (int i = 0; i < n; ++i) {
@@ -655,7 +689,7 @@ QStringList App::filteredRecentPaths(const QString &query) const
             continue;
         const QString name = m_recent->data(idx, RecentModel::NameRole).toString();
         const QString folder = m_recent->data(idx, RecentModel::FolderRole).toString();
-        if (!q.isEmpty() && !name.toLower().contains(q) && !folder.toLower().contains(q))
+        if (!matchesSearch(query, name, folder))
             continue;
         out.append(m_recent->data(idx, RecentModel::PathRole).toString());
     }

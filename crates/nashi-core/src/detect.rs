@@ -242,6 +242,15 @@ pub struct Probe {
     pub has_video: bool,
     pub has_audio: bool,
     pub sample_rate: Option<u32>,
+    pub channels: Option<u32>,
+    /// Stored pixel width over height of the first video stream, when not square.
+    pub sar: Option<f64>,
+    /// Index of an embedded JPEG or PNG cover picture.
+    pub art_stream: Option<u64>,
+    /// Ogg keeps its tags on the audio stream rather than on the file.
+    pub ogg_stream_tags: bool,
+    /// Apple devices store location and camera details as com.apple.quicktime.* tags.
+    pub quicktime_keys: bool,
     /// `codec:width:height:pix_fmt:fps` of the first video stream and
     /// `codec:rate:channels` of the first audio stream (join compatibility).
     pub signature: String,
@@ -305,9 +314,10 @@ pub fn ffprobe(deps: &Deps, path: &Path) -> Option<Probe> {
     let mut arg = std::ffi::OsString::from("file:");
     arg.push(path.as_os_str());
     let mut cmd = std::process::Command::new(ff);
+    // Warnings are read only to learn whether the duration is a guess.
     cmd.args([
         "-v",
-        "error",
+        "warning",
         "-print_format",
         "json",
         "-show_format",
@@ -331,6 +341,15 @@ pub fn ffprobe(deps: &Deps, path: &Path) -> Option<Probe> {
         duration: num(&v["format"]["duration"]),
         ..Default::default()
     };
+    if String::from_utf8_lossy(&out.stderr).contains("Estimating duration from bitrate") {
+        p.duration = measured_duration(deps, path).or(p.duration);
+    }
+    p.quicktime_keys = v["format"]["tags"]
+        .as_object()
+        .is_some_and(|t| t.keys().any(|k| k.starts_with("com.apple.quicktime.")));
+    let is_ogg = v["format"]["format_name"]
+        .as_str()
+        .is_some_and(|n| n.split(',').any(|n| n == "ogg"));
     let mut vsig = String::from("-");
     let mut asig = String::from("-");
     for s in v["streams"].as_array().into_iter().flatten() {
@@ -343,6 +362,11 @@ pub fn ffprobe(deps: &Deps, path: &Path) -> Option<Probe> {
                 let rot = stream_rotation(s);
                 if matches!(rot, 90 | 270) {
                     std::mem::swap(&mut p.width, &mut p.height);
+                } else {
+                    p.sar = s["sample_aspect_ratio"]
+                        .as_str()
+                        .and_then(parse_ratio)
+                        .filter(|r| (*r - 1.0).abs() > 1e-6);
                 }
                 vsig = format!(
                     "{}:{}:{}:{rot}:{}:{}",
@@ -356,12 +380,18 @@ pub fn ffprobe(deps: &Deps, path: &Path) -> Option<Probe> {
                     p.duration = num(&s["duration"]);
                 }
             }
-            Some("video") if attached && p.width.is_none() => {
-                // Still image (e.g. jpg probed via ffprobe) — dimensions only.
+            Some("video")
+                if attached
+                    && p.art_stream.is_none()
+                    && matches!(s["codec_name"].as_str(), Some("mjpeg" | "png")) =>
+            {
+                p.art_stream = s["index"].as_u64();
             }
             Some("audio") if !p.has_audio => {
                 p.has_audio = true;
+                p.ogg_stream_tags = is_ogg && s["tags"].as_object().is_some_and(|t| !t.is_empty());
                 p.sample_rate = num(&s["sample_rate"]).map(|x| x as u32);
+                p.channels = s["channels"].as_u64().map(|x| x as u32);
                 asig = format!(
                     "{}:{}:{}",
                     s["codec_name"].as_str().unwrap_or("?"),
@@ -374,6 +404,40 @@ pub fn ffprobe(deps: &Deps, path: &Path) -> Option<Probe> {
     }
     p.signature = format!("{vsig}|{asig}");
     Some(p)
+}
+
+/// `"32:27"` as a number; `"0:1"` and `"N/A"` mean the file does not say.
+fn parse_ratio(text: &str) -> Option<f64> {
+    let (a, b) = text.split_once(':')?;
+    let (a, b): (f64, f64) = (a.parse().ok()?, b.parse().ok()?);
+    (a > 0.0 && b > 0.0 && a.is_finite() && b.is_finite()).then(|| a / b)
+}
+
+/// The end of the last packet, read by copying every stream to the null muxer.
+/// MP3 without a length header stores no duration, so ffprobe's is a guess from
+/// the bitrate, and a recording that goes quiet makes that guess too short.
+fn measured_duration(deps: &Deps, path: &Path) -> Option<f64> {
+    let ff = deps.path("ffmpeg")?;
+    let mut arg = std::ffi::OsString::from("file:");
+    arg.push(path.as_os_str());
+    let mut cmd = std::process::Command::new(ff);
+    cmd.args(["-hide_banner", "-nostdin", "-loglevel", "error", "-i"])
+        .arg(arg)
+        .args(["-map", "0", "-c", "copy", "-f", "null", "-"])
+        .args(["-progress", "pipe:1", "-nostats"])
+        .stdin(std::process::Stdio::null())
+        .env("LC_ALL", "C.UTF-8");
+    crate::process::die_with_parent(&mut cmd);
+    let out = cmd.output().ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .rev()
+        .find_map(|l| l.strip_prefix("out_time_us=")?.parse::<f64>().ok())
+        .filter(|us| us.is_finite() && *us > 0.0)
+        .map(|us| us / 1_000_000.0)
 }
 
 /// Page count of a PDF: qpdf, then pdfinfo, then gs (SAFER), then a naive scan.

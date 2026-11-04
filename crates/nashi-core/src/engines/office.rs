@@ -396,6 +396,7 @@ pub fn convert(ctx: &Ctx, input: &Input, target: &str) -> JobResult<Produced> {
                     staged.path(),
                     input.stem(),
                     &epub::text_to_xhtml_body(&text),
+                    &epub::Language::default(),
                 )?;
                 return Ok(staged.commit()?.into());
             }
@@ -414,7 +415,12 @@ pub fn convert(ctx: &Ctx, input: &Input, target: &str) -> JobResult<Produced> {
                 &work,
             )?;
             let html = String::from_utf8_lossy(&std::fs::read(&xhtml)?).into_owned();
-            epub::write_epub(staged.path(), input.stem(), &epub::html_body(&html))?;
+            epub::write_epub(
+                staged.path(),
+                input.stem(),
+                &epub::html_body(&html),
+                &epub::source_language(&html),
+            )?;
             Ok(staged.commit()?.into())
         }
         "jpg" | "png" => {

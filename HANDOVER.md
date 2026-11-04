@@ -66,6 +66,13 @@ Nashi ([`orkunisitmak/nashi-app`](https://github.com/orkunisitmak/nashi-app), MI
   * `cargo test --workspace` → **141 test PASS, 0 FAIL** (bu makinede tüm araçlar kurulu olduğu için skip yok)
   * `QT_QPA_PLATFORM=offscreen ctest --test-dir build/ui --output-on-failure` → **15/15 test paketi PASS, 0 QML uyarısı** (`tst_editors`, `tst_desktop`, `tst_qmlsmoke`, `tst_translations_complete` dahil)
 
+### 2.5.1. Upstream Eşitlemesi (`be59b13`, 2026-11-04)
+Upstream'in `b3c60f2..be59b13` aralığı incelendi; Linux'u etkileyen hatalar örnek dosyalarla doğrulanıp testle kapatıldı:
+* **Gizlilik:** video karartmada tek sayılı x/y'de açık kalan kenar ve şeffaf videoda sızan renk bilgisi; PDF metadata temizliğinde kalan not yazarı/tarihi (`qpdf` yoksa çıktı uyarı taşır).
+* **Başarısız işler ve bozuk çıktı:** uzun dosya adları, surround/yüksek hızlı ses → opus/wma/wmv, altyazı sırası ve boş satırsız cue'lar, küçük PDF'in sıkıştırmada büyümesi, stdout yazılamayınca panik.
+* **Veri ve görüntü kaybı:** albüm kapağı, OGG etiketleri, Apple konum etiketleri, kare olmayan pikselli GIF/birleştirme/kare çıkarma, Xing başlıksız MP3 süresi, EPUB dili, dönüştürmede EXIF yönü.
+* **Yeni özellikler:** ses kırpmada sessizlik silme, bip modu, PDF→görsel DPI ayarı, çarkta Paylaş/Float, Pick aşamasında klavyeyle çark, Kütüphane aramasında `İ/I/ı/i` eşleşmesi.
+
 ### 2.6. Test Denetimi (2026-11-04)
 * **Mutasyon testi:** Motor kasıtlı bozularak testlerin hatayı yakalayıp yakalamadığı ölçüldü. İlk ölçümde 9 mutasyonun 8'i yakalanmıyordu. [`crates/nashi-cli/tests/behavior.rs`](file:///home/berat/Masaüstü/nashi/crates/nashi-cli/tests/behavior.rs) (piksel, ses seviyesi, LUFS ve dosya boyutu ölçümleri) ve `v02.rs` düzeltmeleriyle işlevsel açıkların tamamı kapandı. Yalnızca `--proto-redir` kaldırılınca test geçiyor, çünkü `--proto` aynı yönlendirmeyi tek başına engelliyor; ikisi birden kaldırılınca test düşüyor.
 * **Düzeltilen hata:** Metinsiz (taranmış) PDF'ten `txt`/`md`/`epub` üretimi başarılı görünüp boş çıktı veriyordu; artık `invalid_input` hatası veriyor.
@@ -103,6 +110,7 @@ Arayüz ve servisler şu ana kadar birim testleri ve `QT_QPA_PLATFORM=offscreen`
 * **Metadata görüntüleme ve düzenleme:** Şu an yalnızca metadata temizleme (`removeMetadata`) var; `exiftool` ile alanları okuyup düzenleyen form yok.
 * **PDF ek seçenekleri:** Sabit grup/sayfa aralığıyla bölme ve birleştirmede eşit sayfa genişliğine ölçekleme.
 * **Video/ses ek seçenekleri:** Belirli saniye noktalarından çoklu bölme, seçili parçaları birleştirme ve özel LUFS ses yüksekliği hedefi.
+* **Upstream eşitlemesinden kalanlar:** motor hata mesajları hâlâ İngilizce (arayüzde çevrilmiyor); arşiv açmada toplam boyut sınırı yok; Pick aşamasında klavye ve çarktan Paylaş gerçek KWin oturumunda denenmedi.
 * **Küçük uygulama detayları:** Format bazlı varsayılan kalite ayarları sayfası (ör. varsayılan JPEG kalitesi), işlem bitiş sesi, Fransızca (`fr`) çeviri.
 
 ### 3.3. İleriki Fazlar

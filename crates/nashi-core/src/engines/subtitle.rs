@@ -45,6 +45,9 @@ pub fn parse(text: &str) -> Vec<Cue> {
         .trim_start_matches('\u{feff}')
         .replace("\r\n", "\n")
         .replace('\r', "\n");
+    let header = text.lines().next().unwrap_or("");
+    let webvtt =
+        header == "WEBVTT" || header.starts_with("WEBVTT ") || header.starts_with("WEBVTT\t");
     let mut cues = Vec::new();
     for block in text.split("\n\n") {
         let lines: Vec<&str> = block.lines().collect();
@@ -57,16 +60,33 @@ pub fn parse(text: &str) -> Vec<Cue> {
         {
             continue;
         }
-        let Some((s, e)) = timing(lines[ti]) else {
-            continue;
-        };
-        let body: Vec<String> = lines[ti + 1..].iter().map(|l| l.to_string()).collect();
-        cues.push(Cue {
-            start_ms: s,
-            end_ms: e,
-            text: body,
-        });
+        // A cue also ends at the next timing line, for files without blank lines.
+        let mut i = ti;
+        while let Some((start_ms, end_ms)) = lines.get(i).and_then(|l| timing(l)) {
+            i += 1;
+            let mut body: Vec<String> = Vec::new();
+            while i < lines.len() && timing(lines[i]).is_none() {
+                body.push(lines[i].to_string());
+                i += 1;
+            }
+            // SRT numbers its cues, so digits right before a timing line are the
+            // next number. WebVTT has no numbers, so there they are the cue's text.
+            let numbered = body.last().is_some_and(|l| {
+                let l = l.trim();
+                !l.is_empty() && l.chars().all(|c| c.is_ascii_digit())
+            });
+            if i < lines.len() && !webvtt && numbered {
+                body.pop();
+            }
+            cues.push(Cue {
+                start_ms,
+                end_ms,
+                text: body,
+            });
+        }
     }
+    // WebVTT requires start-time order; the stable sort keeps cues that start together in file order.
+    cues.sort_by_key(|c| c.start_ms);
     cues
 }
 

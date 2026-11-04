@@ -166,3 +166,15 @@ nashi-cli download URL [--kind auto|video|audio|thumbnail|image] [--out-dir DIR]
 - yt-dlp runs with `--ignore-config --no-playlist --newline`; downloads go to a temp dir inside `DIR` and are renamed into place with a unique name (never overwrite). Title-based names are sanitised (no `/`, no leading `-`/`.`, ≤ 150 bytes).
 - Emits the normal event stream (`start` total 1, `progress` with `fraction` from yt-dlp/curl, `output`, `error`, `done`), `input` is the URL, `index` 0. Cancel: SIGTERM as for jobs.
 - Missing `yt-dlp` / `curl` → `missing_dependency` (exit 3). `deps` lists `curl`.
+
+## Additions (v0.3 — upstream sync)
+
+- Exit code 1 also means stdout could not be written (for example a full disk); stderr says so.
+- `removeMetadata` on a PDF also removes annotation authors and dates, keeping form field names. Without `qpdf` the `output` event carries a `message` saying they may remain.
+- `compress` on a PDF returns a copy of the input with a `message` when the rewrite would not be smaller.
+- `inspect` measures the duration of MP3 files without a length header instead of reporting ffprobe's bitrate guess.
+- Output names are built from at most the first 200 bytes of the input's name, so suffixes and `" (n)"` still fit the 255-byte limit.
+- `trimAudio` options: `trim_silence` (bool) also removes silence from both ends of the selection; `silence_threshold_db` (-120..0, default -50) sets what counts as silence.
+- `redactAudio` option `audio_mode`: `mute` (default) or `bleep` (a 1 kHz tone). Other values return `invalid_options`.
+- `dpi` (36..1200, default 150) sets the resolution of PDF and document → `jpg`/`png` page images.
+- `actions` gains the fixed ids `share` and `float`.

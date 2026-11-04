@@ -24,8 +24,7 @@ Page {
     onVisibleChanged: if (visible && searchFocusPending) focusSearch()
 
     function matches(name, folder) {
-        const q = search.text.trim().toLowerCase()
-        return q.length === 0 || name.toLowerCase().indexOf(q) >= 0 || folder.toLowerCase().indexOf(q) >= 0
+        return App.matchesSearch(search.text, name, folder)
     }
 
     function previewPath(path) {

@@ -5,6 +5,7 @@
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::ExitCode;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
 use clap::{Parser, Subcommand, ValueEnum};
@@ -130,11 +131,27 @@ enum Cmd {
     },
 }
 
+/// Set when stdout could not be written, so the exit code can say so.
+static STDOUT_FAILED: AtomicBool = AtomicBool::new(false);
+
+/// `println!` that records a failed write instead of panicking.
+macro_rules! out {
+    ($($arg:tt)*) => {
+        if writeln!(std::io::stdout(), $($arg)*).is_err() {
+            STDOUT_FAILED.store(true, Ordering::Relaxed);
+        }
+    };
+}
+
 fn print_json<T: serde::Serialize>(v: &T) {
     let mut out = std::io::stdout().lock();
-    let _ = serde_json::to_writer(&mut out, v);
-    let _ = out.write_all(b"\n");
-    let _ = out.flush();
+    let written = serde_json::to_writer(&mut out, v)
+        .map_err(std::io::Error::from)
+        .and_then(|()| out.write_all(b"\n"))
+        .and_then(|()| out.flush());
+    if written.is_err() {
+        STDOUT_FAILED.store(true, Ordering::Relaxed);
+    }
 }
 
 struct JsonSink;
@@ -173,9 +190,9 @@ impl Sink for HumanSink {
                 }
             }
             Event::Output { path, message, .. } => {
-                println!("{path}");
+                out!("{path}");
                 if let Some(m) = message {
-                    println!("{m}");
+                    out!("{m}");
                 }
             }
             Event::Error {
@@ -253,6 +270,15 @@ fn run_job(
 }
 
 fn main() -> ExitCode {
+    let code = real_main();
+    if std::io::stdout().flush().is_err() || STDOUT_FAILED.load(Ordering::Relaxed) {
+        eprintln!("nashi-cli: the results could not be written to standard output");
+        return ExitCode::from(1);
+    }
+    code
+}
+
+fn real_main() -> ExitCode {
     let cli = Cli::parse();
     let json = cli.json;
     match cli.cmd {
@@ -261,27 +287,27 @@ fn main() -> ExitCode {
             if json {
                 print_json(&c);
             } else {
-                println!("Formats:");
+                out!("Formats:");
                 for f in &c.formats {
-                    println!(
+                    out!(
                         "  {:<13} {:<13} → {}",
                         f.ext,
                         f.category.as_str(),
                         f.targets.join(", ")
                     );
                 }
-                println!("Tools:");
+                out!("Tools:");
                 for t in &c.tools {
                     let avail = if t.available {
                         String::new()
                     } else {
                         format!("  (missing: {})", t.missing.join(", "))
                     };
-                    println!("  {:<17} {}{avail}", t.id, t.title.en);
+                    out!("  {:<17} {}{avail}", t.id, t.title.en);
                 }
-                println!("Actions:");
+                out!("Actions:");
                 for a in c.actions {
-                    println!("  {:<17} {}", a.id, a.title.en);
+                    out!("  {:<17} {}", a.id, a.title.en);
                 }
             }
         }
@@ -291,10 +317,10 @@ fn main() -> ExitCode {
                 print_json(&w);
             } else {
                 for f in &w.files {
-                    println!("{} ({}, {})", f.path, f.ext, f.category.as_str());
+                    out!("{} ({}, {})", f.path, f.ext, f.category.as_str());
                 }
                 let mark = |a: bool| if a { "" } else { " (unavailable)" };
-                println!(
+                out!(
                     "Convert: {}",
                     w.convert
                         .iter()
@@ -302,7 +328,7 @@ fn main() -> ExitCode {
                         .collect::<Vec<_>>()
                         .join(", ")
                 );
-                println!(
+                out!(
                     "Tools:   {}",
                     w.tools
                         .iter()
@@ -310,7 +336,7 @@ fn main() -> ExitCode {
                         .collect::<Vec<_>>()
                         .join(", ")
                 );
-                println!(
+                out!(
                     "Actions: {}",
                     w.actions
                         .iter()
@@ -346,7 +372,7 @@ fn main() -> ExitCode {
                     if let Some(p) = i.pages {
                         extra.push(format!("{p} pages"));
                     }
-                    println!("{}: {} ({cat}) {}", i.path, i.ext, extra.join(", "));
+                    out!("{}: {} ({cat}) {}", i.path, i.ext, extra.join(", "));
                 }
             }
         }
@@ -357,7 +383,7 @@ fn main() -> ExitCode {
             } else {
                 for d in &r {
                     let state = if d.available { "ok     " } else { "missing" };
-                    println!(
+                    out!(
                         "  {state} {:<13} {:<12} pacman -S {}{}",
                         d.id,
                         d.version.as_deref().unwrap_or("-"),
@@ -415,7 +441,7 @@ fn main() -> ExitCode {
                     if json {
                         print_json(&out);
                     } else {
-                        println!(
+                        out!(
                             "{} ({}x{}): {} file(s)",
                             out.kind.as_str(),
                             out.width,
@@ -423,7 +449,7 @@ fn main() -> ExitCode {
                             out.files.len()
                         );
                         for f in &out.files {
-                            println!("  {f}");
+                            out!("  {f}");
                         }
                     }
                 }

@@ -240,6 +240,60 @@ private Q_SLOTS:
         QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
     }
 
+    // Pick stage: arrows walk the available slices, Return runs the highlighted one.
+    void overlayPickStageWorksFromTheKeyboard()
+    {
+        g_messages.clear();
+        QQmlComponent component(engine);
+        component.loadFromModule("NashiApp", "OverlayWindow");
+        std::unique_ptr<QObject> obj(component.create());
+        auto *w = qobject_cast<QQuickWindow *>(obj.get());
+        QVERIFY(w);
+        w->resize(1280, 800);
+        w->show();
+        QVERIFY(QTest::qWaitForWindowExposed(w));
+        OverlayController *ctl = app->overlay();
+        QSignalSpy chosen(ctl, &OverlayController::itemChosen);
+        ctl->onChordStarted(QStringLiteral("convert"));
+
+        QMimeData empty;
+        QDragEnterEvent enter(QPoint(300, 300), Qt::CopyAction, &empty, Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(w, &enter);
+        QDragMoveEvent move(QPoint(300, 300), Qt::CopyAction, &empty, Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(w, &move);
+        QMimeData full;
+        full.setUrls({QUrl::fromLocalFile(QStringLiteral("/tmp/p.png"))});
+        QDropEvent drop(QPointF(300, 300), Qt::CopyAction, &full, Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(w, &drop);
+        QCOMPARE(ctl->stage(), OverlayController::Pick);
+        QTRY_VERIFY_WITH_TIMEOUT(ctl->selection()->ready(), 10000);
+
+        // The available slices, in wheel order, are what the keys must walk.
+        QStringList available;
+        auto *model = ctl->selection()->model();
+        for (int i = 0; i < model->rowCount(); ++i) {
+            const QVariantMap item = model->get(i);
+            if (item.value(QStringLiteral("available")).toBool())
+                available.append(item.value(QStringLiteral("itemId")).toString());
+        }
+        QVERIFY(available.size() >= 2);
+
+        QTest::keyClick(w, Qt::Key_Return); // nothing highlighted yet
+        QCOMPARE(chosen.count(), 0);
+        QCOMPARE(ctl->stage(), OverlayController::Pick);
+
+        QTest::keyClick(w, Qt::Key_Right); // first
+        QTest::keyClick(w, Qt::Key_Down); // second
+        QTest::keyClick(w, Qt::Key_Left); // first again
+        QTest::keyClick(w, Qt::Key_Up); // wraps to the last
+        QTest::keyClick(w, Qt::Key_Return);
+        QCOMPARE(chosen.count(), 1);
+        QCOMPARE(chosen.at(0).at(1).toString(), available.constLast());
+        QCOMPARE(ctl->stage(), OverlayController::Hidden);
+        QTRY_VERIFY_WITH_TIMEOUT(app->jobs()->activeCount() == 0, 10000);
+        QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
+    }
+
     // Toast + JobCard with real jobs from the fake CLI.
     void toastWithJobs()
     {

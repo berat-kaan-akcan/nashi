@@ -150,6 +150,22 @@ void Settings::setWheelScale(double scale)
     Q_EMIT wheelScaleChanged();
 }
 
+int Settings::pdfImageDpi() const
+{
+    bool ok = false;
+    const int v = m_store.value(QStringLiteral("convert/pdfImageDpi"), kDefaultPdfImageDpi).toInt(&ok);
+    return ok ? qBound(kMinPdfImageDpi, v, kMaxPdfImageDpi) : kDefaultPdfImageDpi;
+}
+
+void Settings::setPdfImageDpi(int dpi)
+{
+    dpi = qBound(kMinPdfImageDpi, dpi, kMaxPdfImageDpi);
+    if (dpi == pdfImageDpi())
+        return;
+    m_store.setValue(QStringLiteral("convert/pdfImageDpi"), dpi);
+    Q_EMIT pdfImageDpiChanged();
+}
+
 QString Settings::urlToLocalPath(const QUrl &url) const
 {
     return url.isLocalFile() ? url.toLocalFile() : url.toString();

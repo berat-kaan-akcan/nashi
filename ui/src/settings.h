@@ -30,12 +30,17 @@ class Settings : public QObject
     // Wheel size factor, kMinWheelScale..kMaxWheelScale (upstream "wheelScale").
     Q_PROPERTY(double wheelScale READ wheelScale WRITE setWheelScale NOTIFY wheelScaleChanged)
     Q_PROPERTY(double minWheelScale READ minWheelScale CONSTANT)
+    // Resolution of PDF and document pages converted to JPG or PNG.
+    Q_PROPERTY(int pdfImageDpi READ pdfImageDpi WRITE setPdfImageDpi NOTIFY pdfImageDpiChanged)
     Q_PROPERTY(double maxWheelScale READ maxWheelScale CONSTANT)
     Q_PROPERTY(bool showShelfOnStartup READ showShelfOnStartup WRITE setShowShelfOnStartup NOTIFY showShelfOnStartupChanged)
 
 public:
     static constexpr double kMinWheelScale = 0.8;
     static constexpr double kMaxWheelScale = 1.4;
+    static constexpr int kDefaultPdfImageDpi = 150;
+    static constexpr int kMinPdfImageDpi = 36;
+    static constexpr int kMaxPdfImageDpi = 1200;
 
     explicit Settings(QObject *parent = nullptr);
     // For tests: an explicit file.
@@ -64,6 +69,8 @@ public:
     double wheelScale() const;
     void setWheelScale(double scale);
     double minWheelScale() const { return kMinWheelScale; }
+    int pdfImageDpi() const;
+    void setPdfImageDpi(int dpi);
     double maxWheelScale() const { return kMaxWheelScale; }
     bool showShelfOnStartup() const;
     void setShowShelfOnStartup(bool on);
@@ -78,6 +85,7 @@ Q_SIGNALS:
     void reduceMotionChanged();
     void startAtLoginChanged();
     void wheelScaleChanged();
+    void pdfImageDpiChanged();
     void showShelfOnStartupChanged();
 
 private:

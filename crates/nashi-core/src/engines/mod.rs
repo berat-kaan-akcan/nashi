@@ -30,12 +30,24 @@ pub struct Input {
     pub out_dir: PathBuf,
 }
 
+const MAX_STEM_BYTES: usize = 200;
+
 impl Input {
     pub fn ext(&self) -> &str {
         &self.det.ext
     }
+    /// The input's name for building output names, shortened so a suffix, a
+    /// " (n)" and the temporary name around them still fit in 255 bytes.
     pub fn stem(&self) -> &str {
-        &self.det.stem
+        let stem = &self.det.stem;
+        if stem.len() <= MAX_STEM_BYTES {
+            return stem;
+        }
+        let mut end = MAX_STEM_BYTES;
+        while !stem.is_char_boundary(end) {
+            end -= 1;
+        }
+        stem[..end].trim_end_matches(|c: char| c == '.' || c.is_whitespace())
     }
     pub fn category(&self) -> Category {
         self.det.category

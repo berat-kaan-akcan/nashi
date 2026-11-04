@@ -28,7 +28,11 @@ pub fn to_images(
     } else {
         &["-png"]
     };
-    let base = Cmd::new(ppm).args(fmt_args).args(["-r", "150"]);
+    let dpi = ctx.opts.dpi.unwrap_or(150);
+    if !(36..=1200).contains(&dpi) {
+        return Err(JobError::invalid_options("dpi must be between 36 and 1200"));
+    }
+    let base = Cmd::new(ppm).args(fmt_args).arg("-r").arg(dpi.to_string());
     if pages <= 1 {
         let staged = Staged::file(out_dir, stem, fmt)?;
         let work = WorkDir::new_in(out_dir)?;
@@ -86,7 +90,12 @@ pub fn convert(ctx: &Ctx, input: &Input, target: &str) -> JobResult<Produced> {
                 std::fs::write(staged.path(), text_to_markdown(&text))?;
             } else {
                 let body = super::epub::text_to_xhtml_body(&text);
-                super::epub::write_epub(staged.path(), input.stem(), &body)?;
+                super::epub::write_epub(
+                    staged.path(),
+                    input.stem(),
+                    &body,
+                    &super::epub::Language::default(),
+                )?;
             }
             Ok(staged.commit_allow_empty()?.into())
         }
@@ -179,8 +188,16 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
                 .arg("-f")
                 .arg(&input.path)
                 .run_ok()?;
+            // Rewriting an already small PDF can make it larger.
+            let kept = std::fs::metadata(&tmp)?.len() >= std::fs::metadata(&input.path)?.len();
+            if kept {
+                std::fs::copy(&input.path, &tmp)?;
+            }
             staged.take_from(&tmp)?;
-            Ok(staged.commit()?.into())
+            Ok(Produced {
+                paths: vec![staged.commit()?],
+                message: kept.then(|| "Already optimized. Original quality retained.".into()),
+            })
         }
         "removeMetadata" => remove_metadata(ctx, input),
         "splitPDF" => split(ctx, input),
@@ -194,38 +211,123 @@ fn remove_metadata(ctx: &Ctx, input: &Input) -> JobResult<Produced> {
     let staged = input.stage("-clean", "pdf")?;
     let work = WorkDir::new_in(&input.out_dir)?;
     let d = ctx.deps;
-    if let Some(exif) = d.path("exiftool") {
+    let cleaned = if let Some(exif) = d.path("exiftool") {
         let tmp = work.join("clean.pdf");
         Cmd::new(exif)
             .args(["-q", "-q", "-all:all=", "-o"])
             .arg(&tmp)
             .arg(&input.path)
             .run_ok()?;
-        // exiftool edits PDFs incrementally (old metadata stays recoverable);
-        // rewrite the file so the removal is real.
-        if let Some(qpdf) = d.path("qpdf") {
-            let out = Cmd::new(qpdf)
-                .arg("--linearize")
-                .arg(&tmp)
-                .arg(staged.path())
-                .run()?;
-            // qpdf exit 3 = warnings, output still written.
-            if !matches!(out.status.code(), Some(0) | Some(3)) {
-                return Err(crate::process::failure("qpdf", &out));
-            }
-        } else if d.has("gs") {
-            let out = work.join("blank.pdf");
-            gs_blank_info(ctx, &tmp, &out)?;
-            staged.take_from(&out)?;
-        } else {
-            staged.take_from(&tmp)?;
-        }
+        tmp
     } else {
         let out = work.join("blank.pdf");
         gs_blank_info(ctx, &input.path, &out)?;
-        staged.take_from(&out)?;
+        out
+    };
+    // exiftool edits PDFs incrementally (old metadata stays recoverable);
+    // rewrite the file so the removal is real.
+    let Some(qpdf) = d.path("qpdf") else {
+        if d.has("exiftool") && d.has("gs") {
+            let out = work.join("blank.pdf");
+            gs_blank_info(ctx, &cleaned, &out)?;
+            staged.take_from(&out)?;
+        } else {
+            staged.take_from(&cleaned)?;
+        }
+        return Ok(Produced {
+            paths: vec![staged.commit()?],
+            message: Some(
+                "Comment authors and dates may remain in this PDF. Install qpdf to remove them."
+                    .into(),
+            ),
+        });
+    };
+    let mut rewrite = Cmd::new(qpdf).arg("--linearize");
+    if let Some(update) = annotation_update(qpdf, &cleaned, &work)? {
+        let mut flag = OsString::from("--update-from-json=");
+        flag.push(&update);
+        rewrite = rewrite.arg(flag);
+    }
+    let out = rewrite.arg(&cleaned).arg(staged.path()).run()?;
+    // qpdf exit 3 = warnings, output still written.
+    if !matches!(out.status.code(), Some(0) | Some(3)) {
+        return Err(crate::process::failure("qpdf", &out));
     }
     Ok(staged.commit()?.into())
+}
+
+/// Write a qpdf update that drops annotation authors and dates. `None` when
+/// the PDF has nothing to remove.
+fn annotation_update(qpdf: &Path, pdf: &Path, work: &WorkDir) -> JobResult<Option<PathBuf>> {
+    let json = work.join("objects.json");
+    let out = Cmd::new(qpdf)
+        .args([
+            "--json-output=2",
+            "--json-key=qpdf",
+            "--json-stream-data=none",
+        ])
+        .arg(pdf)
+        .arg(&json)
+        .run()?;
+    if !matches!(out.status.code(), Some(0) | Some(3)) {
+        return Err(crate::process::failure("qpdf", &out));
+    }
+    let bad = || JobError::tool_failed("qpdf wrote unreadable PDF object data");
+    let root: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&json)?).map_err(|_| bad())?;
+    let parts = root["qpdf"].as_array().ok_or_else(bad)?;
+    let (header, objects) = match parts.as_slice() {
+        [h, o] => (h, o.as_object().ok_or_else(bad)?),
+        _ => return Err(bad()),
+    };
+    let mut changed = serde_json::Map::new();
+    for (key, object) in objects {
+        if !key.starts_with("obj:") {
+            continue;
+        }
+        let mut value = object["value"].clone();
+        if scrub_annotations(&mut value) {
+            changed.insert(key.clone(), serde_json::json!({ "value": value }));
+        }
+    }
+    if changed.is_empty() {
+        return Ok(None);
+    }
+    let path = work.join("update.json");
+    let update = serde_json::json!({ "qpdf": [header, changed] });
+    std::fs::write(&path, update.to_string())?;
+    Ok(Some(path))
+}
+
+/// Remove authors and dates from every annotation in `value`, including
+/// annotations written inline. A form field's /T is its name, so it stays.
+fn scrub_annotations(value: &mut serde_json::Value) -> bool {
+    let mut changed = false;
+    match value {
+        serde_json::Value::Object(dict) => {
+            if dict.contains_key("/Rect") {
+                if let Some(subtype) = dict.get("/Subtype").and_then(|s| s.as_str()) {
+                    let mut keys = vec!["/M", "/CreationDate"];
+                    if subtype != "/Widget" {
+                        keys.push("/T");
+                    }
+                    for key in keys {
+                        changed |= dict.remove(key).is_some();
+                    }
+                }
+            }
+            for child in dict.values_mut() {
+                changed |= scrub_annotations(child);
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for child in items {
+                changed |= scrub_annotations(child);
+            }
+        }
+        _ => {}
+    }
+    changed
 }
 
 fn gs_blank_info(ctx: &Ctx, src: &Path, dst: &Path) -> JobResult<()> {

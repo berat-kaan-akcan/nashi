@@ -73,6 +73,14 @@ impl Default for Border {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct Options {
+    /// `trimAudio`: also remove silence from both ends of the selection.
+    pub trim_silence: Option<bool>,
+    /// `trimAudio`: what counts as silence, in dB (default -50).
+    pub silence_threshold_db: Option<f64>,
+    /// `redactAudio`: `mute` (default) or `bleep`.
+    pub audio_mode: Option<String>,
+    /// PDF → image resolution, 36..=1200 (default 150).
+    pub dpi: Option<u32>,
     pub quality: Option<u32>,
     pub crf: Option<u32>,
     pub pdf_preset: Option<String>,

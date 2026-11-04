@@ -325,6 +325,29 @@ private Q_SLOTS:
         QCOMPARE(ranges.at(1).toList().at(0).toDouble(), 4.5);
         QCOMPARE(ranges.at(1).toList().at(1).toDouble(), 5.5);
 
+        // Muting is the default; bleeping is an explicit choice.
+        QVERIFY(!w->property("result").toMap().contains(QStringLiteral("audio_mode")));
+        w->setProperty("audioMode", QStringLiteral("bleep"));
+        QCOMPARE(w->property("result").toMap().value(QStringLiteral("audio_mode")).toString(), QStringLiteral("bleep"));
+
+        // Silence removal is offered for trimming audio only.
+        auto *silence = w->findChild<QObject *>(QStringLiteral("trimSilenceSwitch"));
+        QVERIFY(silence);
+        app->showOptions(QStringLiteral("trimVideo"), QStringLiteral("Trim Video"), {videoPath});
+        QVERIFY(!silence->property("visible").toBool());
+        app->showOptions(QStringLiteral("trimAudio"), QStringLiteral("Trim Audio"), {audioPath});
+        QTRY_VERIFY_WITH_TIMEOUT(w->property("duration").toDouble() > 12.0, 10000);
+        QVERIFY(silence->property("visible").toBool());
+        QVERIFY(!w->property("result").toMap().contains(QStringLiteral("trim_silence")));
+        silence->setProperty("checked", true);
+        QCOMPARE(w->property("result").toMap().value(QStringLiteral("trim_silence")).toBool(), true);
+
+        // A choice made for one file must not carry over to the next.
+        app->showOptions(QStringLiteral("trimAudio"), QStringLiteral("Trim Audio"), {audioPath});
+        QVERIFY(!silence->property("checked").toBool());
+        QVERIFY(!w->property("result").toMap().contains(QStringLiteral("trim_silence")));
+        QCOMPARE(w->property("audioMode").toString(), QStringLiteral("mute"));
+
         w->hide();
         QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
     }

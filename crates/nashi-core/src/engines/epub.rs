@@ -77,8 +77,60 @@ fn strip_tag(s: &str, tag: &str) -> String {
     out
 }
 
+/// The language and text direction a book declares.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Language {
+    pub lang: String,
+    pub dir: Option<String>,
+}
+
+impl Default for Language {
+    fn default() -> Self {
+        Language {
+            lang: "und".into(),
+            dir: None,
+        }
+    }
+}
+
+/// Read `lang` and `dir` from `<body>`, then `<html>`. Without them a reader
+/// takes every book for English and lays right-to-left text out left to right.
+pub fn source_language(html: &str) -> Language {
+    let lower = html.to_ascii_lowercase();
+    let opening = |name: &str| -> Option<&str> {
+        let a = lower.find(&format!("<{name}"))?;
+        let b = a + html[a..].find('>')?;
+        Some(&html[a..b])
+    };
+    let tags: Vec<&str> = ["body", "html"].iter().filter_map(|t| opening(t)).collect();
+    let lang = tags
+        .iter()
+        .find_map(|t| attr(t, "lang"))
+        .filter(|l| !l.is_empty() && l.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'));
+    let dir = tags
+        .iter()
+        .find_map(|t| attr(t, "dir"))
+        .map(|d| d.to_ascii_lowercase())
+        .filter(|d| matches!(d.as_str(), "ltr" | "rtl" | "auto"));
+    Language {
+        lang: lang.unwrap_or_else(|| "und".into()),
+        dir,
+    }
+}
+
 /// Write an EPUB 2 file with one chapter.
-pub fn write_epub(path: &Path, title: &str, body_xhtml: &str) -> std::io::Result<()> {
+pub fn write_epub(
+    path: &Path,
+    title: &str,
+    body_xhtml: &str,
+    language: &Language,
+) -> std::io::Result<()> {
+    let lang = &language.lang;
+    let dir = language
+        .dir
+        .as_ref()
+        .map(|d| format!(" dir=\"{d}\""))
+        .unwrap_or_default();
     let t = escape(title);
     let id = format!("urn:nashi:{:x}", {
         use std::hash::{Hash, Hasher};
@@ -96,7 +148,7 @@ pub fn write_epub(path: &Path, title: &str, body_xhtml: &str) -> std::io::Result
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bookid" version="2.0">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-    <dc:title>{t}</dc:title><dc:identifier id="bookid">{id}</dc:identifier><dc:language>und</dc:language>
+    <dc:title>{t}</dc:title><dc:identifier id="bookid">{id}</dc:identifier><dc:language>{lang}</dc:language>
   </metadata>
   <manifest>
     <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
@@ -116,7 +168,7 @@ pub fn write_epub(path: &Path, title: &str, body_xhtml: &str) -> std::io::Result
 "#
     );
     let chapter = format!(
-        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>{t}</title></head><body>\n{body_xhtml}\n</body></html>\n"
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"{lang}\" lang=\"{lang}\"{dir}><head><title>{t}</title></head><body>\n{body_xhtml}\n</body></html>\n"
     );
     let f = BufWriter::new(File::create(path)?);
     super::zipw::write_zip(
@@ -263,5 +315,44 @@ mod tests {
         );
         assert!(safe_join(Path::new("/a"), "../etc").is_none());
         assert_eq!(url_decode("a%20b"), "a b");
+    }
+}
+
+#[cfg(test)]
+mod language_tests {
+    use super::*;
+
+    #[test]
+    fn reads_language_and_direction_from_the_source() {
+        let body = source_language(r#"<html lang="en"><body lang="ar-SA" dir="RTL"><p>x</p>"#);
+        assert_eq!(body.lang, "ar-SA");
+        assert_eq!(body.dir.as_deref(), Some("rtl"));
+        let root = source_language(r#"<html xml:lang="tr"><body><p>x</p>"#);
+        assert_eq!(root.lang, "tr");
+        assert_eq!(root.dir, None);
+    }
+
+    #[test]
+    fn unknown_or_unsafe_values_fall_back() {
+        let none = source_language("<html><body>");
+        assert_eq!(none.lang, "und");
+        let hostile = source_language(r#"<html lang="x&quot;><evil" dir="up"><body>"#);
+        assert_eq!(hostile.lang, "und");
+        assert_eq!(hostile.dir, None);
+    }
+
+    #[test]
+    fn the_book_declares_its_language() {
+        let path = std::env::temp_dir().join(format!("nashi-lang-{}.epub", std::process::id()));
+        let language = source_language(r#"<body lang="tr" dir="rtl">"#);
+        write_epub(&path, "Kitap", "<p>x</p>", &language).unwrap();
+        let bytes = std::fs::read(&path).unwrap();
+        std::fs::remove_file(&path).unwrap();
+        let text = String::from_utf8_lossy(&bytes);
+        assert!(text.contains("<dc:language>tr</dc:language>"), "{text}");
+        assert!(
+            text.contains(r#"lang="tr""#) && text.contains(r#"dir="rtl""#),
+            "{text}"
+        );
     }
 }

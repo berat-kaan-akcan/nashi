@@ -231,6 +231,32 @@ Page {
             }
 
             SectionBox {
+                title: qsTr("PDF to image")
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+                    Text {
+                        text: qsTr("Resolution")
+                        font.pixelSize: Theme.sizeBody
+                        color: Theme.text
+                    }
+                    ComboBox {
+                        id: dpiBox
+                        objectName: "pdfImageDpiBox"
+                        model: [72, 150, 300, 600]
+                        displayText: qsTr("%1 DPI").arg(page.settings.pdfImageDpi)
+                        currentIndex: model.indexOf(page.settings.pdfImageDpi)
+                        onActivated: (index) => page.settings.pdfImageDpi = model[index]
+                        Accessible.name: qsTr("PDF to image resolution")
+                    }
+                    Item { Layout.fillWidth: true }
+                }
+                Hint {
+                    text: qsTr("Higher values give sharper page images and larger files.")
+                }
+            }
+
+            SectionBox {
                 title: qsTr("Notifications")
                 Switch {
                     text: qsTr("Desktop notifications when a job finishes")

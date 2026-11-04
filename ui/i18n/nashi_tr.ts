@@ -929,6 +929,18 @@
         <translation>Süre: %1</translation>
     </message>
     <message>
+        <source>Remove silence from beginning and end</source>
+        <translation>Baştaki ve sondaki sessizliği kaldır</translation>
+    </message>
+    <message>
+        <source>Mute</source>
+        <translation>Sessize al</translation>
+    </message>
+    <message>
+        <source>Bleep</source>
+        <translation>Bip sesi</translation>
+    </message>
+    <message>
         <source>Remove range</source>
         <translation>Aralığı kaldır</translation>
     </message>
@@ -1421,6 +1433,26 @@
     <message>
         <source>Makes the drag wheel smaller or larger. Slices, labels and drop targets scale together.</source>
         <translation>Sürükleme çarkını küçültür ya da büyütür. Dilimler, etiketler ve bırakma alanları birlikte ölçeklenir.</translation>
+    </message>
+    <message>
+        <source>PDF to image</source>
+        <translation>PDF&apos;ten görsele</translation>
+    </message>
+    <message>
+        <source>Resolution</source>
+        <translation>Çözünürlük</translation>
+    </message>
+    <message>
+        <source>%1 DPI</source>
+        <translation>%1 DPI</translation>
+    </message>
+    <message>
+        <source>PDF to image resolution</source>
+        <translation>PDF&apos;ten görsele çözünürlük</translation>
+    </message>
+    <message>
+        <source>Higher values give sharper page images and larger files.</source>
+        <translation>Yüksek değerler daha net sayfa görselleri ve daha büyük dosyalar verir.</translation>
     </message>
     <message>
         <source>Notifications</source>

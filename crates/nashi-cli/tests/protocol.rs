@@ -47,7 +47,15 @@ fn catalog_shape() {
         .collect();
     assert_eq!(
         ids,
-        ["copy", "copyPath", "terminal", "openFolder", "reveal"]
+        [
+            "share",
+            "float",
+            "copy",
+            "copyPath",
+            "terminal",
+            "openFolder",
+            "reveal"
+        ]
     );
     // Human mode works too and writes something.
     let h = run(&["catalog"]);

@@ -75,6 +75,7 @@ ApplicationWindow {
     property string flip: ""
     property string borderColor: "#ffffff"
     property var ranges: [[0, 1]]
+    property string audioMode: "mute"
 
     property bool syncingRect: false
     property bool syncingTime: false
@@ -86,6 +87,8 @@ ApplicationWindow {
         flip = ""
         borderColor = "#ffffff"
         ranges = [[0, 1]]
+        audioMode = "mute"
+        trimSilenceSwitch.checked = false
 
         syncingTime = true
         startField.text = "0"
@@ -289,7 +292,12 @@ ApplicationWindow {
             return { speed: speed }
         case "trim": {
             const r = rangeOrError()
-            return typeof r === "string" ? r : { start: r[0], end: r[1] }
+            if (typeof r === "string")
+                return r
+            const trim = { start: r[0], end: r[1] }
+            if (toolId === "trimAudio" && trimSilenceSwitch.checked)
+                trim.trim_silence = true
+            return trim
         }
         case "crop": {
             const r = rectOrError()
@@ -324,7 +332,7 @@ ApplicationWindow {
                 if (!(b > a) || a < 0)
                     return qsTr("Each range needs an end after its start.")
             }
-            return { ranges: ranges }
+            return audioMode === "bleep" ? { ranges: ranges, audio_mode: "bleep" } : { ranges: ranges }
         }
         case "edit": {
             const o = {}
@@ -638,11 +646,32 @@ ApplicationWindow {
                     }
                 }
 
+                Switch {
+                    id: trimSilenceSwitch
+                    objectName: "trimSilenceSwitch"
+                    visible: win.toolId === "trimAudio"
+                    text: qsTr("Remove silence from beginning and end")
+                }
+
                 // Precision mute range rows for redactAudio
                 ColumnLayout {
                     Layout.fillWidth: true
                     visible: win.group === "redactAudio"
                     spacing: 6
+
+                    RowLayout {
+                        spacing: 8
+                        Choice {
+                            text: qsTr("Mute")
+                            on: win.audioMode === "mute"
+                            onClicked: win.audioMode = "mute"
+                        }
+                        Choice {
+                            text: qsTr("Bleep")
+                            on: win.audioMode === "bleep"
+                            onClicked: win.audioMode = "bleep"
+                        }
+                    }
 
                     Repeater {
                         model: win.ranges.length

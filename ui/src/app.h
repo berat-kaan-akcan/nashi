@@ -152,6 +152,11 @@ public:
     Q_INVOKABLE QUrl localFileUrl(const QString &path) const;
 
     // Float shelf (ShelfWindow.qml).
+    // Whether a Library entry matches a search; İ, I, ı and i all count as one letter.
+    Q_INVOKABLE bool matchesSearch(const QString &query, const QString &name, const QString &folder) const;
+    // The --options JSON a plain conversion to `target` sends; empty when it needs none.
+    QString convertOptions(const QString &target) const;
+
     Q_INVOKABLE void toggleShelf();
     Q_INVOKABLE void addToShelf(const QStringList &files);
     Q_INVOKABLE void shelfResized();

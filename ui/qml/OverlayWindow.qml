@@ -78,5 +78,26 @@ Window {
         anchors.fill: parent
         focus: true
         Keys.onEscapePressed: root.ctl.cancel()
+        Keys.onPressed: (event) => {
+            if (root.stage !== OverlayController.Pick)
+                return
+            switch (event.key) {
+            case Qt.Key_Right:
+            case Qt.Key_Down:
+                wheel.moveHighlight(1)
+                break
+            case Qt.Key_Left:
+            case Qt.Key_Up:
+                wheel.moveHighlight(-1)
+                break
+            case Qt.Key_Return:
+            case Qt.Key_Enter:
+                wheel.activateHighlight()
+                break
+            default:
+                return
+            }
+            event.accepted = true
+        }
     }
 }

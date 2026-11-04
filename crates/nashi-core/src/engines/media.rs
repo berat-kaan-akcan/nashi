@@ -49,6 +49,35 @@ pub fn audio_codec(ext: &str) -> Vec<&'static str> {
     }
 }
 
+/// Extra encoder args for audio an encoder cannot take as it is. `channels` is
+/// `None` when the tool sets its own channel count.
+fn audio_fit(ext: &str, channels: Option<u32>, rate: Option<u32>) -> Vec<&'static str> {
+    match ext {
+        // libopus rejects surround layouts outside Vorbis order, such as 5.1(side).
+        "opus" | "webm" => match channels {
+            Some(3) => vec!["-ch_layout", "3.0"],
+            Some(4) => vec!["-ch_layout", "quad"],
+            Some(5) => vec!["-ch_layout", "5.0"],
+            Some(6) => vec!["-ch_layout", "5.1"],
+            Some(7) => vec!["-ch_layout", "6.1"],
+            Some(8) => vec!["-ch_layout", "7.1"],
+            _ => vec![],
+        },
+        // WMA holds at most two channels at up to 48 kHz.
+        "wma" | "wmv" => {
+            let mut a = vec![];
+            if channels.is_some_and(|c| c > 2) {
+                a.extend(["-ac", "2"]);
+            }
+            if rate.is_some_and(|r| r > 48000) {
+                a.extend(["-ar", "48000"]);
+            }
+            a
+        }
+        _ => vec![],
+    }
+}
+
 /// Video encoder args for a container; `crf` overrides the default quality.
 pub fn video_codec(ext: &str, crf: Option<u32>) -> Vec<String> {
     let even = "scale=trunc(iw/2)*2:trunc(ih/2)*2".to_string();
@@ -138,14 +167,34 @@ pub fn convert(ctx: &Ctx, input: &Input, target: &str) -> JobResult<PathBuf> {
             if !p.has_audio {
                 return Err(JobError::invalid_input("the file has no audio stream"));
             }
-            cmd = cmd.args(["-vn", "-sn", "-dn", "-map", "0:a:0", "-map_metadata", "0"]);
-            cmd = cmd.args(audio_codec(target));
+            cmd = cmd.args(["-sn", "-dn", "-map", "0:a:0", "-map_metadata", "0"]);
+            // Album art is an attached picture stream, not a tag.
+            cmd = match p
+                .art_stream
+                .filter(|_| matches!(target, "mp3" | "m4a" | "flac"))
+            {
+                Some(art) => cmd.arg("-map").arg(format!("0:{art}")).args([
+                    "-c:v",
+                    "copy",
+                    "-disposition:v:0",
+                    "attached_pic",
+                ]),
+                None => cmd.arg("-vn"),
+            };
+            // Other containers write file-level tags, so copy Ogg's stream tags there.
+            if p.ogg_stream_tags {
+                cmd = cmd.args(["-map_metadata", "0:s:a:0"]);
+            }
+            cmd = cmd
+                .args(audio_codec(target))
+                .args(audio_fit(target, p.channels, p.sample_rate));
         }
         Category::Gif => {
             cmd = cmd.args([
                 "-an",
                 "-filter_complex",
-                "[0:v:0]fps=12,scale='min(640,iw)':-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse",
+                // GIF viewers ignore a pixel aspect, so size from the displayed shape.
+                "[0:v:0]fps=12,scale='min(640,iw*sar)':'ow/dar':flags=lanczos,setsar=1,split[a][b];[a]palettegen[p];[b][p]paletteuse",
                 "-loop",
                 "0",
             ]);
@@ -157,13 +206,21 @@ pub fn convert(ctx: &Ctx, input: &Input, target: &str) -> JobResult<PathBuf> {
             cmd = cmd.args(["-map", "0:v:0"]);
             if p.has_audio && input.category() != Category::Gif {
                 cmd = cmd.args(["-map", "0:a:0?"]);
-                cmd = cmd.args(audio_codec(target));
+                cmd = cmd.args(audio_codec(target)).args(audio_fit(
+                    target,
+                    p.channels,
+                    p.sample_rate,
+                ));
             } else {
                 cmd = cmd.arg("-an");
             }
             cmd = cmd
                 .args(video_codec(target, None))
                 .args(["-map_metadata", "0"]);
+            // MP4 and MOV write only a fixed tag list unless asked for the source's own keys.
+            if p.quicktime_keys && matches!(target, "mp4" | "mov") {
+                cmd = cmd.args(["-movflags", "+use_metadata_tags"]);
+            }
         }
         _ => {
             return Err(JobError::unsupported(format!(
@@ -244,6 +301,11 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
         }
         if p.has_audio {
             a.extend(audio_codec(&ext).into_iter().map(String::from));
+            a.extend(
+                audio_fit(&ext, p.channels, p.sample_rate)
+                    .into_iter()
+                    .map(String::from),
+            );
             if let Some(f) = af {
                 a.extend(["-af".into(), f]);
             }
@@ -280,6 +342,7 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
                 };
                 cmd = cmd.args(["-vn", "-map", "0:a:0"]).args(a);
             }
+            let cmd = cmd.args(audio_fit(&ext, p.channels, p.sample_rate));
             finish(cmd, staged, p.duration, "Compressing")
         }
         "removeMetadata" => {
@@ -322,7 +385,8 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
                     "-ar",
                     &rate,
                 ])
-                .args(audio_codec(&ext));
+                .args(audio_codec(&ext))
+                .args(audio_fit(&ext, p.channels, p.sample_rate));
             finish(cmd, staged, p.duration, "Normalizing")
         }
         "audioChannels" => {
@@ -331,14 +395,32 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
             let n = if ch == "mono" { "1" } else { "2" };
             let cmd = ffin(ffmpeg(ctx)?)
                 .args(["-vn", "-map", "0:a:0", "-ac", n])
-                .args(audio_codec(&ext));
+                .args(audio_codec(&ext))
+                .args(audio_fit(&ext, None, p.sample_rate));
             finish(cmd, staged, p.duration, "Converting channels")
         }
         "trimVideo" | "trimAudio" => {
             let (targs, dur) = trim_args(ctx, &p)?;
             let staged = input.stage("-trimmed", &ext)?;
+            let silence = if tool == "trimAudio" && o.trim_silence == Some(true) {
+                let db = o.silence_threshold_db.unwrap_or(-50.0);
+                if !db.is_finite() || !(-120.0..=0.0).contains(&db) {
+                    return Err(JobError::invalid_options(
+                        "silence_threshold_db must be between -120 and 0",
+                    ));
+                }
+                let edge = format!(
+                    "silenceremove=start_periods=1:start_duration=0.02:start_threshold={db}dB"
+                );
+                Some(format!("{edge},areverse,{edge},areverse"))
+            } else {
+                None
+            };
+            // The result's length is unknown until the silence has been measured.
+            let dur = if silence.is_some() { None } else { dur };
+            // -ss and -to sit before -i, so the filter only ever sees the selection.
             let cmd = ffmpeg(ctx)?.args(targs);
-            let cmd = ffin(cmd).args(reencode(None, None));
+            let cmd = ffin(cmd).args(reencode(None, silence));
             finish(cmd, staged, dur, "Trimming")
         }
         "changeVideoSpeed" => {
@@ -401,30 +483,37 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
                         ));
                     }
                     RedactStyle::Blur | RedactStyle::Pixelate => {
-                        let mut x = r.x.round() as u32;
-                        let mut y = r.y.round() as u32;
-                        let mut cw = (r.w.round() as u32).max(2);
-                        let mut ch = (r.h.round() as u32).max(2);
+                        // overlay moves an odd x or y down to even in 4:2:0 video, which
+                        // would leave the far edge uncovered: grow the box to even edges.
+                        let left = r.x.round().max(0.0) as u32;
+                        let top = r.y.round().max(0.0) as u32;
+                        let mut x = left & !1;
+                        let mut y = top & !1;
+                        let mut cw = ((left + (r.w.round() as u32).max(2) - x + 1) & !1).max(2);
+                        let mut ch = ((top + (r.h.round() as u32).max(2) - y + 1) & !1).max(2);
                         if let (Some(vw), Some(vh)) = (p.width, p.height) {
                             if vw < 2 || vh < 2 || x >= vw || y >= vh {
                                 continue;
                             }
-                            cw = cw.min(vw - x).max(2).min(vw);
-                            ch = ch.min(vh - y).max(2).min(vh);
-                            if x + cw > vw {
-                                x = vw - cw;
+                            // Only an odd frame size can leave a single column or row.
+                            if vw - x < 2 {
+                                x -= 2;
                             }
-                            if y + ch > vh {
-                                y = vh - ch;
+                            if vh - y < 2 {
+                                y -= 2;
                             }
+                            cw = cw.min(vw - x);
+                            ch = ch.min(vh - y);
                         }
+                        // format=yuv420p makes the patch opaque: overlay would otherwise let
+                        // the original show through wherever the video is transparent.
                         if style == RedactStyle::Blur {
                             steps.push(format!(
-                                "split[base{i}][tmp{i}];[tmp{i}]crop={cw}:{ch}:{x}:{y},boxblur=luma_radius='min(16,max(0,min(w,h)/2-1))':luma_power=2:chroma_radius='min(16,max(0,min(cw,ch)/2-1))':chroma_power=2[fg{i}];[base{i}][fg{i}]overlay=x={x}:y={y}{en}"
+                                "split[base{i}][tmp{i}];[tmp{i}]crop={cw}:{ch}:{x}:{y}:exact=1,boxblur=luma_radius='min(16,max(0,min(w,h)/2-1))':luma_power=2:chroma_radius='min(16,max(0,min(cw,ch)/2-1))':chroma_power=2,format=yuv420p[fg{i}];[base{i}][fg{i}]overlay=x={x}:y={y}{en}"
                             ));
                         } else {
                             steps.push(format!(
-                                "split[base{i}][tmp{i}];[tmp{i}]crop={cw}:{ch}:{x}:{y},scale='max(1,iw/12)':'max(1,ih/12)':flags=neighbor,scale={cw}:{ch}:flags=neighbor[fg{i}];[base{i}][fg{i}]overlay=x={x}:y={y}{en}"
+                                "split[base{i}][tmp{i}];[tmp{i}]crop={cw}:{ch}:{x}:{y}:exact=1,scale='max(1,iw/12)':'max(1,ih/12)':flags=neighbor,scale={cw}:{ch}:flags=neighbor,format=yuv420p[fg{i}];[base{i}][fg{i}]overlay=x={x}:y={y}{en}"
                             ));
                         }
                     }
@@ -445,15 +534,35 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
                 .as_ref()
                 .filter(|r| !r.is_empty())
                 .ok_or_else(|| JobError::invalid_options("redactAudio needs ranges"))?;
-            let f = ranges
-                .iter()
-                .map(|[a, b]| format!("volume=0:enable='between(t,{a},{b})'"))
-                .collect::<Vec<_>>()
-                .join(",");
+            let f = match o.audio_mode.as_deref().unwrap_or("mute") {
+                "mute" => ranges
+                    .iter()
+                    .map(|[a, b]| format!("volume=0:enable='between(t,{a},{b})'"))
+                    .collect::<Vec<_>>()
+                    .join(","),
+                "bleep" => {
+                    let inside = ranges
+                        .iter()
+                        .map(|[a, b]| format!("between(t,{a},{b})"))
+                        .collect::<Vec<_>>()
+                        .join("+");
+                    let exprs = (0..p.channels.unwrap_or(2))
+                        .map(|c| format!("if({inside},0.18*sin(2*PI*1000*t),val({c}))"))
+                        .collect::<Vec<_>>()
+                        .join("|");
+                    format!("aeval=exprs='{exprs}':c=same")
+                }
+                other => {
+                    return Err(JobError::invalid_options(format!(
+                        "unknown audio_mode '{other}'"
+                    )))
+                }
+            };
             let staged = input.stage("-bleeped", &ext)?;
             let cmd = ffin(ffmpeg(ctx)?)
                 .args(["-vn", "-map", "0:a:0", "-af", &f])
-                .args(audio_codec(&ext));
+                .args(audio_codec(&ext))
+                .args(audio_fit(&ext, p.channels, p.sample_rate));
             finish(cmd, staged, p.duration, "Bleeping")
         }
         "audioToVideo" => {
@@ -498,7 +607,8 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
                     "-map",
                     "0:v:0",
                     "-vf",
-                    &format!("fps={fps}"),
+                    // Image viewers ignore a pixel aspect, so save the displayed shape.
+                    &format!("scale='iw*sar':ih,setsar=1,fps={fps}"),
                     "-q:v",
                     "2",
                     "-f",
@@ -587,15 +697,19 @@ pub fn join(ctx: &Ctx, inputs: &[Input], out_dir: &Path) -> JobResult<PathBuf> {
             .args(["-map", "0", "-c", "copy"]);
     } else {
         let all_audio = probes.iter().all(|p| p.has_audio);
+        // Clips are squared below, so a non-square first clip sets the canvas at its
+        // displayed width. The cap keeps a damaged pixel aspect from asking for a huge frame.
+        let stored = f64::from(probes[0].width.unwrap_or(1280));
+        let displayed = (stored * probes[0].sar.unwrap_or(1.0)).min(16384.0) as u32;
         let (w, h) = (
-            probes[0].width.unwrap_or(1280) / 2 * 2,
+            (displayed / 2 * 2).max(2),
             probes[0].height.unwrap_or(720) / 2 * 2,
         );
         let mut graph = String::new();
         for (n, i) in inputs.iter().enumerate() {
             cmd = cmd.arg("-i").arg(out(&i.path));
             graph.push_str(&format!(
-                "[{n}:v:0]scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30,format=yuv420p[v{n}];"
+                "[{n}:v:0]scale='iw*sar':ih,setsar=1,scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30,format=yuv420p[v{n}];"
             ));
             if all_audio {
                 graph.push_str(&format!(

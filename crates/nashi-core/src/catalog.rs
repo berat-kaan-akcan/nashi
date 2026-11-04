@@ -407,6 +407,22 @@ pub struct ActionDef {
 
 pub const ACTIONS: &[ActionDef] = &[
     ActionDef {
+        id: "share",
+        title: Title {
+            en: "Share",
+            tr: "Paylaş",
+        },
+        icon: "document-share",
+    },
+    ActionDef {
+        id: "float",
+        title: Title {
+            en: "Add to Float",
+            tr: "Float'a Ekle",
+        },
+        icon: "window-pin",
+    },
+    ActionDef {
         id: "copy",
         title: Title {
             en: "Copy",
@@ -449,7 +465,7 @@ pub const ACTIONS: &[ActionDef] = &[
 ];
 
 /// Upstream file actions that intentionally have no Linux counterpart.
-pub const DROPPED_UPSTREAM_ACTIONS: &[&str] = &["share", "float", "move"];
+pub const DROPPED_UPSTREAM_ACTIONS: &[&str] = &["move"];
 
 /// Tools added on Linux for these extensions on top of upstream `singleTools`.
 const EXTRA_SINGLE_TOOLS: &[(&str, &str)] = &[
@@ -958,7 +974,15 @@ mod tests {
         let ids: Vec<&str> = ACTIONS.iter().map(|a| a.id).collect();
         assert_eq!(
             ids,
-            ["copy", "copyPath", "terminal", "openFolder", "reveal"]
+            [
+                "share",
+                "float",
+                "copy",
+                "copyPath",
+                "terminal",
+                "openFolder",
+                "reveal"
+            ]
         );
         for a in &upstream().file_actions {
             assert!(

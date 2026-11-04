@@ -138,6 +138,23 @@ private Q_SLOTS:
 
     // --- wheel scale ---------------------------------------------------------
 
+    void pdfImageDpi()
+    {
+        QTemporaryDir dir;
+        Settings s(dir.filePath(QStringLiteral("nashi.conf")), nullptr);
+        QSignalSpy spy(&s, &Settings::pdfImageDpiChanged);
+        QCOMPARE(s.pdfImageDpi(), 150);
+        s.setPdfImageDpi(300);
+        QCOMPARE(s.pdfImageDpi(), 300);
+        QCOMPARE(spy.count(), 1);
+        s.setPdfImageDpi(300);
+        QCOMPARE(spy.count(), 1);
+        s.setPdfImageDpi(5000);
+        QCOMPARE(s.pdfImageDpi(), 1200);
+        s.setPdfImageDpi(1);
+        QCOMPARE(s.pdfImageDpi(), 36);
+    }
+
     void wheelScale()
     {
         QTemporaryDir dir;

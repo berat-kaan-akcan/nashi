@@ -56,6 +56,26 @@ Item {
         hoveredIndex = showItems ? s : -1
     }
 
+    // Keyboard: move the highlight by `step` over the slices that can run.
+    function moveHighlight(step) {
+        if (count === 0 || !model)
+            return
+        let i = hoveredIndex < 0 ? (step > 0 ? -1 : 0) : hoveredIndex
+        for (let n = 0; n < count; ++n) {
+            i = (i + step + count) % count
+            if (model.get(i).available) {
+                overCenter = false
+                hoveredIndex = i
+                return
+            }
+        }
+    }
+
+    function activateHighlight() {
+        if (hoveredIndex >= 0 && hoveredIndex < count)
+            sliceClicked(hoveredIndex)
+    }
+
     Item {
         id: disc
         x: pie.centerX - pie.outerRadius

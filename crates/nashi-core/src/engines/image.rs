@@ -329,7 +329,8 @@ pub fn convert(ctx: &Ctx, input: &Input, target: &str) -> JobResult<PathBuf> {
         }
     }
     let (src, src_ext) = readable_source(ctx, input, &work)?;
-    let mut extra: Vec<OsString> = Vec::new();
+    // Not every viewer honours an orientation tag, so turn the pixels themselves.
+    let mut extra: Vec<OsString> = vec!["-auto-orient".into()];
     if matches!(target, "jpg" | "webp" | "heic" | "avif") && d.magick_can(im_format(target), true) {
         extra.push("-quality".into());
         extra.push(ctx.opts.quality.unwrap_or(90).to_string().into());
