@@ -70,6 +70,61 @@ impl Default for Border {
     }
 }
 
+/// A point as a fraction of the free space, 0..=1 on each axis.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Position {
+    pub x: f64,
+    pub y: f64,
+}
+
+/// `frameImage` layout. Every field is optional.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub struct Frame {
+    /// `solid` (default), `gradient` or `image`.
+    pub backdrop: Option<String>,
+    pub color: Option<String>,
+    pub color2: Option<String>,
+    /// Gradient direction in degrees.
+    pub angle: Option<f64>,
+    pub background_image: Option<std::path::PathBuf>,
+    /// 0..=100.
+    pub background_blur: Option<f64>,
+    /// Space around the image, in pixels (default 40).
+    pub padding: Option<u32>,
+    pub corner_radius: Option<f64>,
+    /// Shadow softness in pixels, 0..=200.
+    pub shadow: Option<f64>,
+    /// 0..=100 (default 30).
+    pub shadow_opacity: Option<f64>,
+    /// Canvas width over height, 0.1..=10.
+    pub aspect: Option<f64>,
+    /// Image size against the original, greater than 0 up to 1.
+    pub image_scale: Option<f64>,
+    pub position: Option<Position>,
+}
+
+/// `createCollage` layout. Every field is optional.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub struct Collage {
+    /// `grid` (default), `row`, `column` or `featured`.
+    pub layout: Option<String>,
+    pub columns: Option<u32>,
+    /// Width in pixels (default 2048).
+    pub width: Option<u32>,
+    /// Cell width over height (default 1).
+    pub aspect: Option<f64>,
+    pub spacing: Option<u32>,
+    pub padding: Option<u32>,
+    pub corner_radius: Option<f64>,
+    pub color: Option<String>,
+    /// `fill` (default) crops to the cell, `fit` shows the whole image.
+    pub fit: Option<String>,
+    /// The inputs' indices in display order.
+    pub order: Option<Vec<usize>>,
+}
+
 /// `editImage` picture adjustments. A missing value leaves that control alone.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
@@ -101,6 +156,10 @@ pub struct Adjust {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct Options {
+    /// `frameImage`: canvas, background and placement.
+    pub frame: Option<Frame>,
+    /// `createCollage`: layout and appearance.
+    pub collage: Option<Collage>,
     /// `editImage`: picture adjustments.
     pub adjust: Option<Adjust>,
     /// `removeMetadata`: set these fields instead of removing everything.

@@ -611,6 +611,7 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
             }
             process(ctx, input, "-edited", os(&ops))
         }
+        "frameImage" if o.frame.is_some() => frame_image(ctx, input),
         "frameImage" => {
             let b = o.border.clone().unwrap_or_default();
             process(
@@ -847,7 +848,355 @@ pub fn create_pdf(ctx: &Ctx, inputs: &[Input], out_dir: &Path) -> JobResult<Path
 }
 
 /// Grid collage (`collage.png`).
+/// Largest canvas a layout may ask for.
+const MAX_CANVAS_SIDE: f64 = 32000.0;
+const MAX_CANVAS_AREA: f64 = 100_000_000.0;
+
+fn checked_canvas(w: f64, h: f64) -> JobResult<(u32, u32)> {
+    if w < 1.0 || h < 1.0 || w > MAX_CANVAS_SIDE || h > MAX_CANVAS_SIDE || w * h > MAX_CANVAS_AREA {
+        return Err(JobError::invalid_options(
+            "the canvas would be too large or too small",
+        ));
+    }
+    Ok((w.round() as u32, h.round() as u32))
+}
+
+fn checked_color(color: Option<&str>, default: &str) -> JobResult<String> {
+    let color = color.unwrap_or(default);
+    if crate::options::valid_color(color) {
+        Ok(color.to_string())
+    } else {
+        Err(JobError::invalid_options(format!(
+            "'{color}' is not a colour"
+        )))
+    }
+}
+
+/// Operations that cut an image of this size to rounded corners, keeping its alpha.
+fn rounded_ops(w: u32, h: u32, radius: f64) -> Vec<String> {
+    if radius <= 0.0 {
+        return Vec::new();
+    }
+    let r = radius.min(f64::from(w.min(h)) / 2.0);
+    [
+        "(",
+        "-size",
+        &format!("{w}x{h}"),
+        "xc:none",
+        "-fill",
+        "white",
+        "-draw",
+        &format!("roundrectangle 0,0,{},{},{r},{r}", w - 1, h - 1),
+        ")",
+        "-alpha",
+        "set",
+        "-compose",
+        "DstIn",
+        "-composite",
+        "-compose",
+        "Over",
+    ]
+    .iter()
+    .map(|x| x.to_string())
+    .collect()
+}
+
+fn frame_image(ctx: &Ctx, input: &Input) -> JobResult<Produced> {
+    let f = ctx.opts.frame.clone().unwrap_or_default();
+    let d = ctx.deps;
+    let unit = |v: f64| v.is_finite() && (0.0..=1.0).contains(&v);
+    let scale = f.image_scale.unwrap_or(1.0);
+    if !scale.is_finite() || scale <= 0.0 || scale > 1.0 {
+        return Err(JobError::invalid_options(
+            "image_scale must be greater than 0 and at most 1",
+        ));
+    }
+    let (px, py) = f.position.as_ref().map_or((0.5, 0.5), |p| (p.x, p.y));
+    if !unit(px) || !unit(py) {
+        return Err(JobError::invalid_options(
+            "position must be between 0 and 1",
+        ));
+    }
+    if let Some(a) = f.aspect {
+        if !a.is_finite() || !(0.1..=10.0).contains(&a) {
+            return Err(JobError::invalid_options(
+                "aspect must be between 0.1 and 10",
+            ));
+        }
+    }
+    let blur = f.background_blur.unwrap_or(0.0);
+    let shadow = f.shadow.unwrap_or(0.0);
+    let opacity = f.shadow_opacity.unwrap_or(30.0);
+    let radius = f.corner_radius.unwrap_or(0.0);
+    if !blur.is_finite() || !(0.0..=100.0).contains(&blur) {
+        return Err(JobError::invalid_options(
+            "background_blur must be between 0 and 100",
+        ));
+    }
+    if !shadow.is_finite() || !(0.0..=200.0).contains(&shadow) {
+        return Err(JobError::invalid_options(
+            "shadow must be between 0 and 200",
+        ));
+    }
+    if !opacity.is_finite() || !(0.0..=100.0).contains(&opacity) {
+        return Err(JobError::invalid_options(
+            "shadow_opacity must be between 0 and 100",
+        ));
+    }
+    if !radius.is_finite() || radius < 0.0 {
+        return Err(JobError::invalid_options(
+            "corner_radius must not be negative",
+        ));
+    }
+    ctx.progress(None, "Framing");
+    let ext = input.ext();
+    let out_ext = if ext == "svg" { "png" } else { ext };
+    let work = WorkDir::new_in(&input.out_dir)?;
+    let (src, src_ext) = readable_source(ctx, input, &work)?;
+    let (w, h) = oriented_size_in_work(d, &work, &src, &src_ext)
+        .ok_or_else(|| JobError::invalid_input("could not read the image size"))?;
+
+    let padding = f64::from(f.padding.unwrap_or(40));
+    let mut cw = f64::from(w) + 2.0 * padding;
+    let mut ch = f64::from(h) + 2.0 * padding;
+    if let Some(a) = f.aspect {
+        if cw / ch < a {
+            cw = (ch * a).round();
+        } else {
+            ch = (cw / a).round();
+        }
+    }
+    let (cw, ch) = checked_canvas(cw, ch)?;
+    let iw = ((f64::from(w) * scale).round() as u32).max(1);
+    let ih = ((f64::from(h) * scale).round() as u32).max(1);
+    // Whole-pixel origin: half a pixel off the grid would blur the whole image.
+    let x = (f64::from(cw - iw.min(cw)) * px).round() as u32;
+    let y = (f64::from(ch - ih.min(ch)) * py).round() as u32;
+
+    let color = checked_color(f.color.as_deref(), "#ffffff")?;
+    let canvas = format!("{cw}x{ch}");
+    let mut cmd = magick(d, &work)?;
+    cmd = match f.backdrop.as_deref().unwrap_or("solid") {
+        "solid" => cmd.args(["-size", &canvas]).arg(format!("xc:{color}")),
+        "gradient" => {
+            let second = checked_color(f.color2.as_deref(), "#000000")?;
+            let angle = f.angle.unwrap_or(0.0);
+            if !angle.is_finite() {
+                return Err(JobError::invalid_options("angle must be a number"));
+            }
+            cmd.args(["-size", &canvas])
+                .args(["-define", &format!("gradient:angle={angle}")])
+                .arg(format!("gradient:{color}-{second}"))
+        }
+        "image" => {
+            let path = f.background_image.as_deref().ok_or_else(|| {
+                JobError::invalid_options("backdrop image needs background_image")
+            })?;
+            let meta = std::fs::metadata(path).ok().filter(|m| m.is_file());
+            if meta.is_none() {
+                return Err(JobError::invalid_options(
+                    "the background image could not be read",
+                ));
+            }
+            let det = crate::detect::detect(path);
+            if det.category != crate::catalog::Category::Image {
+                return Err(JobError::invalid_options("the background must be an image"));
+            }
+            let (back, back_ext) = decode_source(d, path, &det.ext, &work)?;
+            let mut c = cmd
+                .arg("(")
+                .arg(ispec(&work, &back, &back_ext, true)?)
+                .args(["-auto-orient", "-resize", &format!("{canvas}^")])
+                .args(["-gravity", "center", "-extent", &canvas, "+gravity"]);
+            if blur > 0.0 {
+                c = c.args(["-blur", &format!("0x{}", blur / 2.0)]);
+            }
+            c.args(["+repage", ")"])
+        }
+        other => {
+            return Err(JobError::invalid_options(format!(
+                "unknown backdrop '{other}'"
+            )))
+        }
+    };
+    // Kept under a name so the shadow and the image come from the same pixels.
+    cmd = cmd
+        .arg("(")
+        .arg(ispec(&work, &src, &src_ext, true)?)
+        .args(["-auto-orient", "-resize", &format!("{iw}x{ih}!")])
+        .args(rounded_ops(iw, ih, radius))
+        .args(["-write", "mpr:nashi", "+delete", ")"]);
+    if shadow > 0.0 && opacity > 0.0 {
+        cmd = cmd.args([
+            "(",
+            "mpr:nashi",
+            "-background",
+            "black",
+            "-shadow",
+            &format!("{opacity}x{shadow}+0+{}", (shadow / 2.0).round()),
+            "-repage",
+            &format!("+{x}+{y}!"),
+            ")",
+        ]);
+    }
+    let name = format!("out.{out_ext}");
+    cmd.args(["(", "mpr:nashi", "-repage", &format!("+{x}+{y}"), ")"])
+        .args(["-background", "none", "-flatten"])
+        .arg(ospec(out_ext, &name))
+        .run_ok()?;
+    let staged = input.stage("-framed", out_ext)?;
+    staged.take_from(&work.join(&name))?;
+    Ok(staged.commit()?.into())
+}
+
+/// Canvas size, then `[x, y, w, h]` per cell.
+type CollageCells = ((u32, u32), Vec<[u32; 4]>);
+
+/// Where each cell of a collage goes.
+fn collage_cells(c: &crate::options::Collage, n: usize) -> JobResult<CollageCells> {
+    let aspect = c.aspect.unwrap_or(1.0);
+    if !aspect.is_finite() || !(0.1..=10.0).contains(&aspect) {
+        return Err(JobError::invalid_options(
+            "aspect must be between 0.1 and 10",
+        ));
+    }
+    let width = f64::from(c.width.unwrap_or(2048));
+    let gap = f64::from(c.spacing.unwrap_or(0));
+    let pad = f64::from(c.padding.unwrap_or(0));
+    let cells_from = |cols: usize, rows: usize| -> JobResult<CollageCells> {
+        let cell_w = (width - 2.0 * pad - gap * (cols as f64 - 1.0)) / cols as f64;
+        if cell_w < 1.0 {
+            return Err(JobError::invalid_options(
+                "the spacing and padding leave no room for the images",
+            ));
+        }
+        let cell_h = (cell_w / aspect).round().max(1.0);
+        let height = 2.0 * pad + rows as f64 * cell_h + gap * (rows as f64 - 1.0);
+        let canvas = checked_canvas(width, height)?;
+        let cells = (0..n)
+            .map(|i| {
+                let (col, row) = ((i % cols) as f64, (i / cols) as f64);
+                let x = (pad + col * (cell_w + gap)).round();
+                let next = (pad + (col + 1.0) * (cell_w + gap) - gap).round();
+                [
+                    x as u32,
+                    (pad + row * (cell_h + gap)).round() as u32,
+                    (next - x) as u32,
+                    cell_h as u32,
+                ]
+            })
+            .collect();
+        Ok((canvas, cells))
+    };
+    match c.layout.as_deref().unwrap_or("grid") {
+        "grid" => {
+            let cols = match c.columns {
+                Some(0) => return Err(JobError::invalid_options("columns must be at least 1")),
+                Some(cols) => (cols as usize).min(n),
+                None => (n as f64).sqrt().ceil() as usize,
+            };
+            cells_from(cols, n.div_ceil(cols))
+        }
+        "row" => cells_from(n, 1),
+        "column" => cells_from(1, n),
+        "featured" if n < 2 => cells_from(1, 1),
+        "featured" => {
+            // The first image takes two thirds of the width, the others stack beside it.
+            let inner = width - 2.0 * pad - gap;
+            let big_w = (inner * 2.0 / 3.0).round();
+            let small_w = inner - big_w;
+            let big_h = (big_w / aspect).round();
+            let rest = n as f64 - 1.0;
+            let small_h = ((big_h - gap * (rest - 1.0)) / rest).floor();
+            if big_w < 1.0 || small_w < 1.0 || small_h < 1.0 {
+                return Err(JobError::invalid_options(
+                    "the spacing and padding leave no room for the images",
+                ));
+            }
+            let canvas = checked_canvas(width, 2.0 * pad + big_h)?;
+            let mut cells = vec![[pad as u32, pad as u32, big_w as u32, big_h as u32]];
+            for i in 0..n - 1 {
+                cells.push([
+                    (pad + big_w + gap) as u32,
+                    (pad + i as f64 * (small_h + gap)) as u32,
+                    small_w as u32,
+                    small_h as u32,
+                ]);
+            }
+            Ok((canvas, cells))
+        }
+        other => Err(JobError::invalid_options(format!(
+            "unknown layout '{other}'"
+        ))),
+    }
+}
+
+fn laid_out_collage(
+    ctx: &Ctx,
+    inputs: &[Input],
+    out_dir: &Path,
+    c: &crate::options::Collage,
+) -> JobResult<PathBuf> {
+    let fill = match c.fit.as_deref().unwrap_or("fill") {
+        "fill" => true,
+        "fit" => false,
+        other => return Err(JobError::invalid_options(format!("unknown fit '{other}'"))),
+    };
+    let radius = c.corner_radius.unwrap_or(0.0);
+    if !radius.is_finite() || radius < 0.0 {
+        return Err(JobError::invalid_options(
+            "corner_radius must not be negative",
+        ));
+    }
+    let n = inputs.len();
+    let order: Vec<usize> = match &c.order {
+        Some(order) => {
+            let mut sorted = order.clone();
+            sorted.sort_unstable();
+            if sorted != (0..n).collect::<Vec<_>>() {
+                return Err(JobError::invalid_options("order must name each image once"));
+            }
+            order.clone()
+        }
+        None => (0..n).collect(),
+    };
+    let color = checked_color(c.color.as_deref(), "#ffffff")?;
+    let ((cw, ch), cells) = collage_cells(c, n)?;
+    ctx.progress(None, "Creating collage");
+    let staged = Staged::file(out_dir, "collage", "png")?;
+    let work = WorkDir::new_in(out_dir)?;
+    let mut cmd = magick(ctx.deps, &work)?
+        .args(["-size", &format!("{cw}x{ch}")])
+        .arg(format!("xc:{color}"));
+    for (slot, index) in order.iter().enumerate() {
+        let [x, y, w, h] = cells[slot];
+        let (src, ext) = readable_source(ctx, &inputs[*index], &work)?;
+        let geometry = format!("{w}x{h}");
+        cmd = cmd
+            .arg("(")
+            .arg(ispec(&work, &src, &ext, true)?)
+            .arg("-auto-orient");
+        cmd = if fill {
+            cmd.args(["-resize", &format!("{geometry}^")])
+        } else {
+            cmd.args(["-resize", &geometry, "-background", "none"])
+        };
+        cmd = cmd
+            .args(["-gravity", "center", "-extent", &geometry, "+gravity"])
+            .args(rounded_ops(w, h, radius))
+            .args(["-repage", &format!("+{x}+{y}"), ")"]);
+    }
+    cmd.args(["-background", "none", "-flatten"])
+        .arg(ospec("png", "out.png"))
+        .run_ok()?;
+    staged.take_from(&work.join("out.png"))?;
+    Ok(staged.commit()?)
+}
+
 pub fn collage(ctx: &Ctx, inputs: &[Input], out_dir: &Path) -> JobResult<PathBuf> {
+    if let Some(layout) = &ctx.opts.collage {
+        return laid_out_collage(ctx, inputs, out_dir, layout);
+    }
     ctx.progress(None, "Creating collage");
     let staged = Staged::file(out_dir, "collage", "png")?;
     let work = WorkDir::new_in(out_dir)?;

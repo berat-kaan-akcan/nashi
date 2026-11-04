@@ -869,6 +869,126 @@
         <translation>Bu kısmı tut</translation>
     </message>
     <message>
+        <source>Solid</source>
+        <translation>Düz</translation>
+    </message>
+    <message>
+        <source>Gradient</source>
+        <translation>Gradyan</translation>
+    </message>
+    <message>
+        <source>Image</source>
+        <translation>Görsel</translation>
+    </message>
+    <message>
+        <source>Choose image…</source>
+        <translation>Görsel seç…</translation>
+    </message>
+    <message>
+        <source>None chosen</source>
+        <translation>Seçilmedi</translation>
+    </message>
+    <message>
+        <source>Background blur</source>
+        <translation>Arka plan bulanıklığı</translation>
+    </message>
+    <message>
+        <source>Angle</source>
+        <translation>Açı</translation>
+    </message>
+    <message>
+        <source>Second colour</source>
+        <translation>İkinci renk</translation>
+    </message>
+    <message>
+        <source>Padding</source>
+        <translation>İç boşluk</translation>
+    </message>
+    <message>
+        <source>Shape and shadow</source>
+        <translation>Şekil ve gölge</translation>
+    </message>
+    <message>
+        <source>Corner radius</source>
+        <translation>Köşe yuvarlama</translation>
+    </message>
+    <message>
+        <source>Shadow</source>
+        <translation>Gölge</translation>
+    </message>
+    <message>
+        <source>Shadow strength</source>
+        <translation>Gölge gücü</translation>
+    </message>
+    <message>
+        <source>Fit the image</source>
+        <translation>Görsele göre</translation>
+    </message>
+    <message>
+        <source>Layout</source>
+        <translation>Düzen</translation>
+    </message>
+    <message>
+        <source>Grid</source>
+        <translation>Izgara</translation>
+    </message>
+    <message>
+        <source>Row</source>
+        <translation>Satır</translation>
+    </message>
+    <message>
+        <source>Column</source>
+        <translation>Sütun</translation>
+    </message>
+    <message>
+        <source>Featured</source>
+        <translation>Öne çıkan</translation>
+    </message>
+    <message>
+        <source>Columns</source>
+        <translation>Sütun sayısı</translation>
+    </message>
+    <message>
+        <source>Columns (automatic)</source>
+        <translation>Sütun sayısı (otomatik)</translation>
+    </message>
+    <message>
+        <source>Fill cells (crop edges)</source>
+        <translation>Hücreleri doldur (kenarları kırp)</translation>
+    </message>
+    <message>
+        <source>Fit whole image</source>
+        <translation>Görselin tamamını sığdır</translation>
+    </message>
+    <message>
+        <source>Appearance</source>
+        <translation>Görünüm</translation>
+    </message>
+    <message>
+        <source>Spacing</source>
+        <translation>Aralık</translation>
+    </message>
+    <message>
+        <source>Outer padding</source>
+        <translation>Dış boşluk</translation>
+    </message>
+    <message>
+        <source>Background colour</source>
+        <translation>Arka plan rengi</translation>
+    </message>
+    <message>
+        <source>Image order</source>
+        <translation>Görsel sırası</translation>
+    </message>
+    <message>
+        <source>Move %1 earlier</source>
+        <translation>%1 öne al</translation>
+    </message>
+    <message>
+        <source>Move %1 later</source>
+        <translation>%1 arkaya al</translation>
+    </message>
+    <message>
         <source>Pages</source>
         <translation>Sayfalar</translation>
     </message>
@@ -937,6 +1057,10 @@
         <translation>Gren</translation>
     </message>
     <message>
+        <source>Choose a background image.</source>
+        <translation>Bir arka plan görseli seçin.</translation>
+    </message>
+    <message>
         <source>Change at least one field.</source>
         <translation>En az bir alanı değiştirin.</translation>
     </message>
@@ -967,6 +1091,14 @@
     <message>
         <source>Choose an adjustment, a rotation, a flip or a new size.</source>
         <translation>Bir ayar, döndürme, çevirme ya da yeni boyut seçin.</translation>
+    </message>
+    <message>
+        <source>Choose a background image</source>
+        <translation>Arka plan görseli seçin</translation>
+    </message>
+    <message>
+        <source>Images (*.png *.jpg *.jpeg *.webp *.heic *.tiff *.avif *.bmp)</source>
+        <translation>Görseller (*.png *.jpg *.jpeg *.webp *.heic *.tiff *.avif *.bmp)</translation>
     </message>
     <message>
         <source>Left</source>
@@ -1247,10 +1379,6 @@
     <message>
         <source>Background</source>
         <translation>Arka plan</translation>
-    </message>
-    <message>
-        <source>Thickness</source>
-        <translation>Kalınlık</translation>
     </message>
     <message>
         <source>%1 px</source>

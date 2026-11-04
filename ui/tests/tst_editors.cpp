@@ -638,6 +638,95 @@ private Q_SLOTS:
         QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
     }
 
+    void frameFormBuildsTheLayout()
+    {
+        g_messages.clear();
+        QQuickWindow *w = openEditor(QStringLiteral("frameImage"), QStringLiteral("Frame"), photoPath);
+        QVERIFY(w);
+        const auto frame = [w] { return w->property("result").toMap().value(QStringLiteral("frame")).toMap(); };
+        QCOMPARE(frame().value(QStringLiteral("padding")).toInt(), 40);
+        QCOMPARE(frame().value(QStringLiteral("color")).toString(), QStringLiteral("#ffffff"));
+        QVERIFY(!frame().contains(QStringLiteral("backdrop")));
+        QVERIFY(!frame().contains(QStringLiteral("shadow")));
+        QVERIFY(!frame().contains(QStringLiteral("aspect")));
+
+        w->setProperty("frameBackdrop", QStringLiteral("gradient"));
+        w->setProperty("frameColor2", QStringLiteral("#000000"));
+        w->setProperty("frameAngle", 90);
+        QCOMPARE(frame().value(QStringLiteral("backdrop")).toString(), QStringLiteral("gradient"));
+        QCOMPARE(frame().value(QStringLiteral("color2")).toString(), QStringLiteral("#000000"));
+        QCOMPARE(frame().value(QStringLiteral("angle")).toInt(), 90);
+        w->setProperty("frameColor2", QStringLiteral("nope"));
+        QCOMPARE(w->property("result").typeId(), QMetaType::QString);
+        w->setProperty("frameColor2", QStringLiteral("#000000"));
+
+        w->setProperty("frameBackdrop", QStringLiteral("image"));
+        QCOMPARE(w->property("result").typeId(), QMetaType::QString); // no picture chosen
+        w->setProperty("frameBackgroundImage", photoPath);
+        w->setProperty("frameBlur", 20);
+        QCOMPARE(frame().value(QStringLiteral("background_image")).toString(), photoPath);
+        QCOMPARE(frame().value(QStringLiteral("background_blur")).toInt(), 20);
+
+        w->setProperty("frameRadius", 16);
+        w->setProperty("frameShadow", 24);
+        w->setProperty("frameAspect", 1.0);
+        QCOMPARE(frame().value(QStringLiteral("corner_radius")).toInt(), 16);
+        QCOMPARE(frame().value(QStringLiteral("shadow")).toInt(), 24);
+        QCOMPARE(frame().value(QStringLiteral("aspect")).toDouble(), 1.0);
+        saveEditorScreenshots(app, w, QStringLiteral("frameImage"));
+
+        app->showOptions(QStringLiteral("frameImage"), QStringLiteral("Frame"), {photoPath});
+        QVERIFY(!frame().contains(QStringLiteral("backdrop")));
+        QVERIFY(!frame().contains(QStringLiteral("corner_radius")));
+        w->hide();
+        QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
+    }
+
+    void collageFormBuildsTheLayout()
+    {
+        g_messages.clear();
+        QVERIFY(WheelModel::hasOptionsForm(QStringLiteral("createCollage")));
+        app->showOptions(QStringLiteral("createCollage"), QStringLiteral("Collage"), {photoPath, pdfPath, videoPath});
+        auto *w = qobject_cast<QQuickWindow *>(app->optionsWindow());
+        QVERIFY(w);
+        w->show();
+        QVERIFY(QTest::qWaitForWindowExposed(w));
+        const auto collage = [w] { return w->property("result").toMap().value(QStringLiteral("collage")).toMap(); };
+        QCOMPARE(collage().value(QStringLiteral("layout")).toString(), QStringLiteral("grid"));
+        QCOMPARE(collage().value(QStringLiteral("width")).toInt(), 2048);
+        QVERIFY(!collage().contains(QStringLiteral("order")));
+
+        w->setProperty("collageLayout", QStringLiteral("featured"));
+        w->setProperty("collageSpacing", 12);
+        w->setProperty("collageFit", QStringLiteral("fit"));
+        QCOMPARE(collage().value(QStringLiteral("layout")).toString(), QStringLiteral("featured"));
+        QCOMPARE(collage().value(QStringLiteral("spacing")).toInt(), 12);
+        QCOMPARE(collage().value(QStringLiteral("fit")).toString(), QStringLiteral("fit"));
+        QVERIFY(!collage().contains(QStringLiteral("columns")));
+        w->setProperty("collageLayout", QStringLiteral("grid"));
+        w->setProperty("collageColumns", 3);
+        QCOMPARE(collage().value(QStringLiteral("columns")).toInt(), 3);
+
+        // Moving an image past its neighbour, and never off the ends.
+        QMetaObject::invokeMethod(w, "moveCollageImage", Q_ARG(QVariant, 2), Q_ARG(QVariant, -1));
+        const QVariantList order = collage().value(QStringLiteral("order")).toList();
+        QCOMPARE(order.at(0).toInt(), 0);
+        QCOMPARE(order.at(1).toInt(), 2);
+        QCOMPARE(order.at(2).toInt(), 1);
+        QMetaObject::invokeMethod(w, "moveCollageImage", Q_ARG(QVariant, 0), Q_ARG(QVariant, -1));
+        QCOMPARE(collage().value(QStringLiteral("order")).toList().at(0).toInt(), 0);
+        saveEditorScreenshots(app, w, QStringLiteral("createCollage"));
+
+        w->setProperty("collageColor", QStringLiteral("nope"));
+        QCOMPARE(w->property("result").typeId(), QMetaType::QString);
+
+        app->showOptions(QStringLiteral("createCollage"), QStringLiteral("Collage"), {photoPath, pdfPath});
+        QVERIFY(!collage().contains(QStringLiteral("order")));
+        QCOMPARE(collage().value(QStringLiteral("layout")).toString(), QStringLiteral("grid"));
+        w->hide();
+        QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
+    }
+
     void organizePdfReorderRotateDuplicateDelete()
     {
         g_messages.clear();

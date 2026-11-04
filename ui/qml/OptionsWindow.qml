@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs
 import QtQuick.Layouts
 import NashiApp
 
@@ -36,6 +37,7 @@ ApplicationWindow {
         case "annotateImage": return "annotate"
         case "compress": return "compress"
         case "removeMetadata": return "metadata"
+        case "createCollage": return "collage"
         case "splitVideo": return "split"
         case "videoSnapshots": return "snapshots"
         }
@@ -81,6 +83,34 @@ ApplicationWindow {
     property string borderColor: "#ffffff"
     property var ranges: [[0, 1]]
     property string audioMode: "mute"
+    property string frameBackdrop: "solid"
+    property string frameColor2: "#000000"
+    property int frameAngle: 45
+    property string frameBackgroundImage: ""
+    property int frameBlur: 0
+    property int frameRadius: 0
+    property int frameShadow: 0
+    property int frameShadowOpacity: 30
+    property real frameAspect: 0
+    property string collageLayout: "grid"
+    property int collageColumns: 0
+    property int collageWidth: 2048
+    property real collageAspect: 1
+    property int collageSpacing: 0
+    property int collagePadding: 0
+    property int collageRadius: 0
+    property string collageFit: "fill"
+    property string collageColor: "#ffffff"
+    property var collageOrder: []
+    readonly property var collageDisplay: {
+        const count = files ? files.length : 0
+        if (collageOrder.length === count)
+            return collageOrder
+        const order = []
+        for (let i = 0; i < count; ++i)
+            order.push(i)
+        return order
+    }
     // Picture adjustments: name, label, lowest, highest, neutral, step.
     readonly property var adjustControls: [
         ["exposure", qsTr("Exposure"), -3, 3, 0, 0.1],
@@ -156,6 +186,25 @@ ApplicationWindow {
         borderColor = "#ffffff"
         ranges = [[0, 1]]
         audioMode = "mute"
+        frameBackdrop = "solid"
+        frameColor2 = "#000000"
+        frameAngle = 45
+        frameBackgroundImage = ""
+        frameBlur = 0
+        frameRadius = 0
+        frameShadow = 0
+        frameShadowOpacity = 30
+        frameAspect = 0
+        collageLayout = "grid"
+        collageColumns = 0
+        collageWidth = 2048
+        collageAspect = 1
+        collageSpacing = 0
+        collagePadding = 0
+        collageRadius = 0
+        collageFit = "fill"
+        collageColor = "#ffffff"
+        collageOrder = []
         adjustValues = ({})
         adjustFilter = ""
         adjustPreviewUrl = ""
@@ -381,6 +430,69 @@ ApplicationWindow {
         if (duration > 0 && a >= duration)
             return qsTr("The start is past the end of the file (%1).").arg(formatTime(duration))
         return [a, Math.min(b, duration > 0 ? duration : b)]
+    }
+
+    function validColor(text) {
+        return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(text)
+    }
+
+    function frameOptions() {
+        if (!validColor(borderColor))
+            return qsTr("Use a colour like #ffffff.")
+        const frame = { padding: borderPx.value, color: borderColor }
+        if (frameBackdrop === "gradient") {
+            if (!validColor(frameColor2))
+                return qsTr("Use a colour like #ffffff.")
+            frame.backdrop = "gradient"
+            frame.color2 = frameColor2
+            frame.angle = frameAngle
+        } else if (frameBackdrop === "image") {
+            if (frameBackgroundImage.length === 0)
+                return qsTr("Choose a background image.")
+            frame.backdrop = "image"
+            frame.background_image = frameBackgroundImage
+            if (frameBlur > 0)
+                frame.background_blur = frameBlur
+        }
+        if (frameRadius > 0)
+            frame.corner_radius = frameRadius
+        if (frameShadow > 0) {
+            frame.shadow = frameShadow
+            frame.shadow_opacity = frameShadowOpacity
+        }
+        if (frameAspect > 0)
+            frame.aspect = frameAspect
+        return { frame: frame }
+    }
+
+    function moveCollageImage(position, step) {
+        const order = collageDisplay.slice()
+        const target = position + step
+        if (target < 0 || target >= order.length)
+            return
+        const moved = order[position]
+        order[position] = order[target]
+        order[target] = moved
+        collageOrder = order
+    }
+
+    function collageOptions() {
+        if (!validColor(collageColor))
+            return qsTr("Use a colour like #ffffff.")
+        const collage = { layout: collageLayout, width: collageWidth, aspect: collageAspect, color: collageColor }
+        if (collageLayout === "grid" && collageColumns > 0)
+            collage.columns = collageColumns
+        if (collageSpacing > 0)
+            collage.spacing = collageSpacing
+        if (collagePadding > 0)
+            collage.padding = collagePadding
+        if (collageRadius > 0)
+            collage.corner_radius = collageRadius
+        if (collageFit !== "fill")
+            collage.fit = collageFit
+        if (collageOrder.length === collageDisplay.length && collageOrder.some((v, i) => v !== i))
+            collage.order = collageOrder
+        return { collage: collage }
     }
 
     function setAdjustment(name, value) {
@@ -639,9 +751,9 @@ ApplicationWindow {
             return o
         }
         case "frame":
-            if (!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(borderColor))
-                return qsTr("Use a colour like #ffffff.")
-            return { border: { px: borderPx.value, color: borderColor } }
+            return frameOptions()
+        case "collage":
+            return collageOptions()
         case "pages": {
             const p = pagesField.text.replace(/\s+/g, "")
             if (!/^\d+(-\d+)?(,\d+(-\d+)?)*$/.test(p))
@@ -704,6 +816,37 @@ ApplicationWindow {
         validator: RegularExpressionValidator { regularExpression: /\d{0,6}/ }
         selectByMouse: true
     }
+    component ValueSlider: RowLayout {
+        id: valueRow
+        property string label: ""
+        property int value: 0
+        property int low: 0
+        property int high: 100
+        property string unit: ""
+        signal edited(int newValue)
+        Layout.fillWidth: true
+        spacing: 10
+        FieldLabel {
+            Layout.preferredWidth: 110
+            text: valueRow.label
+        }
+        Slider {
+            Layout.fillWidth: true
+            from: valueRow.low
+            to: valueRow.high
+            stepSize: 1
+            value: valueRow.value
+            Accessible.name: valueRow.label
+            onMoved: valueRow.edited(Math.round(value))
+        }
+        Text {
+            Layout.preferredWidth: 56
+            horizontalAlignment: Text.AlignRight
+            text: valueRow.value + valueRow.unit
+            font.pixelSize: Theme.sizeSmall
+            color: Theme.secondaryText
+        }
+    }
     component Choice: NButton {
         property bool on: false
         compact: true
@@ -735,6 +878,17 @@ ApplicationWindow {
         function onFailed(requestId, message) {
             if (requestId === win.metadataRequest)
                 win.metadataError = message
+        }
+    }
+
+    FileDialog {
+        id: backgroundDialog
+        title: qsTr("Choose a background image")
+        nameFilters: [qsTr("Images (*.png *.jpg *.jpeg *.webp *.heic *.tiff *.avif *.bmp)")]
+        onAccepted: {
+            const paths = App.pathsFromUrls([selectedFile])
+            if (paths.length > 0)
+                win.frameBackgroundImage = paths[0]
         }
     }
 
@@ -1610,13 +1764,69 @@ ApplicationWindow {
             SectionBox {
                 visible: win.group === "frame"
                 title: qsTr("Background")
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 6
+                    Repeater {
+                        model: [["solid", qsTr("Solid")], ["gradient", qsTr("Gradient")], ["image", qsTr("Image")]]
+                        delegate: Choice {
+                            required property var modelData
+                            text: String(modelData[1])
+                            on: win.frameBackdrop === String(modelData[0])
+                            onClicked: win.frameBackdrop = String(modelData[0])
+                        }
+                    }
+                }
+                RowLayout {
+                    visible: win.frameBackdrop === "image"
+                    spacing: 8
+                    NButton {
+                        compact: true
+                        text: qsTr("Choose image…")
+                        onClicked: backgroundDialog.open()
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        text: win.frameBackgroundImage.length > 0 ? App.fileName(win.frameBackgroundImage) : qsTr("None chosen")
+                        textFormat: Text.PlainText
+                        elide: Text.ElideMiddle
+                        font.pixelSize: Theme.sizeSmall
+                        color: Theme.secondaryText
+                    }
+                }
+                ValueSlider {
+                    visible: win.frameBackdrop === "image"
+                    label: qsTr("Background blur")
+                    value: win.frameBlur
+                    onEdited: (v) => win.frameBlur = v
+                }
+                ValueSlider {
+                    visible: win.frameBackdrop === "gradient"
+                    label: qsTr("Angle")
+                    high: 360
+                    unit: "°"
+                    value: win.frameAngle
+                    onEdited: (v) => win.frameAngle = v
+                }
+                RowLayout {
+                    visible: win.frameBackdrop === "gradient"
+                    spacing: 8
+                    FieldLabel { text: qsTr("Second colour") }
+                    TextField {
+                        Layout.preferredWidth: 100
+                        text: win.frameColor2
+                        selectByMouse: true
+                        Accessible.name: qsTr("Second colour")
+                        onTextEdited: win.frameColor2 = text.trim()
+                    }
+                }
                 RowLayout {
                     Layout.fillWidth: true
-                    FieldLabel { text: qsTr("Thickness") }
+                    FieldLabel { text: qsTr("Padding") }
                     Slider {
                         id: borderPx
                         Layout.fillWidth: true
-                        from: 4
+                        from: 0
                         to: 400
                         stepSize: 2
                         value: 40
@@ -1652,6 +1862,181 @@ ApplicationWindow {
                         text: win.borderColor
                         selectByMouse: true
                         onTextEdited: win.borderColor = text.trim()
+                    }
+                }
+            }
+
+            SectionBox {
+                visible: win.group === "frame"
+                title: qsTr("Shape and shadow")
+                ValueSlider {
+                    label: qsTr("Corner radius")
+                    high: 400
+                    unit: " px"
+                    value: win.frameRadius
+                    onEdited: (v) => win.frameRadius = v
+                }
+                ValueSlider {
+                    label: qsTr("Shadow")
+                    high: 200
+                    unit: " px"
+                    value: win.frameShadow
+                    onEdited: (v) => win.frameShadow = v
+                }
+                ValueSlider {
+                    visible: win.frameShadow > 0
+                    label: qsTr("Shadow strength")
+                    unit: "%"
+                    value: win.frameShadowOpacity
+                    onEdited: (v) => win.frameShadowOpacity = v
+                }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 6
+                    Repeater {
+                        model: [[0, qsTr("Fit the image")], [1, "1:1"], [0.8, "4:5"], [0.5625, "9:16"], [1.7778, "16:9"]]
+                        delegate: Choice {
+                            required property var modelData
+                            text: String(modelData[1])
+                            on: win.frameAspect === Number(modelData[0])
+                            onClicked: win.frameAspect = Number(modelData[0])
+                        }
+                    }
+                }
+            }
+
+            // Collage
+            SectionBox {
+                visible: win.group === "collage"
+                title: qsTr("Layout")
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 6
+                    Repeater {
+                        model: [["grid", qsTr("Grid")], ["row", qsTr("Row")], ["column", qsTr("Column")], ["featured", qsTr("Featured")]]
+                        delegate: Choice {
+                            required property var modelData
+                            text: String(modelData[1])
+                            on: win.collageLayout === String(modelData[0])
+                            onClicked: win.collageLayout = String(modelData[0])
+                        }
+                    }
+                }
+                ValueSlider {
+                    visible: win.collageLayout === "grid"
+                    label: win.collageColumns > 0 ? qsTr("Columns") : qsTr("Columns (automatic)")
+                    high: Math.max(1, win.files.length)
+                    value: win.collageColumns
+                    onEdited: (v) => win.collageColumns = v
+                }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 6
+                    Repeater {
+                        model: [[1, "1:1"], [1.3333, "4:3"], [0.75, "3:4"], [1.7778, "16:9"]]
+                        delegate: Choice {
+                            required property var modelData
+                            text: String(modelData[1])
+                            on: win.collageAspect === Number(modelData[0])
+                            onClicked: win.collageAspect = Number(modelData[0])
+                        }
+                    }
+                }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 6
+                    Choice {
+                        text: qsTr("Fill cells (crop edges)")
+                        on: win.collageFit === "fill"
+                        onClicked: win.collageFit = "fill"
+                    }
+                    Choice {
+                        text: qsTr("Fit whole image")
+                        on: win.collageFit === "fit"
+                        onClicked: win.collageFit = "fit"
+                    }
+                }
+            }
+            SectionBox {
+                visible: win.group === "collage"
+                title: qsTr("Appearance")
+                ValueSlider {
+                    label: qsTr("Width")
+                    low: 320
+                    high: 8000
+                    unit: " px"
+                    value: win.collageWidth
+                    onEdited: (v) => win.collageWidth = v
+                }
+                ValueSlider {
+                    label: qsTr("Spacing")
+                    high: 200
+                    unit: " px"
+                    value: win.collageSpacing
+                    onEdited: (v) => win.collageSpacing = v
+                }
+                ValueSlider {
+                    label: qsTr("Outer padding")
+                    high: 200
+                    unit: " px"
+                    value: win.collagePadding
+                    onEdited: (v) => win.collagePadding = v
+                }
+                ValueSlider {
+                    label: qsTr("Corner radius")
+                    high: 200
+                    unit: " px"
+                    value: win.collageRadius
+                    onEdited: (v) => win.collageRadius = v
+                }
+                RowLayout {
+                    spacing: 8
+                    FieldLabel { text: qsTr("Background colour") }
+                    TextField {
+                        Layout.preferredWidth: 100
+                        text: win.collageColor
+                        selectByMouse: true
+                        Accessible.name: qsTr("Background colour")
+                        onTextEdited: win.collageColor = text.trim()
+                    }
+                }
+            }
+            SectionBox {
+                visible: win.group === "collage"
+                title: qsTr("Image order")
+                Repeater {
+                    model: win.collageDisplay
+                    delegate: RowLayout {
+                        id: orderRow
+                        required property int index
+                        required property var modelData
+                        readonly property string name: App.fileName(String(win.files[Number(modelData)]))
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Text {
+                            Layout.fillWidth: true
+                            text: (orderRow.index + 1) + ". " + orderRow.name
+                            textFormat: Text.PlainText
+                            elide: Text.ElideMiddle
+                            font.pixelSize: Theme.sizeSmall
+                            color: Theme.text
+                        }
+                        NButton {
+                            compact: true
+                            kind: "quiet"
+                            iconName: "go-up"
+                            enabled: orderRow.index > 0
+                            Accessible.name: qsTr("Move %1 earlier").arg(orderRow.name)
+                            onClicked: win.moveCollageImage(orderRow.index, -1)
+                        }
+                        NButton {
+                            compact: true
+                            kind: "quiet"
+                            iconName: "go-down"
+                            enabled: orderRow.index < win.collageDisplay.length - 1
+                            Accessible.name: qsTr("Move %1 later").arg(orderRow.name)
+                            onClicked: win.moveCollageImage(orderRow.index, 1)
+                        }
                     }
                 }
             }
