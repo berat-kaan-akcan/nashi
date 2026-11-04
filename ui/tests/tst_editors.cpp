@@ -16,6 +16,7 @@
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QTemporaryDir>
+#include <QJSValue>
 #include <QTest>
 #include <QVariantList>
 #include <QVariantMap>
@@ -427,6 +428,103 @@ private Q_SLOTS:
         QVERIFY(!videoSection->property("visible").toBool());
         QVERIFY(!result().contains(QStringLiteral("max_height")));
 
+        w->hide();
+        QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
+    }
+
+    void splitVideoFormChoosesClips()
+    {
+        g_messages.clear();
+        QVERIFY(WheelModel::hasOptionsForm(QStringLiteral("splitVideo")));
+        QQuickWindow *w = openEditor(QStringLiteral("splitVideo"), QStringLiteral("Split Video"), videoPath);
+        QVERIFY(w);
+        auto *timeline = w->findChild<QObject *>(QStringLiteral("timelineEditor"));
+        QVERIFY(timeline);
+        QTRY_VERIFY_WITH_TIMEOUT(w->property("duration").toDouble() > 12.0, 10000);
+        QCOMPARE(timeline->property("mode").toString(), QStringLiteral("points"));
+        const auto result = [w] { return w->property("result"); };
+        const auto map = [w] { return w->property("result").toMap(); };
+        QCOMPARE(result().typeId(), QMetaType::QString); // no cuts yet
+
+        // Points stay sorted; ones too close together or at the ends are ignored.
+        for (const double t : {6.0, 2.0, 2.01, 0.0, 12.5}) {
+            QMetaObject::invokeMethod(timeline, "seekTo", Q_ARG(QVariant, t));
+            QMetaObject::invokeMethod(w, "addSplitAtPlayhead");
+        }
+        const QVariantList points = map().value(QStringLiteral("split_points")).toList();
+        QCOMPARE(points.size(), 2);
+        QCOMPARE(points.at(0).toDouble(), 2.0);
+        QCOMPARE(points.at(1).toDouble(), 6.0);
+        QCOMPARE(timeline->property("markers").toList().size(), 2);
+        QCOMPARE(w->property("clips").toList().size(), 3);
+
+        // I and O must not edit a hidden range here.
+        const auto hiddenRanges = [timeline] {
+            return timeline->property("ranges").value<QJSValue>().toVariant();
+        };
+        const QVariant rangesBefore = hiddenRanges();
+        QMetaObject::invokeMethod(timeline, "setInAtPlayhead");
+        QMetaObject::invokeMethod(timeline, "setOutAtPlayhead");
+        QCOMPARE(hiddenRanges(), rangesBefore);
+
+        QMetaObject::invokeMethod(w, "toggleClip", Q_ARG(QVariant, 1));
+        QCOMPARE(map().value(QStringLiteral("discard_clips")).toList().at(0).toInt(), 1);
+        QMetaObject::invokeMethod(w, "toggleClip", Q_ARG(QVariant, 0));
+        QMetaObject::invokeMethod(w, "toggleClip", Q_ARG(QVariant, 2));
+        QCOMPARE(result().typeId(), QMetaType::QString); // nothing kept
+        QMetaObject::invokeMethod(w, "toggleClip", Q_ARG(QVariant, 2));
+
+        w->setProperty("joinClips", true);
+        QCOMPARE(map().value(QStringLiteral("join_clips")).toBool(), true);
+        saveEditorScreenshots(app, w, QStringLiteral("splitVideo"));
+
+        // Changing the cuts renumbers the clips, so removals start over.
+        QMetaObject::invokeMethod(w, "removeSplitPoint", Q_ARG(QVariant, 0));
+        QVERIFY(!map().contains(QStringLiteral("discard_clips")));
+        QCOMPARE(map().value(QStringLiteral("split_points")).toList().size(), 1);
+        QMetaObject::invokeMethod(w, "setEqualClips", Q_ARG(QVariant, 5));
+        QCOMPARE(map().value(QStringLiteral("split_points")).toList().size(), 4);
+        QCOMPARE(map().value(QStringLiteral("split_points")).toList().at(0).toDouble(), 2.5);
+
+        // Nothing carries over to the next file.
+        app->showOptions(QStringLiteral("splitVideo"), QStringLiteral("Split Video"), {videoPath});
+        QCOMPARE(result().typeId(), QMetaType::QString);
+        QVERIFY(!w->property("joinClips").toBool());
+        w->hide();
+        QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
+    }
+
+    void videoSnapshotsFormChoosesFrames()
+    {
+        g_messages.clear();
+        QVERIFY(WheelModel::hasOptionsForm(QStringLiteral("videoSnapshots")));
+        QQuickWindow *w = openEditor(QStringLiteral("videoSnapshots"), QStringLiteral("Video Snapshots"), videoPath);
+        QVERIFY(w);
+        auto *timeline = w->findChild<QObject *>(QStringLiteral("timelineEditor"));
+        QVERIFY(timeline);
+        QTRY_VERIFY_WITH_TIMEOUT(w->property("duration").toDouble() > 12.0, 10000);
+        const auto map = [w] { return w->property("result").toMap(); };
+        QCOMPARE(w->property("result").typeId(), QMetaType::QString);
+
+        for (const double t : {3.0, 1.5, 3.0}) {
+            QMetaObject::invokeMethod(timeline, "seekTo", Q_ARG(QVariant, t));
+            QMetaObject::invokeMethod(w, "addSnapshotAtPlayhead");
+        }
+        // The end of the video is a valid frame, and a repeat is not added twice.
+        const QVariantList times = map().value(QStringLiteral("snapshot_times")).toList();
+        QCOMPARE(times.size(), 2);
+        QCOMPARE(times.at(0).toDouble(), 1.5);
+        QMetaObject::invokeMethod(timeline, "stepFrame", Q_ARG(QVariant, 1));
+        QVERIFY(timeline->property("playhead").toDouble() > 3.0);
+        QMetaObject::invokeMethod(w, "removeSnapshot", Q_ARG(QVariant, 0));
+        QCOMPARE(map().value(QStringLiteral("snapshot_times")).toList().size(), 1);
+
+        w->setProperty("snapshotMode", QStringLiteral("interval"));
+        w->setProperty("snapshotEvery", QStringLiteral("2"));
+        QVERIFY(!map().contains(QStringLiteral("snapshot_times")));
+        QCOMPARE(map().value(QStringLiteral("fps")).toDouble(), 0.5);
+        w->setProperty("snapshotEvery", QStringLiteral("0"));
+        QCOMPARE(w->property("result").typeId(), QMetaType::QString);
         w->hide();
         QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
     }

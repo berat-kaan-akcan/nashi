@@ -13,7 +13,7 @@ Item {
     objectName: "timelineEditor"
 
     property string filePath: ""
-    property string mode: "trim" // "trim" | "ranges"
+    property string mode: "trim" // "trim" | "ranges" | "points"
     property bool showVideoPreview: false
     property real duration: 0
 
@@ -25,6 +25,9 @@ Item {
     // Array of [startSec, endSec]
     property var ranges: [[0, 1]]
     property int selectedRangeIndex: 0
+
+    // Marked times (mode === "points", e.g. split points and chosen frames)
+    property var markers: []
 
     // Playhead & transport state
     property real playhead: 0
@@ -261,6 +264,11 @@ Item {
             frameDebounce.restart()
     }
 
+    // One frame at the usual 30 fps; the editor does not know the real rate.
+    function stepFrame(direction) {
+        stepBy(direction / 30)
+    }
+
     function stepBy(deltaSec) {
         pause()
         seekTo(playhead + deltaSec)
@@ -307,6 +315,8 @@ Item {
     }
 
     function setInAtPlayhead() {
+        if (mode === "points")
+            return
         const p = roundTime(playhead)
         if (mode === "trim") {
             let e = endTime > 0 ? endTime : effDuration
@@ -329,6 +339,8 @@ Item {
     }
 
     function setOutAtPlayhead() {
+        if (mode === "points")
+            return
         const p = roundTime(playhead)
         if (mode === "trim") {
             let s = startTime
@@ -455,7 +467,26 @@ Item {
             }
 
             NButton {
+                visible: root.mode === "points"
+                compact: true
+                kind: "quiet"
+                iconName: "go-previous"
+                Accessible.name: qsTr("Previous frame")
+                onClicked: root.stepFrame(-1)
+            }
+
+            NButton {
+                visible: root.mode === "points"
+                compact: true
+                kind: "quiet"
+                iconName: "go-next"
+                Accessible.name: qsTr("Next frame")
+                onClicked: root.stepFrame(1)
+            }
+
+            NButton {
                 objectName: "setInButton"
+                visible: root.mode !== "points"
                 compact: true
                 text: qsTr("Set In (I)")
                 onClicked: root.setInAtPlayhead()
@@ -463,6 +494,7 @@ Item {
 
             NButton {
                 objectName: "setOutButton"
+                visible: root.mode !== "points"
                 compact: true
                 text: qsTr("Set Out (O)")
                 onClicked: root.setOutAtPlayhead()
@@ -609,6 +641,19 @@ Item {
                     fillMode: Image.Stretch
                     asynchronous: true
                     smooth: true
+                }
+            }
+
+            // ---- MARKED TIMES (mode === "points") ------------------------
+            Repeater {
+                model: root.mode === "points" ? root.markers : []
+                delegate: Rectangle {
+                    required property var modelData
+                    x: trackBox.timeToX(Number(modelData)) - width / 2
+                    y: trackBox.bodyY
+                    width: 2
+                    height: trackBox.bodyH
+                    color: Theme.goldInk
                 }
             }
 
@@ -802,7 +847,7 @@ Item {
                 property string dragTarget: "" // "", "in", "out", "playhead"
 
                 function hitWhat(mx, my) {
-                    if (my < trackBox.rulerH)
+                    if (my < trackBox.rulerH || root.mode === "points")
                         return "playhead"
                     if (root.mode === "trim") {
                         const inX = trackBox.timeToX(root.startTime)
@@ -920,7 +965,9 @@ Item {
             Layout.fillWidth: true
             font.pixelSize: Theme.sizeTiny
             color: Theme.tertiaryText
-            text: qsTr("Space play/pause · ←/→ step 0.5s (Shift 0.1s) · I set start · O set end")
+            text: root.mode === "points"
+                  ? qsTr("Space play/pause · ←/→ step 0.5s (Shift 0.1s) · M mark the playhead")
+                  : qsTr("Space play/pause · ←/→ step 0.5s (Shift 0.1s) · I set start · O set end")
         }
     }
 }

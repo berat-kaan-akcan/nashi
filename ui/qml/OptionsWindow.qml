@@ -35,12 +35,15 @@ ApplicationWindow {
         case "organizePDF": return "pages"
         case "annotateImage": return "annotate"
         case "compress": return "compress"
+        case "splitVideo": return "split"
+        case "videoSnapshots": return "snapshots"
         }
         return ""
     }
     readonly property bool usesRect: group === "crop" || group === "redactImage" || group === "redactVideo"
     readonly property bool usesRange: group === "trim" || group === "redactVideo"
-    readonly property bool usesTimeline: usesRange || group === "redactAudio"
+    readonly property bool usesPoints: group === "split" || group === "snapshots"
+    readonly property bool usesTimeline: usesRange || usesPoints || group === "redactAudio"
     readonly property bool isVideoTool: toolId === "cropVideo" || toolId === "trimVideo"
                                         || toolId === "redactVideo" || toolId === "changeVideoSpeed"
     readonly property bool isVisualEditor: usesRect || usesTimeline || group === "pages" || group === "annotate"
@@ -77,6 +80,19 @@ ApplicationWindow {
     property string borderColor: "#ffffff"
     property var ranges: [[0, 1]]
     property string audioMode: "mute"
+    property var splitPoints: []
+    property var discardClips: []
+    property bool joinClips: false
+    readonly property var clips: {
+        const bounds = [0].concat(splitPoints, [duration])
+        const list = []
+        for (let i = 0; i + 1 < bounds.length; ++i)
+            list.push([bounds[i], bounds[i + 1]])
+        return list
+    }
+    property var snapshotTimes: []
+    property string snapshotMode: "frames"
+    property string snapshotEvery: "1"
     readonly property string fileCategory: info && info.category ? String(info.category) : ""
     property string compressPreset: "balanced"
     property string compressImageSizeChoice: "original"
@@ -98,6 +114,13 @@ ApplicationWindow {
         borderColor = "#ffffff"
         ranges = [[0, 1]]
         audioMode = "mute"
+        splitPoints = []
+        discardClips = []
+        joinClips = false
+        equalClipsField.text = "2"
+        snapshotTimes = []
+        snapshotMode = "frames"
+        snapshotEvery = "1"
         compressPreset = "balanced"
         compressImageSizeChoice = "original"
         compressCustomWidth = ""
@@ -304,6 +327,53 @@ ApplicationWindow {
         return [a, Math.min(b, duration > 0 ? duration : b)]
     }
 
+    function setSplitPoints(points) {
+        splitPoints = points
+        // The clips are renumbered, so a removal would hit a different one.
+        discardClips = []
+    }
+
+    function addSplitAtPlayhead() {
+        const t = timelineEditor.playhead
+        if (t < 0.05 || duration - t < 0.05 || splitPoints.some(p => Math.abs(p - t) < 0.05))
+            return
+        setSplitPoints(splitPoints.concat([t]).sort((a, b) => a - b))
+    }
+
+    function removeSplitPoint(index) {
+        setSplitPoints(splitPoints.filter((_, i) => i !== index))
+    }
+
+    function setEqualClips(count) {
+        const points = []
+        for (let i = 1; i < count; ++i)
+            points.push(Math.round(duration * i / count * 1000) / 1000)
+        setSplitPoints(points)
+    }
+
+    function toggleClip(index) {
+        discardClips = discardClips.includes(index)
+                ? discardClips.filter(c => c !== index)
+                : discardClips.concat([index]).sort((a, b) => a - b)
+    }
+
+    function addSnapshotAtPlayhead() {
+        const t = timelineEditor.playhead
+        if (!snapshotTimes.includes(t))
+            snapshotTimes = snapshotTimes.concat([t]).sort((a, b) => a - b)
+    }
+
+    function removeSnapshot(index) {
+        snapshotTimes = snapshotTimes.filter((_, i) => i !== index)
+    }
+
+    function markPlayhead() {
+        if (group === "split")
+            addSplitAtPlayhead()
+        else if (group === "snapshots")
+            addSnapshotAtPlayhead()
+    }
+
     // Every setting goes along, since a selection can mix kinds of file and the
     // engine reads only what applies to each one.
     function compressOptions() {
@@ -354,6 +424,29 @@ ApplicationWindow {
         switch (group) {
         case "compress":
             return compressOptions()
+        case "split": {
+            if (splitPoints.length === 0)
+                return qsTr("Add at least one split point.")
+            if (discardClips.length >= clips.length)
+                return qsTr("Keep at least one clip.")
+            const options = { split_points: splitPoints }
+            if (discardClips.length > 0)
+                options.discard_clips = discardClips
+            if (joinClips)
+                options.join_clips = true
+            return options
+        }
+        case "snapshots": {
+            if (snapshotMode === "interval") {
+                const every = Number(snapshotEvery.trim().replace(",", "."))
+                if (!isFinite(every) || every <= 0)
+                    return qsTr("Enter a number of seconds greater than zero.")
+                return { fps: 1 / every }
+            }
+            if (snapshotTimes.length === 0)
+                return qsTr("Add at least one frame.")
+            return { snapshot_times: snapshotTimes }
+        }
         case "speed":
             return { speed: speed }
         case "trim": {
@@ -496,6 +589,11 @@ ApplicationWindow {
         sequence: "Space"
         enabled: win.usesTimeline && !win.textInputFocused
         onActivated: timelineEditor.togglePlay()
+    }
+    Shortcut {
+        sequence: "M"
+        enabled: win.usesPoints && !win.textInputFocused
+        onActivated: win.markPlayhead()
     }
     Shortcut {
         sequence: "I"
@@ -653,14 +751,18 @@ ApplicationWindow {
             SectionBox {
                 visible: win.usesTimeline
                 title: win.group === "trim" ? qsTr("Keep this part")
+                     : win.group === "split" ? qsTr("Where to cut")
+                     : win.group === "snapshots" ? qsTr("Which frames")
                      : (win.group === "redactAudio" ? qsTr("Mute these parts") : qsTr("When to cover"))
 
                 TimelineEditor {
                     id: timelineEditor
                     Layout.fillWidth: true
                     filePath: win.usesTimeline ? win.firstFile : ""
-                    mode: win.group === "redactAudio" ? "ranges" : "trim"
-                    showVideoPreview: win.toolId === "trimVideo"
+                    mode: win.usesPoints ? "points" : (win.group === "redactAudio" ? "ranges" : "trim")
+                    showVideoPreview: win.toolId === "trimVideo" || win.usesPoints
+                    markers: win.group === "split" ? win.splitPoints
+                             : (win.group === "snapshots" ? win.snapshotTimes : [])
                     duration: win.duration
                     ranges: win.ranges
 
@@ -801,6 +903,135 @@ ApplicationWindow {
                             }
                         }
                     }
+                }
+            }
+
+            // Split video
+            SectionBox {
+                visible: win.group === "split"
+                title: qsTr("Cuts")
+                RowLayout {
+                    spacing: 8
+                    NButton {
+                        objectName: "addSplitButton"
+                        compact: true
+                        iconName: "list-add"
+                        text: qsTr("Cut at playhead (M)")
+                        onClicked: win.addSplitAtPlayhead()
+                    }
+                    FieldLabel { text: qsTr("Equal clips") }
+                    NumberField {
+                        id: equalClipsField
+                        Layout.preferredWidth: 60
+                        text: "2"
+                        Accessible.name: qsTr("Equal clips")
+                    }
+                    NButton {
+                        compact: true
+                        text: qsTr("Set")
+                        enabled: Number(equalClipsField.text) >= 2 && Number(equalClipsField.text) <= 100
+                        onClicked: win.setEqualClips(Number(equalClipsField.text))
+                    }
+                }
+                Flow {
+                    Layout.fillWidth: true
+                    visible: win.splitPoints.length > 0
+                    spacing: 6
+                    Repeater {
+                        model: win.splitPoints
+                        delegate: NButton {
+                            required property int index
+                            required property var modelData
+                            compact: true
+                            kind: "quiet"
+                            iconName: "list-remove"
+                            text: win.formatTime(Number(modelData))
+                            Accessible.name: qsTr("Remove cut at %1").arg(text)
+                            onClicked: win.removeSplitPoint(index)
+                        }
+                    }
+                }
+            }
+            SectionBox {
+                visible: win.group === "split" && win.splitPoints.length > 0
+                title: qsTr("Clips to keep")
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 6
+                    Repeater {
+                        model: win.clips
+                        delegate: Choice {
+                            required property int index
+                            required property var modelData
+                            text: qsTr("Clip %1 · %2").arg(index + 1).arg(win.formatTime(modelData[1] - modelData[0]))
+                            on: !win.discardClips.includes(index)
+                            onClicked: win.toggleClip(index)
+                        }
+                    }
+                }
+                Switch {
+                    objectName: "joinClipsSwitch"
+                    text: qsTr("Export the kept clips as one video")
+                    checked: win.joinClips
+                    onToggled: win.joinClips = checked
+                }
+            }
+
+            // Video snapshots
+            SectionBox {
+                visible: win.group === "snapshots"
+                title: qsTr("Frames")
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 6
+                    Choice {
+                        text: qsTr("Chosen frames")
+                        on: win.snapshotMode === "frames"
+                        onClicked: win.snapshotMode = "frames"
+                    }
+                    Choice {
+                        text: qsTr("At regular intervals")
+                        on: win.snapshotMode === "interval"
+                        onClicked: win.snapshotMode = "interval"
+                    }
+                }
+                NButton {
+                    visible: win.snapshotMode === "frames"
+                    compact: true
+                    iconName: "list-add"
+                    text: qsTr("Add frame at playhead (M)")
+                    onClicked: win.addSnapshotAtPlayhead()
+                }
+                Flow {
+                    Layout.fillWidth: true
+                    visible: win.snapshotMode === "frames" && win.snapshotTimes.length > 0
+                    spacing: 6
+                    Repeater {
+                        model: win.snapshotTimes
+                        delegate: NButton {
+                            required property int index
+                            required property var modelData
+                            compact: true
+                            kind: "quiet"
+                            iconName: "list-remove"
+                            text: win.formatTime(Number(modelData))
+                            Accessible.name: qsTr("Remove frame at %1").arg(text)
+                            onClicked: win.removeSnapshot(index)
+                        }
+                    }
+                }
+                RowLayout {
+                    visible: win.snapshotMode === "interval"
+                    spacing: 8
+                    FieldLabel { text: qsTr("Every") }
+                    TextField {
+                        Layout.preferredWidth: 70
+                        text: win.snapshotEvery
+                        selectByMouse: true
+                        Accessible.name: qsTr("Seconds between frames")
+                        onTextEdited: win.snapshotEvery = text
+                    }
+                    FieldLabel { text: qsTr("seconds") }
                 }
             }
 

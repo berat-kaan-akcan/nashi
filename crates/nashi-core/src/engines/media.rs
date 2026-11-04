@@ -8,7 +8,7 @@ use super::{Ctx, Input, Produced};
 use crate::catalog::{category_of, Category};
 use crate::deps::require;
 use crate::detect::{ffprobe, Probe};
-use crate::events::{JobError, JobResult};
+use crate::events::{ErrorCode, JobError, JobResult};
 use crate::fsops::{Staged, WorkDir};
 use crate::process::{Cmd, FfProgress};
 
@@ -772,6 +772,64 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
             run(ctx, cmd, p.duration, "Rendering")?;
             Ok(staged.commit()?.into())
         }
+        "videoSnapshots" if o.snapshot_times.is_some() => {
+            let times = o.snapshot_times.as_deref().unwrap_or_default();
+            if times.is_empty() {
+                return Err(JobError::invalid_options("choose at least one frame"));
+            }
+            let inside =
+                |t: &f64| t.is_finite() && *t >= 0.0 && p.duration.is_none_or(|d| *t <= d + 0.001);
+            if !times.iter().all(inside) {
+                return Err(JobError::invalid_options(
+                    "a snapshot time is outside the video",
+                ));
+            }
+            let mut staged = Vec::with_capacity(times.len());
+            for (n, time) in times.iter().enumerate() {
+                let frame = input.stage(&format!("-frame-{}", n + 1), "png")?;
+                let still = |seek: Vec<String>, frames: &[&str]| -> JobResult<()> {
+                    // -update writes to this exact name instead of reading it as a pattern.
+                    let cmd = ffin(ffmpeg(ctx)?.args(seek))
+                        .args(["-map", "0:v:0"])
+                        .args(frames)
+                        .args(["-vf", "scale='iw*sar':ih,setsar=1"])
+                        .args(["-c:v", "png", "-update", "1", "-f", "image2"])
+                        .arg(out(frame.path()));
+                    let message = format!("Saving frame {} of {}", n + 1, times.len());
+                    run(ctx, cmd, None, &message)
+                };
+                let seek = vec!["-ss".to_string(), format!("{time:.3}")];
+                let first_try = still(seek, &["-frames:v", "1"]);
+                if matches!(
+                    first_try,
+                    Err(JobError {
+                        code: ErrorCode::Cancelled,
+                        ..
+                    })
+                ) {
+                    return first_try.map(|()| unreachable!());
+                }
+                // Past the start of the last frame there is none to find at or after the
+                // time, yet a player shows the last frame there. Decode the end and keep it.
+                if first_try.is_err() || std::fs::metadata(frame.path())?.len() == 0 {
+                    still(vec!["-sseof".to_string(), "-1".to_string()], &[])?;
+                }
+                if std::fs::metadata(frame.path())?.len() == 0 {
+                    return Err(JobError::tool_failed(
+                        "no frame could be saved at that time",
+                    ));
+                }
+                staged.push(frame);
+            }
+            let mut paths = Vec::with_capacity(staged.len());
+            for frame in staged {
+                paths.push(frame.commit()?);
+            }
+            Ok(Produced {
+                paths,
+                message: None,
+            })
+        }
         "videoSnapshots" => {
             let fps = o.fps.unwrap_or(1.0);
             let staged = input.stage_dir("-snapshots")?;
@@ -794,6 +852,69 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
                 .arg(&pattern);
             run(ctx, cmd, p.duration, "Extracting frames")?;
             non_empty_dir(staged.path())?;
+            Ok(staged.commit()?.into())
+        }
+        "splitVideo"
+            if o.split_points.is_some()
+                || o.equal_clips.is_some()
+                || o.discard_clips.is_some()
+                || o.join_clips == Some(true) =>
+        {
+            let bounds = split_bounds(o, p.duration)?;
+            let clips = bounds.len() - 1;
+            let discarded = o.discard_clips.clone().unwrap_or_default();
+            if discarded.iter().any(|c| *c >= clips) {
+                return Err(JobError::invalid_options(
+                    "a removed clip is outside the split",
+                ));
+            }
+            let kept: Vec<usize> = (0..clips).filter(|c| !discarded.contains(c)).collect();
+            if kept.is_empty() {
+                return Err(JobError::invalid_options("keep at least one clip"));
+            }
+            let stem = input.stem().to_string();
+            let join = o.join_clips == Some(true);
+            let render = |clip: usize, position: usize, target: &Path| -> JobResult<()> {
+                let (a, b) = (bounds[clip], bounds[clip + 1]);
+                // Cuts are re-encoded so they land on the requested time, not a keyframe.
+                let cmd =
+                    ffmpeg(ctx)?.args(["-ss", &format!("{a:.3}"), "-t", &format!("{:.3}", b - a)]);
+                let cmd = ffin(cmd)
+                    .args(reencode(None, None))
+                    .args(["-f", muxer(&ext)])
+                    .arg(out(target));
+                let message = format!("Saving clip {} of {}", position + 1, kept.len());
+                run(ctx, cmd, Some(b - a), &message)
+            };
+            if !join {
+                let staged = input.stage_dir("-parts")?;
+                for (position, clip) in kept.iter().enumerate() {
+                    let name = format!("{stem}-{:03}.{ext}", clip + 1);
+                    render(*clip, position, &staged.path().join(name))?;
+                }
+                return Ok(staged.commit()?.into());
+            }
+            let staged = input.stage("-split", &ext)?;
+            let work = WorkDir::new_in(&input.out_dir)?;
+            let mut list = String::new();
+            for (position, clip) in kept.iter().enumerate() {
+                let name = format!("segment-{clip}.{ext}");
+                render(*clip, position, &work.join(&name))?;
+                // Explicit lengths keep encoder padding from adding up at each cut.
+                let length = bounds[clip + 1] - bounds[*clip];
+                list.push_str(&format!("file '{name}'\nduration {length:.3}\n"));
+            }
+            let list_path = work.join("clips.txt");
+            std::fs::write(&list_path, list)?;
+            let total: f64 = kept.iter().map(|c| bounds[c + 1] - bounds[*c]).sum();
+            let cmd = ffmpeg(ctx)?
+                .args(["-f", "concat", "-safe", "1", "-i"])
+                .arg(&list_path)
+                .args(["-map", "0", "-c", "copy", "-t", &format!("{total:.3}")])
+                .args(["-f", muxer(&ext)])
+                .arg(out(staged.path()));
+            run(ctx, cmd, Some(total), "Joining clips")?;
+            drop(work);
             Ok(staged.commit()?.into())
         }
         "splitVideo" => {
@@ -822,6 +943,57 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
         }
         _ => Err(JobError::unsupported(format!("{tool} is not a media tool"))),
     }
+}
+
+/// Clip boundaries, from 0 to the end, for a split at chosen times or into equal parts.
+fn split_bounds(o: &crate::options::Options, duration: Option<f64>) -> JobResult<Vec<f64>> {
+    let total = duration
+        .filter(|d| *d > 0.0)
+        .ok_or_else(|| JobError::invalid_input("cannot split a video with an unknown duration"))?;
+    let mut points: Vec<f64> = if let Some(points) = &o.split_points {
+        if points.is_empty() {
+            return Err(JobError::invalid_options("add at least one split point"));
+        }
+        // Repeats stay in: removed clips are numbered from these points, so a repeat
+        // must fail the spacing check below rather than quietly renumber them.
+        points.clone()
+    } else if let Some(count) = o.equal_clips {
+        if !(2..=10000).contains(&count) {
+            return Err(JobError::invalid_options(
+                "equal_clips must be between 2 and 10000",
+            ));
+        }
+        (1..count)
+            .map(|i| total * f64::from(i) / f64::from(count))
+            .collect()
+    } else {
+        let every = o.segment_seconds.unwrap_or(60.0);
+        if !every.is_finite() || every <= 0.0 || total / every > 10000.0 {
+            return Err(JobError::invalid_options(
+                "segment_seconds must give at most 10000 clips",
+            ));
+        }
+        let count = ((total - 0.05) / every).floor() as u32;
+        (1..=count).map(|i| f64::from(i) * every).collect()
+    };
+    if points
+        .iter()
+        .any(|t| !t.is_finite() || *t <= 0.0 || *t >= total)
+    {
+        return Err(JobError::invalid_options(
+            "split points must fall inside the video",
+        ));
+    }
+    points.sort_by(f64::total_cmp);
+    let mut bounds = vec![0.0];
+    bounds.append(&mut points);
+    bounds.push(total);
+    if bounds.windows(2).any(|w| w[1] - w[0] < 0.05) {
+        return Err(JobError::invalid_options(
+            "split points must be at least 0.05 seconds apart and from either end",
+        ));
+    }
+    Ok(bounds)
 }
 
 /// An ffmpeg output pattern inside `dir`, with `%` in the directory escaped.

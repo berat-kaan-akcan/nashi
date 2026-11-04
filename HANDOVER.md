@@ -72,6 +72,7 @@ Upstream'in `b3c60f2..be59b13` aralığı incelendi; Linux'u etkileyen hatalar �
 * **Başarısız işler ve bozuk çıktı:** uzun dosya adları, surround/yüksek hızlı ses → opus/wma/wmv, altyazı sırası ve boş satırsız cue'lar, küçük PDF'in sıkıştırmada büyümesi, stdout yazılamayınca panik.
 * **Veri ve görüntü kaybı:** albüm kapağı, OGG etiketleri, Apple konum etiketleri, kare olmayan pikselli GIF/birleştirme/kare çıkarma, Xing başlıksız MP3 süresi, EPUB dili, dönüştürmede EXIF yönü.
 * **Sıkıştırma formu:** Dengeli/Güçlü, görsel ve video boyutu ön ayarları, hedef dosya boyutu ve yüzde azaltma (görselde kalite+küçültme, videoda 2-pass, seste bit hızı, PDF'te Ghostscript basamakları).
+* **Video bölme ve kare seçimi:** zaman çizelgesinde kesme noktaları, eşit parçalar, parça silme, tek video olarak dışa aktarma; seçili zamanlardan PNG kare alma (videonun tam sonu dahil), kare kare gezinme ve `M` kısayolu.
 * **Yeni özellikler:** ses kırpmada sessizlik silme, bip modu, PDF→görsel DPI ayarı, çarkta Paylaş/Float, Pick aşamasında klavyeyle çark, Kütüphane aramasında `İ/I/ı/i` eşleşmesi.
 
 ### 2.6. Test Denetimi (2026-11-04)
@@ -109,7 +110,7 @@ Arayüz ve servisler şu ana kadar birim testleri ve `QT_QPA_PLATFORM=offscreen`
 * **Kolaj düzenleri:** Izgara (`montage -tile`) dışında yatay satır, dikey sütun ve öne çıkan (`featured`) kolaj düzenleri.
 * **Metadata görüntüleme ve düzenleme:** Şu an yalnızca metadata temizleme (`removeMetadata`) var; `exiftool` ile alanları okuyup düzenleyen form yok.
 * **PDF ek seçenekleri:** Sabit grup/sayfa aralığıyla bölme ve birleştirmede eşit sayfa genişliğine ölçekleme.
-* **Video/ses ek seçenekleri:** Belirli saniye noktalarından çoklu bölme, seçili parçaları birleştirme ve özel LUFS ses yüksekliği hedefi.
+* **Video/ses ek seçenekleri:** Özel LUFS ses yüksekliği hedefi.
 * **Upstream eşitlemesinden kalanlar:** motor hata mesajları hâlâ İngilizce (arayüzde çevrilmiyor); arşiv açmada toplam boyut sınırı yok; Pick aşamasında klavye ve çarktan Paylaş gerçek KWin oturumunda denenmedi.
 * **Küçük uygulama detayları:** Format bazlı varsayılan kalite ayarları sayfası (ör. varsayılan JPEG kalitesi), işlem bitiş sesi, Fransızca (`fr`) çeviri.
 

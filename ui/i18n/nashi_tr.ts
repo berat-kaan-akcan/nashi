@@ -909,6 +909,22 @@
         <translation>1 ile 99 arasında bir yüzde girin.</translation>
     </message>
     <message>
+        <source>Add at least one split point.</source>
+        <translation>En az bir kesme noktası ekleyin.</translation>
+    </message>
+    <message>
+        <source>Keep at least one clip.</source>
+        <translation>En az bir parçayı koruyun.</translation>
+    </message>
+    <message>
+        <source>Enter a number of seconds greater than zero.</source>
+        <translation>Sıfırdan büyük bir saniye değeri girin.</translation>
+    </message>
+    <message>
+        <source>Add at least one frame.</source>
+        <translation>En az bir kare ekleyin.</translation>
+    </message>
+    <message>
         <source>Left</source>
         <translation>Sol</translation>
     </message>
@@ -923,6 +939,14 @@
     <message>
         <source>Height</source>
         <translation>Yükseklik</translation>
+    </message>
+    <message>
+        <source>Where to cut</source>
+        <translation>Nereden kesilecek</translation>
+    </message>
+    <message>
+        <source>Which frames</source>
+        <translation>Hangi kareler</translation>
     </message>
     <message>
         <source>Mute these parts</source>
@@ -951,6 +975,70 @@
     <message>
         <source>Remove range</source>
         <translation>Aralığı kaldır</translation>
+    </message>
+    <message>
+        <source>Cuts</source>
+        <translation>Kesimler</translation>
+    </message>
+    <message>
+        <source>Cut at playhead (M)</source>
+        <translation>Oynatma konumundan kes (M)</translation>
+    </message>
+    <message>
+        <source>Equal clips</source>
+        <translation>Eşit parça</translation>
+    </message>
+    <message>
+        <source>Set</source>
+        <translation>Uygula</translation>
+    </message>
+    <message>
+        <source>Remove cut at %1</source>
+        <translation>%1 konumundaki kesimi kaldır</translation>
+    </message>
+    <message>
+        <source>Clips to keep</source>
+        <translation>Korunacak parçalar</translation>
+    </message>
+    <message>
+        <source>Clip %1 · %2</source>
+        <translation>Parça %1 · %2</translation>
+    </message>
+    <message>
+        <source>Export the kept clips as one video</source>
+        <translation>Korunan parçaları tek video olarak kaydet</translation>
+    </message>
+    <message>
+        <source>Frames</source>
+        <translation>Kareler</translation>
+    </message>
+    <message>
+        <source>Chosen frames</source>
+        <translation>Seçili kareler</translation>
+    </message>
+    <message>
+        <source>At regular intervals</source>
+        <translation>Düzenli aralıklarla</translation>
+    </message>
+    <message>
+        <source>Add frame at playhead (M)</source>
+        <translation>Oynatma konumundaki kareyi ekle (M)</translation>
+    </message>
+    <message>
+        <source>Remove frame at %1</source>
+        <translation>%1 konumundaki kareyi kaldır</translation>
+    </message>
+    <message>
+        <source>Every</source>
+        <translation>Her</translation>
+    </message>
+    <message>
+        <source>Seconds between frames</source>
+        <translation>Kareler arası saniye</translation>
+    </message>
+    <message>
+        <source>seconds</source>
+        <translation>saniyede bir</translation>
     </message>
     <message>
         <source>Compression</source>
@@ -1698,6 +1786,14 @@
         <translation>Oynat</translation>
     </message>
     <message>
+        <source>Previous frame</source>
+        <translation>Önceki kare</translation>
+    </message>
+    <message>
+        <source>Next frame</source>
+        <translation>Sonraki kare</translation>
+    </message>
+    <message>
         <source>Set In (I)</source>
         <translation>Başlangıç (I)</translation>
     </message>
@@ -1712,6 +1808,10 @@
     <message>
         <source>Selected: %1</source>
         <translation>Seçili: %1</translation>
+    </message>
+    <message>
+        <source>Space play/pause · ←/→ step 0.5s (Shift 0.1s) · M mark the playhead</source>
+        <translation>Boşluk oynat/duraklat · ←/→ 0,5 sn atla (Shift 0,1 sn) · M oynatma konumunu işaretle</translation>
     </message>
     <message>
         <source>Space play/pause · ←/→ step 0.5s (Shift 0.1s) · I set start · O set end</source>

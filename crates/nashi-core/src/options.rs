@@ -73,6 +73,16 @@ impl Default for Border {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct Options {
+    /// `splitVideo`: cut at these times, in seconds, in any order.
+    pub split_points: Option<Vec<f64>>,
+    /// `splitVideo`: cut into this many equal clips (2..=10000).
+    pub equal_clips: Option<u32>,
+    /// `splitVideo`: zero-based clips to leave out.
+    pub discard_clips: Option<Vec<usize>>,
+    /// `splitVideo`: export the kept clips as one video.
+    pub join_clips: Option<bool>,
+    /// `videoSnapshots`: save the frames at these times, in seconds.
+    pub snapshot_times: Option<Vec<f64>>,
     /// `compress`: the largest size the output may have.
     pub target_bytes: Option<u64>,
     /// `compress`: reduce by this percentage of the input (0 < p < 100).
