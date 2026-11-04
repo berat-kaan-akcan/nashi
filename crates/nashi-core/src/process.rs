@@ -54,7 +54,11 @@ pub struct Cmd {
     envs: Vec<(OsString, OsString)>,
     cwd: Option<PathBuf>,
     file_limit: Option<u64>,
+    watch: Option<Watch>,
 }
+
+/// Called while a process runs; an error stops the process and is returned.
+type Watch = Box<dyn FnMut() -> Option<JobError>>;
 
 /// Finished process.
 pub struct RunOut {
@@ -72,6 +76,7 @@ impl Cmd {
             envs: Vec::new(),
             cwd: None,
             file_limit: None,
+            watch: None,
         }
     }
 
@@ -114,6 +119,12 @@ impl Cmd {
         self
     }
 
+    /// Check something on every tick while the process runs.
+    pub fn watch(mut self, check: impl FnMut() -> Option<JobError> + 'static) -> Cmd {
+        self.watch = Some(Box::new(check));
+        self
+    }
+
     pub fn stdout_to(mut self, f: File) -> Cmd {
         self.stdout_file = Some(f);
         self
@@ -132,7 +143,7 @@ impl Cmd {
     /// Like [`Cmd::run_lines`], also calling `on_stderr` for each `\n`- or
     /// `\r`-terminated stderr chunk (e.g. `curl -#` progress updates).
     pub fn run_lines_with_stderr(
-        self,
+        mut self,
         on_line: &mut dyn FnMut(&str),
         on_stderr: &mut dyn FnMut(&str),
     ) -> JobResult<RunOut> {
@@ -143,6 +154,7 @@ impl Cmd {
 
         check_cancel()?;
         let name = self.name();
+        let mut watch = self.watch.take();
         let mut c = Command::new(&self.prog);
         c.args(&self.args)
             .stdin(Stdio::null())
@@ -267,6 +279,10 @@ impl Cmd {
             if is_cancelled() {
                 kill_group(pid, &mut child);
                 return Err(JobError::cancelled());
+            }
+            if let Some(error) = watch.as_mut().and_then(|check| check()) {
+                kill_group(pid, &mut child);
+                return Err(error);
             }
             match child.try_wait() {
                 Ok(Some(st)) => break st,

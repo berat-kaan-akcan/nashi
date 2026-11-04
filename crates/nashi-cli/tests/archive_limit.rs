@@ -116,3 +116,30 @@ fn an_archive_inside_the_limit_is_extracted() {
     r.ok();
     assert!(r.one().join("payload/part0.bin").exists());
 }
+
+#[test]
+fn repacking_stores_links_instead_of_multiplying_their_target() {
+    need!("7z", "tar");
+    let d = tempfile::tempdir().unwrap();
+    let folder = zeros(d.path(), 1);
+    for i in 0..3 {
+        std::os::unix::fs::symlink("part0.bin", folder.join(format!("link{i}.bin"))).unwrap();
+    }
+    let archive = d.path().join("links.tar");
+    tool("tar", &["-cf", s(&archive), "-C", s(d.path()), "payload"]);
+    // bsdtar already stores links, so force the 7z path.
+    let r = run_env(
+        &["convert", "zip", s(&archive), "--json"],
+        &[("NASHI_DISABLE_TOOLS", "bsdtar")],
+    );
+    r.ok();
+    let listing = std::process::Command::new("7z")
+        .args(["l", "-slt", s(&r.one())])
+        .output()
+        .unwrap();
+    let total: u64 = String::from_utf8_lossy(&listing.stdout)
+        .lines()
+        .filter_map(|l| l.strip_prefix("Size = ")?.trim().parse::<u64>().ok())
+        .sum();
+    assert!(total < 100_000, "links were followed: {total} bytes");
+}

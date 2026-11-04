@@ -75,7 +75,7 @@ fn listed_size(ctx: &Ctx, archive: &Path) -> Option<u64> {
             out.stdout
                 .lines()
                 .filter_map(|l| l.strip_prefix("Size = ")?.trim().parse::<u64>().ok())
-                .sum(),
+                .fold(0, u64::saturating_add),
         );
     }
     let b = d.path("bsdtar")?;
@@ -84,14 +84,32 @@ fn listed_size(ctx: &Ctx, archive: &Path) -> Option<u64> {
         out.stdout
             .lines()
             .filter_map(|l| l.split_whitespace().nth(4)?.parse::<u64>().ok())
-            .sum(),
+            .fold(0, u64::saturating_add),
     )
+}
+
+/// Stop `cmd` once the files below `dest` pass `limit`. Each file is capped too, but
+/// an archive can hold any number of them behind a listing that understates its size.
+fn watched(cmd: Cmd, dest: &Path, limit: u64) -> Cmd {
+    let dest = dest.to_path_buf();
+    let mut last_check = std::time::Instant::now();
+    cmd.file_limit(limit.saturating_add(1)).watch(move || {
+        // Walking a large tree on every tick would slow the extraction down.
+        if last_check.elapsed() < std::time::Duration::from_millis(250) {
+            return None;
+        }
+        last_check = std::time::Instant::now();
+        tree_size(&dest)
+            .ok()
+            .filter(|size| *size > limit)
+            .map(|_| too_large())
+    })
 }
 
 /// Bytes in the regular files below `root`. Hard links count in full, because
 /// anything that reads or repacks them gets a full copy each.
 fn tree_size(root: &Path) -> std::io::Result<u64> {
-    let mut total = 0;
+    let mut total = 0u64;
     let mut stack = vec![root.to_path_buf()];
     while let Some(dir) = stack.pop() {
         for entry in std::fs::read_dir(&dir)? {
@@ -100,7 +118,7 @@ fn tree_size(root: &Path) -> std::io::Result<u64> {
             if meta.is_dir() {
                 stack.push(path);
             } else if meta.is_file() {
-                total += meta.len();
+                total = total.saturating_add(meta.len());
             }
         }
     }
@@ -162,9 +180,6 @@ pub fn extract_into(
     links: Links,
 ) -> JobResult<()> {
     let limit = expansion_limit();
-    if ext != "gz" && listed_size(ctx, archive).is_some_and(|size| size > limit) {
-        return Err(too_large());
-    }
     let result = extract_raw(ctx, archive, ext, dest);
     // Past the limit the tools fail on the file they are writing, so check this first.
     if tree_size(dest)? > limit {
@@ -196,12 +211,18 @@ fn extract_raw(ctx: &Ctx, archive: &Path, ext: &str, dest: &Path) -> JobResult<(
         std::fs::rename(&inner, dest.join(name))?;
         return Ok(());
     }
+    // After the gz step, so the tar inside a .tar.gz is listed as well.
+    if listed_size(ctx, archive).is_some_and(|size| size > limit) {
+        return Err(too_large());
+    }
     if let Some(z) = d.path("7z") {
-        let out = Cmd::new(z)
+        // 7z goes by the content, so what was found to be a tar stays one.
+        let format: &[&str] = if ext == "tar" { &["-ttar"] } else { &[] };
+        let out = watched(Cmd::new(z), dest, limit)
             .args(["x", "-y", "-bso0", "-bsp0"])
+            .args(format)
             .arg_cat("-o", dest)
             .arg(archive)
-            .file_limit(limit + 1)
             .run()?;
         // Exit 2 only because 7z refused unsafe links: that is what we want.
         let only_unsafe_links = out.status.code() == Some(2) && {
@@ -212,28 +233,25 @@ fn extract_raw(ctx: &Ctx, archive: &Path, ext: &str, dest: &Path) -> JobResult<(
             return Err(crate::process::failure("7z", &out));
         }
     } else if let Some(b) = d.path("bsdtar") {
-        Cmd::new(b)
+        watched(Cmd::new(b), dest, limit)
             .arg("-xf")
             .arg(archive)
             .arg("-C")
             .arg(dest)
-            .file_limit(limit + 1)
             .run_ok()?;
     } else if let (Some(t), "tar") = (d.path("tar"), ext) {
-        Cmd::new(t)
+        watched(Cmd::new(t), dest, limit)
             .arg("-xf")
             .arg(archive)
             .arg("-C")
             .arg(dest)
-            .file_limit(limit + 1)
             .run_ok()?;
     } else if let (Some(u), "zip") = (d.path("unzip"), ext) {
-        Cmd::new(u)
+        watched(Cmd::new(u), dest, limit)
             .args(["-q", "-o"])
             .arg(archive)
             .arg("-d")
             .arg(dest)
-            .file_limit(limit + 1)
             .run_ok()?;
     } else {
         return Err(missing_extractor());
@@ -277,7 +295,8 @@ fn pack(ctx: &Ctx, src_dir: &Path, kind: &str, out: &Path) -> JobResult<()> {
     } else if let Some(z) = d.path("7z") {
         let seven = |t: &str, archive: &Path, items: &[String], cwd: &Path| {
             Cmd::new(z)
-                .args(["a", "-y", "-bso0", "-bsp0", &format!("-t{t}")])
+                // -snl stores links: following them would copy the target once per link.
+                .args(["a", "-y", "-bso0", "-bsp0", "-snl", &format!("-t{t}")])
                 .arg(archive)
                 .args(items)
                 .cwd(cwd)
@@ -342,4 +361,40 @@ pub fn extract_tool(ctx: &Ctx, input: &Input) -> JobResult<PathBuf> {
         return Err(JobError::invalid_input("the archive is empty"));
     }
     Ok(staged.commit()?)
+}
+
+#[cfg(test)]
+mod limit_tests {
+    use super::*;
+
+    #[test]
+    fn a_running_extractor_is_stopped_at_the_limit() {
+        let dir = tempfile::tempdir().unwrap();
+        // Writes for as long as it is allowed to, as an archive with a false listing would.
+        let script =
+            r#"i=0; while :; do head -c 50000 /dev/zero > "$0/f$i"; i=$((i+1)); sleep 0.02; done"#;
+        let started = std::time::Instant::now();
+        let result = watched(Cmd::new(Path::new("/bin/sh")), dir.path(), 200_000)
+            .args(["-c", script])
+            .arg(dir.path())
+            .run();
+        let error = result.err().expect("the extractor must be stopped");
+        assert_eq!(error.message, too_large().message);
+        assert!(
+            started.elapsed().as_secs() < 20,
+            "took {:?}",
+            started.elapsed()
+        );
+    }
+
+    #[test]
+    fn an_extractor_inside_the_limit_is_left_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        let out = watched(Cmd::new(Path::new("/bin/sh")), dir.path(), 200_000)
+            .args(["-c", r#"head -c 50000 /dev/zero > "$0/f""#])
+            .arg(dir.path())
+            .run()
+            .unwrap();
+        assert!(out.status.success());
+    }
 }
