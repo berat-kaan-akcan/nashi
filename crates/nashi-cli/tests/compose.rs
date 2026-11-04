@@ -323,3 +323,24 @@ fn bad_collages_are_refused() {
         assert_eq!(r.error_codes(), ["invalid_options"], "{options}");
     }
 }
+
+#[test]
+fn a_third_colour_passes_through_the_middle_of_the_gradient() {
+    need!("magick");
+    let d = tempfile::tempdir().unwrap();
+    let p = solid(d.path(), "white.png", "white", 10, 10);
+    let out = framed(
+        &p,
+        r##"{"padding":100,"backdrop":"gradient","color":"#ff0000","color2":"#00ff00","color3":"#0000ff","angle":90}"##,
+    );
+    let (left, top_mid, right) = (at(&out, 1, 105), at(&out, 105, 2), at(&out, 208, 105));
+    assert!(left.0 > 0.9 && left.1 < 0.1, "{left:?}");
+    assert!(top_mid.1 > 0.9 && top_mid.0 < 0.1, "{top_mid:?}");
+    assert!(right.2 > 0.9 && right.1 < 0.1, "{right:?}");
+    let bad = tool_run(
+        "frameImage",
+        &[&p],
+        Some(r##"{"frame":{"backdrop":"gradient","color3":"#zz"}}"##),
+    );
+    assert_eq!(bad.error_codes(), ["invalid_options"]);
+}

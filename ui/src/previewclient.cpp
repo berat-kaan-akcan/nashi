@@ -6,6 +6,7 @@
 #include <QFileInfo>
 #include <QFont>
 #include <QImage>
+#include <QImageReader>
 #include <QJSValue>
 #include <QJsonArray>
 #include <QJsonObject>
@@ -185,6 +186,25 @@ QString PreviewClient::newAnnotationPath()
 
 namespace {
 // White on dark colours and dark on light ones, matching the editor's canvas.
+// The largest box of `size` that fits in `box`, centred.
+QRectF fitted(const QSizeF &size, const QRectF &box)
+{
+    if (size.isEmpty())
+        return box;
+    const double scale = std::min(box.width() / size.width(), box.height() / size.height());
+    const QSizeF drawn = size * scale;
+    return QRectF(box.center().x() - drawn.width() / 2, box.center().y() - drawn.height() / 2, drawn.width(), drawn.height());
+}
+
+// A picture from a path, oriented like the editor shows it. Null when it can't be read.
+QImage readPicture(const QString &path)
+{
+    QImageReader reader(path);
+    reader.setAutoTransform(true);
+    reader.setAllocationLimit(1024);
+    return reader.read();
+}
+
 QColor inkOn(const QColor &color)
 {
     const double light = 0.299 * color.redF() + 0.587 * color.greenF() + 0.114 * color.blueF();
@@ -222,6 +242,26 @@ QString PreviewClient::renderAnnotationOverlay(int width, int height, const QVar
 
         const double lineW = std::max(1.5, it.value(QStringLiteral("size"), 4.0).toDouble());
         QPen pen(color, lineW, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+
+        const QRectF box(QPointF(it.value(QStringLiteral("x1")).toDouble(), it.value(QStringLiteral("y1")).toDouble()),
+                         QPointF(it.value(QStringLiteral("x2")).toDouble(), it.value(QStringLiteral("y2")).toDouble()));
+        // Filled shapes share the item's opacity.
+        QColor fill(it.value(QStringLiteral("fill")).toString());
+        if (fill.isValid())
+            fill.setAlphaF(color.alphaF());
+        const QBrush shapeBrush = fill.isValid() ? QBrush(fill) : QBrush(Qt::NoBrush);
+        // Empty keeps the application font.
+        const auto textFont = [&it](int pixels) {
+            QFont font;
+            const QString family = it.value(QStringLiteral("font")).toString();
+            if (!family.isEmpty())
+                font.setFamily(family);
+            font.setPixelSize(pixels);
+            font.setBold(true);
+            return font;
+        };
+        QColor ink = inkOn(color);
+        ink.setAlphaF(color.alphaF());
 
         p.save();
         if (kind == QLatin1String("pen") || kind == QLatin1String("highlighter")) {
@@ -278,32 +318,51 @@ QString PreviewClient::renderAnnotationOverlay(int width, int height, const QVar
             p.setBrush(color);
             p.drawPolygon(head);
         } else if (kind == QLatin1String("rect")) {
-            const double x1 = it.value(QStringLiteral("x1")).toDouble();
-            const double y1 = it.value(QStringLiteral("y1")).toDouble();
-            const double x2 = it.value(QStringLiteral("x2")).toDouble();
-            const double y2 = it.value(QStringLiteral("y2")).toDouble();
             p.setPen(pen);
-            p.setBrush(Qt::NoBrush);
-            p.drawRect(QRectF(std::min(x1, x2), std::min(y1, y2), std::abs(x2 - x1), std::abs(y2 - y1)));
+            p.setBrush(shapeBrush);
+            p.drawRect(box.normalized());
         } else if (kind == QLatin1String("ellipse")) {
-            const double x1 = it.value(QStringLiteral("x1")).toDouble();
-            const double y1 = it.value(QStringLiteral("y1")).toDouble();
-            const double x2 = it.value(QStringLiteral("x2")).toDouble();
-            const double y2 = it.value(QStringLiteral("y2")).toDouble();
             p.setPen(pen);
-            p.setBrush(Qt::NoBrush);
-            p.drawEllipse(QRectF(std::min(x1, x2), std::min(y1, y2), std::abs(x2 - x1), std::abs(y2 - y1)));
+            p.setBrush(shapeBrush);
+            p.drawEllipse(box.normalized());
+        } else if (kind == QLatin1String("image")) {
+            const QImage stamp = readPicture(it.value(QStringLiteral("path")).toString());
+            if (!stamp.isNull()) {
+                p.setOpacity(color.alphaF());
+                p.setRenderHint(QPainter::SmoothPixmapTransform, true);
+                p.drawImage(fitted(stamp.size(), box.normalized()), stamp);
+            }
+        } else if (kind == QLatin1String("magnifier")) {
+            const QImage picture = readPicture(it.value(QStringLiteral("path")).toString());
+            const double zoom = std::clamp(it.value(QStringLiteral("zoom"), 2.0).toDouble(), 1.0, 10.0);
+            const QRectF lens = box.normalized();
+            if (!picture.isNull() && !lens.isEmpty()) {
+                // Item coordinates are in canvas pixels; the picture has its own size.
+                const double sx = double(picture.width()) / w;
+                const double sy = double(picture.height()) / h;
+                const QSizeF seen = lens.size() / zoom;
+                const QRectF source((lens.center().x() - seen.width() / 2) * sx, (lens.center().y() - seen.height() / 2) * sy,
+                                    seen.width() * sx, seen.height() * sy);
+                QPainterPath circle;
+                circle.addEllipse(lens);
+                p.save();
+                p.setClipPath(circle);
+                p.setOpacity(color.alphaF());
+                p.setRenderHint(QPainter::SmoothPixmapTransform, true);
+                p.drawImage(lens, picture, source);
+                p.restore();
+                p.setPen(pen);
+                p.setBrush(Qt::NoBrush);
+                p.drawPath(circle);
+            }
         } else if (kind == QLatin1String("number")) {
             const double size = std::max(8.0, it.value(QStringLiteral("size"), 40.0).toDouble());
             const QPointF center(it.value(QStringLiteral("x")).toDouble(), it.value(QStringLiteral("y")).toDouble());
             p.setPen(Qt::NoPen);
             p.setBrush(color);
             p.drawEllipse(center, size / 2, size / 2);
-            QFont font;
-            font.setPixelSize(std::max(6, int(std::round(size * 0.55))));
-            font.setBold(true);
-            p.setFont(font);
-            p.setPen(inkOn(color));
+            p.setFont(textFont(std::max(6, int(std::round(size * 0.55)))));
+            p.setPen(ink);
             p.drawText(QRectF(center.x() - size / 2, center.y() - size / 2, size, size), Qt::AlignCenter,
                        it.value(QStringLiteral("number")).toString());
         } else if (kind == QLatin1String("callout")) {
@@ -314,28 +373,24 @@ QString PreviewClient::renderAnnotationOverlay(int width, int height, const QVar
                 const double y = it.value(QStringLiteral("y")).toDouble();
                 const double tail = fontPx * 0.7;
                 const double pad = fontPx * 0.5;
-                QFont font;
-                font.setPixelSize(fontPx);
-                font.setBold(true);
+                const QFont font = textFont(fontPx);
                 const QFontMetricsF fm(font);
-                const QRectF box(x, y - tail - fontPx - pad * 2, fm.horizontalAdvance(text) + pad * 2, fontPx + pad * 2);
+                const QRectF balloon(x, y - tail - fontPx - pad * 2, fm.horizontalAdvance(text) + pad * 2, fontPx + pad * 2);
                 QPolygonF pointer;
                 pointer << QPointF(x, y) << QPointF(x + fontPx * 0.4, y - tail) << QPointF(x + fontPx, y - tail);
                 p.setPen(Qt::NoPen);
                 p.setBrush(color);
                 p.drawPolygon(pointer);
-                p.drawRoundedRect(box, pad, pad);
+                p.drawRoundedRect(balloon, pad, pad);
                 p.setFont(font);
-                p.setPen(inkOn(color));
-                p.drawText(box, Qt::AlignCenter, text);
+                p.setPen(ink);
+                p.drawText(balloon, Qt::AlignCenter, text);
             }
         } else if (kind == QLatin1String("text")) {
             const QString text = it.value(QStringLiteral("text")).toString();
             if (!text.isEmpty()) {
                 const int fontPx = std::max(14, int(std::round(it.value(QStringLiteral("size"), 24.0).toDouble())));
-                QFont font;
-                font.setPixelSize(fontPx);
-                font.setBold(true);
+                const QFont font = textFont(fontPx);
                 const QFontMetricsF fm(font);
                 const double tx = it.value(QStringLiteral("x")).toDouble();
                 const double ty = it.value(QStringLiteral("y")).toDouble() + (fm.ascent() - fm.descent()) * 0.5;

@@ -85,6 +85,8 @@ pub struct Frame {
     pub backdrop: Option<String>,
     pub color: Option<String>,
     pub color2: Option<String>,
+    /// Optional end colour: the gradient then passes through `color2` halfway.
+    pub color3: Option<String>,
     /// Gradient direction in degrees.
     pub angle: Option<f64>,
     pub background_image: Option<std::path::PathBuf>,
@@ -149,6 +151,30 @@ pub struct Adjust {
     pub blur: Option<f64>,
     /// 0..=100.
     pub grain: Option<f64>,
+    /// -100..=100, green to magenta.
+    pub tint: Option<f64>,
+    /// -100..=100; acts mostly on muted colours.
+    pub vibrance: Option<f64>,
+    /// -100..=100.
+    pub highlights: Option<f64>,
+    /// -100..=100.
+    pub shadows: Option<f64>,
+    /// -100..=100.
+    pub whites: Option<f64>,
+    /// -100..=100.
+    pub blacks: Option<f64>,
+    /// 0..=100; lifts the blacks and lowers the whites.
+    pub fade: Option<f64>,
+    /// -100..=100; broad local contrast.
+    pub clarity: Option<f64>,
+    /// -100..=100; fine detail.
+    pub texture: Option<f64>,
+    /// -100..=100.
+    pub dehaze: Option<f64>,
+    /// 0..=100.
+    pub noise_reduction: Option<f64>,
+    /// -100..=100; positive darkens the edges, negative lightens them.
+    pub vignette: Option<f64>,
     /// `grayscale` or `sepia`.
     pub filter: Option<String>,
 }

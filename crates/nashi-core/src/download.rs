@@ -548,7 +548,7 @@ fn download_curl(
             "--max-redirs",
             "10",
             "--max-filesize",
-            "2147483648",
+            "21474836480",
             "-#",
             "-w",
             "%{content_type}\n",
@@ -611,7 +611,7 @@ fn download_ytdlp(
             "--color",
             "never",
             "--max-filesize",
-            "2G",
+            "20G",
             "-P",
         ])
         .arg(work.path())

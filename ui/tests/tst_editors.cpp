@@ -623,6 +623,9 @@ private Q_SLOTS:
         QCOMPARE(w->property("result").typeId(), QMetaType::QString);
         QMetaObject::invokeMethod(w, "setAdjustment", Q_ARG(QVariant, QStringLiteral("gamma")), Q_ARG(QVariant, 1.0));
         QCOMPARE(w->property("result").typeId(), QMetaType::QString);
+        QMetaObject::invokeMethod(w, "setAdjustment", Q_ARG(QVariant, QStringLiteral("noise_reduction")), Q_ARG(QVariant, 30));
+        QCOMPARE(adjust().value(QStringLiteral("noise_reduction")).toInt(), 30);
+        QMetaObject::invokeMethod(w, "setAdjustment", Q_ARG(QVariant, QStringLiteral("noise_reduction")), Q_ARG(QVariant, 0));
 
         w->setProperty("adjustFilter", QStringLiteral("sepia"));
         QCOMPARE(adjust().value(QStringLiteral("filter")).toString(), QStringLiteral("sepia"));
@@ -659,6 +662,22 @@ private Q_SLOTS:
         w->setProperty("frameColor2", QStringLiteral("nope"));
         QCOMPARE(w->property("result").typeId(), QMetaType::QString);
         w->setProperty("frameColor2", QStringLiteral("#000000"));
+        QVERIFY(!frame().contains(QStringLiteral("color3")));
+        w->setProperty("frameColor3", QStringLiteral("nope"));
+        QCOMPARE(w->property("result").typeId(), QMetaType::QString);
+        w->setProperty("frameColor3", QStringLiteral("#123456"));
+        QCOMPARE(frame().value(QStringLiteral("color3")).toString(), QStringLiteral("#123456"));
+        w->setProperty("frameColor3", QString());
+
+        QVERIFY(!frame().contains(QStringLiteral("image_scale")));
+        QVERIFY(!frame().contains(QStringLiteral("position")));
+        w->setProperty("frameScale", 50);
+        w->setProperty("framePositionX", 0);
+        QCOMPARE(frame().value(QStringLiteral("image_scale")).toDouble(), 0.5);
+        QCOMPARE(frame().value(QStringLiteral("position")).toMap().value(QStringLiteral("x")).toDouble(), 0.0);
+        QCOMPARE(frame().value(QStringLiteral("position")).toMap().value(QStringLiteral("y")).toDouble(), 0.5);
+        w->setProperty("frameScale", 100);
+        w->setProperty("framePositionX", 50);
 
         w->setProperty("frameBackdrop", QStringLiteral("image"));
         QCOMPARE(w->property("result").typeId(), QMetaType::QString); // no picture chosen
@@ -796,6 +815,68 @@ private Q_SLOTS:
         QCOMPARE(count(), 3);
         invoke("undo");
         QCOMPARE(count(), 4);
+
+        // What gets drawn next carries the chosen settings.
+        const auto dragged = [annotate] {
+            QVariant result;
+            QMetaObject::invokeMethod(annotate, "dragItem", Q_RETURN_ARG(QVariant, result), Q_ARG(QVariant, 10), Q_ARG(QVariant, 20));
+            return (result.userType() == qMetaTypeId<QJSValue>() ? result.value<QJSValue>().toVariant() : result).toMap();
+        };
+        annotate->setProperty("currentTool", QStringLiteral("rect"));
+        annotate->setProperty("opacityPercent", 50);
+        QCOMPARE(dragged().value(QStringLiteral("alpha")).toDouble(), 0.5);
+        QVERIFY(!dragged().contains(QStringLiteral("fill")));
+        annotate->setProperty("fillShapes", true);
+        QCOMPARE(dragged().value(QStringLiteral("fill")).toString(), annotate->property("currentColor").toString());
+        annotate->setProperty("currentTool", QStringLiteral("magnifier"));
+        annotate->setProperty("magnifierZoom", 3);
+        annotate->setProperty("resolvedImageUrl", QStringLiteral("file:///tmp/a%20b/%C3%A7.png"));
+        QVERIFY(!dragged().contains(QStringLiteral("fill")));
+        QCOMPARE(dragged().value(QStringLiteral("zoom")).toInt(), 3);
+        QCOMPARE(dragged().value(QStringLiteral("path")).toString(), QStringLiteral("/tmp/a b/ç.png"));
+        annotate->setProperty("resolvedImageUrl", QString());
+        annotate->setProperty("currentTool", QStringLiteral("pen"));
+        annotate->setProperty("opacityPercent", 100);
+        annotate->setProperty("fillShapes", false);
+
+        // Fill, opacity, a chosen picture and the magnifier reach the exported picture.
+        QTemporaryDir stampDir;
+        QImage half(40, 40, QImage::Format_RGB32);
+        half.fill(Qt::red);
+        half.setPixelColor(20, 20, Qt::red);
+        for (int y = 0; y < 40; ++y)
+            for (int x = 20; x < 40; ++x)
+                half.setPixelColor(x, y, Qt::blue);
+        const QString stampFile = stampDir.filePath(QStringLiteral("stamp.png"));
+        QVERIFY(half.save(stampFile));
+        const QVariantMap shape{{QStringLiteral("x1"), 0}, {QStringLiteral("y1"), 0}, {QStringLiteral("x2"), 80}, {QStringLiteral("y2"), 80},
+                                {QStringLiteral("size"), 2}, {QStringLiteral("color"), QStringLiteral("#00ff00")}};
+        const auto with = [](QVariantMap base, const QVariantMap &extra, int shift) {
+            base.insert(extra);
+            base[QStringLiteral("x1")] = base[QStringLiteral("x1")].toInt() + shift;
+            base[QStringLiteral("x2")] = base[QStringLiteral("x2")].toInt() + shift;
+            return base;
+        };
+        QImage extras(app->preview()->renderAnnotationOverlay(
+            640, 360,
+            {with(shape, {{QStringLiteral("kind"), QStringLiteral("rect")}, {QStringLiteral("fill"), QStringLiteral("#00ff00")}}, 0),
+             with(shape, {{QStringLiteral("kind"), QStringLiteral("rect")}}, 100),
+             with(shape, {{QStringLiteral("kind"), QStringLiteral("rect")}, {QStringLiteral("fill"), QStringLiteral("#00ff00")}, {QStringLiteral("alpha"), 0.5}}, 200),
+             with(shape, {{QStringLiteral("kind"), QStringLiteral("image")}, {QStringLiteral("path"), stampFile}}, 300),
+             with(shape, {{QStringLiteral("kind"), QStringLiteral("magnifier")}, {QStringLiteral("path"), stampFile}, {QStringLiteral("zoom"), 2}}, 400)}));
+        QVERIFY(!extras.isNull());
+        QCOMPARE(extras.pixelColor(40, 40).alpha(), 255);
+        QCOMPARE(extras.pixelColor(140, 40).alpha(), 0);
+        QVERIFY(qAbs(extras.pixelColor(240, 40).alpha() - 128) < 3);
+        QCOMPARE(extras.pixelColor(310, 40).red(), 255);
+        QCOMPARE(extras.pixelColor(370, 40).blue(), 255);
+        // Outside the circle nothing is drawn; inside it the picture is sampled, not the box.
+        QCOMPARE(extras.pixelColor(402, 2).alpha(), 0);
+        QCOMPARE(extras.pixelColor(440, 40).alpha(), 255);
+        QImage missing(app->preview()->renderAnnotationOverlay(
+            640, 360, {with(shape, {{QStringLiteral("kind"), QStringLiteral("image")}, {QStringLiteral("path"), stampDir.filePath(QStringLiteral("gone.png"))}}, 0)}));
+        QVERIFY(!missing.isNull());
+        QCOMPARE(missing.pixelColor(40, 40).alpha(), 0);
 
         // Both new kinds reach the exported picture.
         QImage overlay(app->preview()->renderAnnotationOverlay(

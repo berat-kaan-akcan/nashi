@@ -382,6 +382,27 @@ pub fn adjust_ops(a: &crate::options::Adjust) -> JobResult<Vec<String>> {
             format!("{}x{}", brightness.unwrap_or(0.0), contrast.unwrap_or(0.0)),
         ]);
     }
+    let tone = |value, name| checked(value, name, -100.0, 100.0, 0.0);
+    let (highlights, shadows) = (
+        tone(a.highlights, "highlights")?,
+        tone(a.shadows, "shadows")?,
+    );
+    let (whites, blacks) = (tone(a.whites, "whites")?, tone(a.blacks, "blacks")?);
+    if highlights.is_some() || shadows.is_some() || whites.is_some() || blacks.is_some() {
+        // y = x + b(1-x)^4 + w x^4 + s x(1-x)^3 + h x^3(1-x), expanded. A polynomial
+        // keeps every frame of an animation and runs far faster than -fx.
+        let share = |v: Option<f64>, k: f64| v.unwrap_or(0.0) / 100.0 * k;
+        let (b, w) = (share(blacks, 0.25), share(whites, 0.25));
+        let (s, h) = (share(shadows, 2.0), share(highlights, 2.0));
+        let terms = [
+            b + w - s - h,
+            -4.0 * b + 3.0 * s + h,
+            6.0 * b - 3.0 * s,
+            1.0 - 4.0 * b + s,
+            b,
+        ];
+        push(&polynomial(&terms));
+    }
     if let Some(g) = checked(a.gamma, "gamma", 0.1, 5.0, 1.0)? {
         push(&["-gamma".into(), g.to_string()]);
     }
@@ -397,11 +418,38 @@ pub fn adjust_ops(a: &crate::options::Adjust) -> JobResult<Vec<String>> {
             ),
         ]);
     }
+    if let Some(amount) = tone(a.dehaze, "dehaze")? {
+        let d = amount / 100.0;
+        let gain = 1.0 + 0.65 * d;
+        push(&polynomial(&[gain, 0.5 - 0.5 * gain - 0.045 * d]));
+        push(&["-modulate".into(), format!("100,{},100", 100.0 + 12.0 * d)]);
+    }
+    if let Some(amount) = checked(a.noise_reduction, "noise_reduction", 0.0, 100.0, 0.0)? {
+        push(&selective_blur(amount / 50.0));
+    }
+    if let Some(amount) = tone(a.clarity, "clarity")? {
+        if amount > 0.0 {
+            push(&unsharp(4.0, amount / 100.0 * 1.5));
+        } else {
+            push(&["-blur".into(), format!("0x{}", -amount / 100.0 * 3.0)]);
+        }
+    }
+    if let Some(amount) = tone(a.texture, "texture")? {
+        if amount > 0.0 {
+            push(&unsharp(1.5, amount / 100.0 * 2.0));
+        } else {
+            push(&selective_blur(-amount / 50.0));
+        }
+    }
     if let Some(amount) = checked(a.sharpen, "sharpen", 0.0, 100.0, 0.0)? {
         push(&["-sharpen".into(), format!("0x{}", amount / 25.0)]);
     }
     if let Some(amount) = checked(a.blur, "blur", 0.0, 100.0, 0.0)? {
         push(&["-blur".into(), format!("0x{}", amount / 5.0)]);
+    }
+    if let Some(amount) = checked(a.fade, "fade", 0.0, 100.0, 0.0)? {
+        let f = amount / 100.0;
+        push(&polynomial(&[1.0 - 0.4 * f, 0.15 * f]));
     }
     if let Some(amount) = checked(a.grain, "grain", 0.0, 100.0, 0.0)? {
         push(&[
@@ -426,6 +474,9 @@ pub fn adjust_ops(a: &crate::options::Adjust) -> JobResult<Vec<String>> {
             )))
         }
     }
+    let vibrance = tone(a.vibrance, "vibrance")?;
+    let tint = tone(a.tint, "tint")?;
+    let vignette = tone(a.vignette, "vignette")?;
     let mut ops = Vec::new();
     if !colour.is_empty() {
         ops.extend(["-channel".to_string(), "RGB".to_string()]);
@@ -445,7 +496,83 @@ pub fn adjust_ops(a: &crate::options::Adjust) -> JobResult<Vec<String>> {
         }
         ops.push("+channel".to_string());
     }
+    if let Some(amount) = tint {
+        ops.extend(
+            ["-channel", "G", "-evaluate", "Multiply"]
+                .map(String::from)
+                .into_iter()
+                .chain([(1.0 - amount / 100.0 * 0.3).to_string(), "+channel".into()]),
+        );
+    }
+    if let Some(amount) = vibrance {
+        // Saturation s + v s(1-s): grays and pure colours stay, muted colours move most.
+        let v = amount / 100.0;
+        ops.extend(["-colorspace", "HSL", "-channel", "G"].map(String::from));
+        ops.extend(polynomial(&[-v, 1.0 + v, 0.0]));
+        ops.extend(["+channel", "-colorspace", "sRGB"].map(String::from));
+    }
+    if let Some(amount) = vignette {
+        // The mask is small and scaled up because -fx is slow on full-size pictures.
+        let strength = amount.abs() / 100.0 * 0.8;
+        let falloff = "(hypot(i/w-0.5,j/h-0.5)/0.7071)^2";
+        let (compose, mask) = if amount > 0.0 {
+            ("Multiply", format!("1-{strength}*{falloff}"))
+        } else {
+            ("Screen", format!("{strength}*{falloff}"))
+        };
+        // -layers composite applies the mask to every frame; -channel RGB keeps alpha.
+        ops.extend(
+            [
+                "-compose",
+                compose,
+                "null:",
+                "(",
+                "-clone",
+                "0",
+                "-set",
+                "option:nashi_wh",
+                "%wx%h",
+                "-alpha",
+                "off",
+                "-resize",
+                "64x64!",
+                "-fx",
+                &mask,
+                "-resize",
+                "%[nashi_wh]!",
+                ")",
+                "-channel",
+                "RGB",
+                "-layers",
+                "composite",
+                "+channel",
+                "+compose",
+            ]
+            .map(String::from),
+        );
+    }
     Ok(ops)
+}
+
+/// Tone curve; coefficients run from the highest power down to the constant.
+fn polynomial(terms: &[f64]) -> [String; 4] {
+    let list: Vec<String> = terms.iter().map(f64::to_string).collect();
+    [
+        "-function".into(),
+        "Polynomial".into(),
+        list.join(","),
+        // Without this a later step would see values past black or white.
+        "-clamp".into(),
+    ]
+}
+
+fn unsharp(sigma: f64, gain: f64) -> [String; 2] {
+    ["-unsharp".into(), format!("0x{sigma}+{gain}+0")]
+}
+
+/// Smooths noise and leaves edges alone. The radius is fixed to bound the run time.
+fn selective_blur(sigma: f64) -> [String; 2] {
+    ["-selective-blur".into(), format!("5x{sigma}+15%")]
 }
 
 /// `-resize` operations for the size options of `compress`.
@@ -984,9 +1111,21 @@ fn frame_image(ctx: &Ctx, input: &Input) -> JobResult<Produced> {
             if !angle.is_finite() {
                 return Err(JobError::invalid_options("angle must be a number"));
             }
-            cmd.args(["-size", &canvas])
-                .args(["-define", &format!("gradient:angle={angle}")])
-                .arg(format!("gradient:{color}-{second}"))
+            let cmd = cmd
+                .args(["-size", &canvas])
+                .args(["-define", &format!("gradient:angle={angle}")]);
+            match f.color3.as_deref() {
+                None => cmd.arg(format!("gradient:{color}-{second}")),
+                Some(third) => {
+                    let third = checked_color(Some(third), "#000000")?;
+                    // gradient: only takes two colours, so a gray ramp picks from a strip.
+                    cmd.args(["gradient:black-white", "+define", "gradient:angle"])
+                        .args(["(", "-size", "1x256"])
+                        .arg(format!("gradient:{color}-{second}"))
+                        .arg(format!("gradient:{second}-{third}"))
+                        .args(["-append", ")", "-clut"])
+                }
+            }
         }
         "image" => {
             let path = f.background_image.as_deref().ok_or_else(|| {

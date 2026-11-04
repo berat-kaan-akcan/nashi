@@ -2,11 +2,12 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs
 import QtQuick.Layouts
 import NashiApp
 
 // Vector annotation editor over an image: Pen, Highlighter, Line, Arrow, Number, Callout,
-// Rectangle, Ellipse, and Text. Renders only annotations onto a transparent
+// Rectangle, Ellipse, Text, Picture and Magnifier. Renders only annotations onto a transparent
 // full-resolution Canvas so exportOverlay() saves a clean alpha PNG.
 Item {
     id: root
@@ -19,7 +20,14 @@ Item {
     property string currentTool: "pen" // "pen"|"highlighter"|"line"|"arrow"|"rect"|"ellipse"|"text"
     property string currentColor: "#e03131"
     property string strokePreset: "medium" // "thin"|"medium"|"thick"
+    property int opacityPercent: 100
+    property bool fillShapes: false
+    property string fontFamily: "" // empty keeps the application font
+    property int magnifierZoom: 2
+    property string stampPath: ""
 
+    // Natural sizes of chosen pictures, keyed by path, to keep their shape on screen.
+    property var stampSizes: ({})
     property var items: []
     // Earlier and undone states of `items`. Whole states, because a move changes
     // an item in place rather than adding one.
@@ -82,6 +90,11 @@ Item {
         currentTool = "pen"
         currentColor = "#e03131"
         strokePreset = "medium"
+        opacityPercent = 100
+        fillShapes = false
+        fontFamily = ""
+        magnifierZoom = 2
+        stampPath = ""
         items = []
         undoStack = []
         redoStack = []
@@ -180,12 +193,41 @@ Item {
     }
 
     // Canvas coordinates, like the pointer.
+    // Local path of the picture on screen, for tools that take pixels from it.
+    function backgroundPath() {
+        return String(resolvedImageUrl).replace(/^file:\/\//, "").split("/").map(decodeURIComponent).join("/")
+    }
+
+    // A drag on the picture for the tool in use, with what that tool draws with.
+    function dragItem(x, y) {
+        const item = {
+            kind: currentTool,
+            color: currentColor,
+            size: activeStrokePx,
+            alpha: opacityPercent / 100,
+            x1: x,
+            y1: y,
+            x2: x,
+            y2: y
+        }
+        if (fillShapes && (currentTool === "rect" || currentTool === "ellipse"))
+            item.fill = currentColor
+        if (currentTool === "image")
+            item.path = stampPath
+        if (currentTool === "magnifier") {
+            item.path = backgroundPath()
+            item.zoom = magnifierZoom
+        }
+        return item
+    }
+
     function addNumberAt(x, y) {
         pushAction({
             kind: "number",
             color: currentColor,
             size: Math.max(24, Math.round(activeStrokePx * 5)),
-            alpha: 1.0,
+            alpha: opacityPercent / 100,
+            font: fontFamily,
             number: nextNumber(),
             x: Number(x),
             y: Number(y)
@@ -200,7 +242,8 @@ Item {
             kind: "callout",
             color: currentColor,
             size: Math.max(18, Math.round(activeStrokePx * 3.8)),
-            alpha: 1.0,
+            alpha: opacityPercent / 100,
+            font: fontFamily,
             x: Number(x),
             y: Number(y),
             text: t
@@ -368,6 +411,8 @@ Item {
                 kind: "text",
                 color: currentColor,
                 size: Math.max(18, Math.round(activeStrokePx * 3.8)),
+                alpha: opacityPercent / 100,
+                font: fontFamily,
                 x: tx,
                 y: ty,
                 text: t
@@ -381,6 +426,11 @@ Item {
     function inkOn(color) {
         const c = Qt.color(String(color))
         return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b > 0.6 ? "#1d2117" : "#ffffff"
+    }
+
+    function fontSpec(it, pixels) {
+        const family = String(it.font || "")
+        return "bold " + pixels + "px " + (family.length > 0 ? '"' + family + '"' : "sans-serif")
     }
 
     function paintSingleItem(ctx, it) {
@@ -442,6 +492,10 @@ Item {
             const ry = Math.min(it.y1, it.y2)
             const rw = Math.abs(it.x2 - it.x1)
             const rh = Math.abs(it.y2 - it.y1)
+            if (it.fill) {
+                ctx.fillStyle = it.fill
+                ctx.fillRect(rx, ry, rw, rh)
+            }
             ctx.strokeRect(rx, ry, rw, rh)
         } else if (kind === "ellipse") {
             const cx = (it.x1 + it.x2) / 2
@@ -454,6 +508,49 @@ Item {
             ctx.beginPath()
             ctx.arc(0, 0, 1, 0, Math.PI * 2)
             ctx.restore()
+            if (it.fill) {
+                ctx.fillStyle = it.fill
+                ctx.fill()
+            }
+            ctx.stroke()
+        } else if (kind === "image" && it.path) {
+            const url = fileUrl(it.path)
+            if (annotationCanvas.isImageLoaded(url)) {
+                const stamp = stampSizes[it.path]
+                const bx = Math.min(it.x1, it.x2)
+                const by = Math.min(it.y1, it.y2)
+                const bw = Math.abs(it.x2 - it.x1)
+                const bh = Math.abs(it.y2 - it.y1)
+                const scale = stamp ? Math.min(bw / stamp.width, bh / stamp.height) : 1
+                const dw = stamp ? stamp.width * scale : bw
+                const dh = stamp ? stamp.height * scale : bh
+                ctx.drawImage(url, bx + (bw - dw) / 2, by + (bh - dh) / 2, dw, dh)
+            } else {
+                annotationCanvas.loadImage(url)
+            }
+        } else if (kind === "magnifier") {
+            const lx = Math.min(it.x1, it.x2)
+            const ly = Math.min(it.y1, it.y2)
+            const lw = Math.max(1, Math.abs(it.x2 - it.x1))
+            const lh = Math.max(1, Math.abs(it.y2 - it.y1))
+            const zoom = Number(it.zoom || 2)
+            ctx.save()
+            ctx.translate(lx + lw / 2, ly + lh / 2)
+            ctx.scale(lw / 2, lh / 2)
+            ctx.beginPath()
+            ctx.arc(0, 0, 1, 0, Math.PI * 2)
+            ctx.restore()
+            ctx.save()
+            ctx.clip()
+            if (bgImg.status === Image.Ready) {
+                const sx = bgImg.implicitWidth / Math.max(1, canvasWidth)
+                const sy = bgImg.implicitHeight / Math.max(1, canvasHeight)
+                const seenW = lw / zoom
+                const seenH = lh / zoom
+                ctx.drawImage(bgImg, (lx + lw / 2 - seenW / 2) * sx, (ly + lh / 2 - seenH / 2) * sy,
+                              seenW * sx, seenH * sy, lx, ly, lw, lh)
+            }
+            ctx.restore()
             ctx.stroke()
         } else if (kind === "number") {
             const size = Number(it.size || 40)
@@ -461,13 +558,13 @@ Item {
             ctx.arc(it.x, it.y, size / 2, 0, Math.PI * 2)
             ctx.fill()
             ctx.fillStyle = inkOn(it.color)
-            ctx.font = "bold " + Math.round(size * 0.55) + "px sans-serif"
+            ctx.font = fontSpec(it, Math.round(size * 0.55))
             ctx.textAlign = "center"
             ctx.textBaseline = "middle"
             ctx.fillText(String(it.number), it.x, it.y)
         } else if (kind === "callout" && it.text) {
             const fontPx = Math.max(14, Math.round(Number(it.size || 24)))
-            ctx.font = "bold " + fontPx + "px sans-serif"
+            ctx.font = fontSpec(it, fontPx)
             const tail = fontPx * 0.7
             const pad = fontPx * 0.5
             const boxW = ctx.measureText(String(it.text)).width + pad * 2
@@ -487,7 +584,7 @@ Item {
             ctx.fillText(String(it.text), it.x + pad, top + boxH / 2)
         } else if (kind === "text" && it.text) {
             const fontPx = Math.max(14, Math.round(Number(it.size || 24)))
-            ctx.font = "bold " + fontPx + "px sans-serif"
+            ctx.font = fontSpec(it, fontPx)
             ctx.textBaseline = "middle"
             // Subtle contrast outline so white or dark text stays legible anywhere
             ctx.lineWidth = Math.max(2, Math.round(fontPx * 0.12))
@@ -571,6 +668,8 @@ Item {
                     ["text", qsTr("Text")],
                     ["number", qsTr("Number")],
                     ["callout", qsTr("Callout")],
+                    ["image", qsTr("Picture")],
+                    ["magnifier", qsTr("Magnifier")],
                     ["select", qsTr("Select / Move")]
                 ]
                 delegate: ToolBtn {
@@ -582,6 +681,8 @@ Item {
                         root.currentTool = String(modelData[0])
                         if (root.currentTool === "text" || root.currentTool === "callout")
                             noteField.forceActiveFocus()
+                        if (root.currentTool === "image" && root.stampPath.length === 0)
+                            stampDialog.open()
                     }
                 }
             }
@@ -677,6 +778,69 @@ Item {
                 enabled: root.items.length > 0
                 onClicked: root.clearAll()
             }
+        }
+
+        // Row 3: settings that apply to what gets drawn next
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 8
+
+            Text {
+                text: qsTr("Opacity")
+                font.pixelSize: Theme.sizeSmall
+                color: Theme.text
+            }
+            Slider {
+                objectName: "annotateOpacity"
+                Layout.preferredWidth: 120
+                from: 10
+                to: 100
+                stepSize: 5
+                value: root.opacityPercent
+                Accessible.name: qsTr("Opacity")
+                onMoved: root.opacityPercent = Math.round(value)
+            }
+            Text {
+                Layout.preferredWidth: 34
+                text: root.opacityPercent + "%"
+                font.pixelSize: Theme.sizeSmall
+                color: Theme.secondaryText
+            }
+            ToolBtn {
+                objectName: "annotateFill"
+                visible: root.currentTool === "rect" || root.currentTool === "ellipse"
+                text: qsTr("Fill")
+                on: root.fillShapes
+                onClicked: root.fillShapes = !root.fillShapes
+            }
+            ComboBox {
+                objectName: "annotateFont"
+                visible: root.currentTool === "text" || root.currentTool === "callout" || root.currentTool === "number"
+                Layout.preferredWidth: 180
+                model: [qsTr("Default font")].concat(Qt.fontFamilies())
+                Accessible.name: qsTr("Font")
+                onActivated: (index) => root.fontFamily = index === 0 ? "" : String(textAt(index))
+            }
+            NButton {
+                visible: root.currentTool === "image"
+                compact: true
+                text: root.stampPath.length > 0 ? App.fileName(root.stampPath) : qsTr("Choose picture…")
+                onClicked: stampDialog.open()
+            }
+            Row {
+                visible: root.currentTool === "magnifier"
+                spacing: 4
+                Repeater {
+                    model: [2, 3, 4]
+                    delegate: ToolBtn {
+                        required property int modelData
+                        text: modelData + "×"
+                        on: root.magnifierZoom === modelData
+                        onClicked: root.magnifierZoom = modelData
+                    }
+                }
+            }
+            Item { Layout.fillWidth: true }
         }
 
         // Inline Text Tool input bar
@@ -776,6 +940,7 @@ Item {
                     renderTarget: Canvas.Image
                     renderStrategy: Canvas.Immediate
 
+                    onImageLoaded: requestPaint()
                     onAvailableChanged: if (available) requestPaint()
                     onWidthChanged: if (available) requestPaint()
                     onHeightChanged: if (available) requestPaint()
@@ -841,26 +1006,21 @@ Item {
                             return
                         }
 
+                        if (root.currentTool === "image" && root.stampPath.length === 0) {
+                            stampDialog.open()
+                            return
+                        }
                         if (root.currentTool === "pen" || root.currentTool === "highlighter") {
                             const isHi = root.currentTool === "highlighter"
                             root.draftItem = {
                                 kind: root.currentTool,
                                 color: root.currentColor,
                                 size: isHi ? Math.round(root.activeStrokePx * 3.2) : root.activeStrokePx,
-                                alpha: isHi ? 0.38 : 1.0,
+                                alpha: (isHi ? 0.38 : 1.0) * root.opacityPercent / 100,
                                 points: [pt]
                             }
                         } else {
-                            root.draftItem = {
-                                kind: root.currentTool,
-                                color: root.currentColor,
-                                size: root.activeStrokePx,
-                                alpha: 1.0,
-                                x1: pt.x,
-                                y1: pt.y,
-                                x2: pt.x,
-                                y2: pt.y
-                            }
+                            root.draftItem = root.dragItem(pt.x, pt.y)
                         }
                         annotationCanvas.requestPaint()
                     }
@@ -893,16 +1053,7 @@ Item {
                                 points: pts
                             }
                         } else {
-                            root.draftItem = {
-                                kind: cur.kind,
-                                color: cur.color,
-                                size: cur.size,
-                                alpha: cur.alpha,
-                                x1: cur.x1,
-                                y1: cur.y1,
-                                x2: pt.x,
-                                y2: pt.y
-                            }
+                            root.draftItem = Object.assign({}, cur, { x2: pt.x, y2: pt.y })
                         }
                         annotationCanvas.requestPaint()
                     }
@@ -932,6 +1083,33 @@ Item {
                         annotationCanvas.requestPaint()
                     }
                 }
+            }
+        }
+    }
+
+    FileDialog {
+        id: stampDialog
+        title: qsTr("Choose a picture to add")
+        nameFilters: [qsTr("Images (*.png *.jpg *.jpeg *.webp *.gif *.bmp)")]
+        onAccepted: {
+            const paths = App.pathsFromUrls([selectedFile])
+            if (paths.length > 0)
+                root.stampPath = paths[0]
+        }
+    }
+
+    // Measures the chosen picture, since the Canvas does not report image sizes.
+    Image {
+        visible: false
+        asynchronous: true
+        autoTransform: true
+        source: root.stampPath.length > 0 ? root.fileUrl(root.stampPath) : ""
+        onStatusChanged: {
+            if (status === Image.Ready) {
+                const sizes = Object.assign({}, root.stampSizes)
+                sizes[root.stampPath] = { width: implicitWidth, height: implicitHeight }
+                root.stampSizes = sizes
+                annotationCanvas.requestPaint()
             }
         }
     }

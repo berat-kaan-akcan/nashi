@@ -40,6 +40,14 @@
         <translation>Açıklama balonu</translation>
     </message>
     <message>
+        <source>Picture</source>
+        <translation>Görsel</translation>
+    </message>
+    <message>
+        <source>Magnifier</source>
+        <translation>Büyüteç</translation>
+    </message>
+    <message>
         <source>Select / Move</source>
         <translation>Seç / Taşı</translation>
     </message>
@@ -72,6 +80,26 @@
         <translation>Temizle</translation>
     </message>
     <message>
+        <source>Opacity</source>
+        <translation>Opaklık</translation>
+    </message>
+    <message>
+        <source>Fill</source>
+        <translation>Dolgu</translation>
+    </message>
+    <message>
+        <source>Default font</source>
+        <translation>Varsayılan yazı tipi</translation>
+    </message>
+    <message>
+        <source>Font</source>
+        <translation>Yazı tipi</translation>
+    </message>
+    <message>
+        <source>Choose picture…</source>
+        <translation>Görsel seç…</translation>
+    </message>
+    <message>
         <source>Type text here, then click on the image to place it…</source>
         <translation>Metni buraya yazın, ardından yerleştirmek için görsele tıklayın…</translation>
     </message>
@@ -82,6 +110,14 @@
     <message>
         <source>Loading image…</source>
         <translation>Görsel yükleniyor…</translation>
+    </message>
+    <message>
+        <source>Choose a picture to add</source>
+        <translation>Eklenecek görseli seç</translation>
+    </message>
+    <message>
+        <source>Images (*.png *.jpg *.jpeg *.webp *.gif *.bmp)</source>
+        <translation>Görseller (*.png *.jpg *.jpeg *.webp *.gif *.bmp)</translation>
     </message>
 </context>
 <context>
@@ -1320,8 +1356,28 @@
         <translation>İkinci renk</translation>
     </message>
     <message>
+        <source>Third colour</source>
+        <translation>Üçüncü renk</translation>
+    </message>
+    <message>
+        <source>Optional</source>
+        <translation>İsteğe bağlı</translation>
+    </message>
+    <message>
         <source>Padding</source>
         <translation>İç boşluk</translation>
+    </message>
+    <message>
+        <source>Placement</source>
+        <translation>Yerleşim</translation>
+    </message>
+    <message>
+        <source>Horizontal</source>
+        <translation>Yatay</translation>
+    </message>
+    <message>
+        <source>Vertical</source>
+        <translation>Dikey</translation>
     </message>
     <message>
         <source>Shape and shadow</source>
@@ -1460,8 +1516,48 @@
         <translation>Ton</translation>
     </message>
     <message>
+        <source>Vibrance</source>
+        <translation>Canlılık</translation>
+    </message>
+    <message>
         <source>Temperature</source>
         <translation>Sıcaklık</translation>
+    </message>
+    <message>
+        <source>Tint</source>
+        <translation>Ton kayması</translation>
+    </message>
+    <message>
+        <source>Highlights</source>
+        <translation>Parlak alanlar</translation>
+    </message>
+    <message>
+        <source>Shadows</source>
+        <translation>Gölgeler</translation>
+    </message>
+    <message>
+        <source>Whites</source>
+        <translation>Beyazlar</translation>
+    </message>
+    <message>
+        <source>Blacks</source>
+        <translation>Siyahlar</translation>
+    </message>
+    <message>
+        <source>Clarity</source>
+        <translation>Netlik</translation>
+    </message>
+    <message>
+        <source>Texture</source>
+        <translation>Doku</translation>
+    </message>
+    <message>
+        <source>Dehaze</source>
+        <translation>Pus giderme</translation>
+    </message>
+    <message>
+        <source>Fade</source>
+        <translation>Soldurma</translation>
     </message>
     <message>
         <source>Sharpen</source>
@@ -1472,8 +1568,16 @@
         <translation>Bulanıklaştır</translation>
     </message>
     <message>
+        <source>Noise reduction</source>
+        <translation>Gürültü azaltma</translation>
+    </message>
+    <message>
         <source>Grain</source>
         <translation>Gren</translation>
+    </message>
+    <message>
+        <source>Vignette</source>
+        <translation>Vinyet</translation>
     </message>
     <message>
         <source>Choose a background image.</source>

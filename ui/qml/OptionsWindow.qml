@@ -85,6 +85,11 @@ ApplicationWindow {
     property string audioMode: "mute"
     property string frameBackdrop: "solid"
     property string frameColor2: "#000000"
+    // Empty means a gradient of two colours.
+    property string frameColor3: ""
+    property int frameScale: 100
+    property int framePositionX: 50
+    property int framePositionY: 50
     property int frameAngle: 45
     property string frameBackgroundImage: ""
     property int frameBlur: 0
@@ -119,10 +124,22 @@ ApplicationWindow {
         ["gamma", qsTr("Gamma"), 0.2, 3, 1, 0.1],
         ["saturation", qsTr("Saturation"), -100, 100, 0, 1],
         ["hue", qsTr("Hue"), -100, 100, 0, 1],
+        ["vibrance", qsTr("Vibrance"), -100, 100, 0, 1],
         ["temperature", qsTr("Temperature"), -100, 100, 0, 1],
+        ["tint", qsTr("Tint"), -100, 100, 0, 1],
+        ["highlights", qsTr("Highlights"), -100, 100, 0, 1],
+        ["shadows", qsTr("Shadows"), -100, 100, 0, 1],
+        ["whites", qsTr("Whites"), -100, 100, 0, 1],
+        ["blacks", qsTr("Blacks"), -100, 100, 0, 1],
+        ["clarity", qsTr("Clarity"), -100, 100, 0, 1],
+        ["texture", qsTr("Texture"), -100, 100, 0, 1],
+        ["dehaze", qsTr("Dehaze"), -100, 100, 0, 1],
+        ["fade", qsTr("Fade"), 0, 100, 0, 1],
         ["sharpen", qsTr("Sharpen"), 0, 100, 0, 1],
         ["blur", qsTr("Blur"), 0, 100, 0, 1],
-        ["grain", qsTr("Grain"), 0, 100, 0, 1]
+        ["noise_reduction", qsTr("Noise reduction"), 0, 100, 0, 1],
+        ["grain", qsTr("Grain"), 0, 100, 0, 1],
+        ["vignette", qsTr("Vignette"), -100, 100, 0, 1]
     ]
     property var adjustValues: ({})
     property string adjustFilter: ""
@@ -188,6 +205,10 @@ ApplicationWindow {
         audioMode = "mute"
         frameBackdrop = "solid"
         frameColor2 = "#000000"
+        frameColor3 = ""
+        frameScale = 100
+        framePositionX = 50
+        framePositionY = 50
         frameAngle = 45
         frameBackgroundImage = ""
         frameBlur = 0
@@ -446,6 +467,11 @@ ApplicationWindow {
             frame.backdrop = "gradient"
             frame.color2 = frameColor2
             frame.angle = frameAngle
+            if (frameColor3.length > 0) {
+                if (!validColor(frameColor3))
+                    return qsTr("Use a colour like #ffffff.")
+                frame.color3 = frameColor3
+            }
         } else if (frameBackdrop === "image") {
             if (frameBackgroundImage.length === 0)
                 return qsTr("Choose a background image.")
@@ -462,6 +488,10 @@ ApplicationWindow {
         }
         if (frameAspect > 0)
             frame.aspect = frameAspect
+        if (frameScale !== 100)
+            frame.image_scale = frameScale / 100
+        if (framePositionX !== 50 || framePositionY !== 50)
+            frame.position = { x: framePositionX / 100, y: framePositionY / 100 }
         return { frame: frame }
     }
 
@@ -1819,6 +1849,15 @@ ApplicationWindow {
                         Accessible.name: qsTr("Second colour")
                         onTextEdited: win.frameColor2 = text.trim()
                     }
+                    FieldLabel { text: qsTr("Third colour") }
+                    TextField {
+                        Layout.preferredWidth: 100
+                        text: win.frameColor3
+                        selectByMouse: true
+                        placeholderText: qsTr("Optional")
+                        Accessible.name: qsTr("Third colour")
+                        onTextEdited: win.frameColor3 = text.trim()
+                    }
                 }
                 RowLayout {
                     Layout.fillWidth: true
@@ -1863,6 +1902,30 @@ ApplicationWindow {
                         selectByMouse: true
                         onTextEdited: win.borderColor = text.trim()
                     }
+                }
+            }
+
+            SectionBox {
+                visible: win.group === "frame"
+                title: qsTr("Placement")
+                ValueSlider {
+                    label: qsTr("Image size")
+                    low: 5
+                    unit: "%"
+                    value: win.frameScale
+                    onEdited: (v) => win.frameScale = v
+                }
+                ValueSlider {
+                    label: qsTr("Horizontal")
+                    unit: "%"
+                    value: win.framePositionX
+                    onEdited: (v) => win.framePositionX = v
+                }
+                ValueSlider {
+                    label: qsTr("Vertical")
+                    unit: "%"
+                    value: win.framePositionY
+                    onEdited: (v) => win.framePositionY = v
                 }
             }
 
