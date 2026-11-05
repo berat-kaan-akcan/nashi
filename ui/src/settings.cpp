@@ -282,7 +282,7 @@ QStringList Settings::formatDefaultKinds(const QString &format) const
     if (videos().contains(format))
         return {quality, QStringLiteral("videoHeight"), kbps, keep};
     if (format == QLatin1String("gif"))
-        return {QStringLiteral("gifFps"), QStringLiteral("gifWidth")};
+        return {QStringLiteral("gifFps"), QStringLiteral("gifWidth"), QStringLiteral("gifCompression")};
     if (format == QLatin1String("docx") || format == QLatin1String("epub"))
         return {QStringLiteral("pdfLayout")};
     return {};
@@ -307,6 +307,8 @@ QVariantMap Settings::formatDefaults(const QString &format) const
         {QStringLiteral("pdfLayout"), oneOf("pdfLayout", {QStringLiteral("pages")})},
         {QStringLiteral("sampleDepth"), oneOf("sampleDepth", {QStringLiteral("16"), QStringLiteral("24"), QStringLiteral("32"), QStringLiteral("float32")})},
         {QStringLiteral("audioCompression"), oneOf("audioCompression", {QStringLiteral("fast"), QStringLiteral("balanced"), QStringLiteral("maximum")})},
+        // Balanced is the engine's own GIF palette, so it is left out like the empty choice.
+        {QStringLiteral("gifCompression"), oneOf("gifCompression", {QStringLiteral("fast"), QStringLiteral("maximum")})},
         {QStringLiteral("quality"), quality},
         {QStringLiteral("keepMetadata"), m_store.value(formatKey(format, QStringLiteral("keepMetadata")), true).toBool()},
         // 0: leave the choice to the engine.
@@ -358,6 +360,7 @@ QJsonObject Settings::conversionOptions(const QString &target) const
     text("pdfLayout", "pdf_layout");
     text("sampleDepth", "sample_depth");
     text("audioCompression", "audio_compression");
+    text("gifCompression", "gif_compression");
     const auto number = [&](const char *kind, const char *key, int neutral) {
         const int v = chosen.value(QString::fromLatin1(kind)).toInt();
         if (kinds.contains(QString::fromLatin1(kind)) && v != neutral)

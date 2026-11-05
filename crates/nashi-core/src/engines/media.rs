@@ -290,6 +290,21 @@ pub fn convert(ctx: &Ctx, input: &Input, target: &str) -> JobResult<PathBuf> {
             "gif_max_width must be between 2 and 16384",
         ));
     }
+    let gif_palette = match o.gif_compression.as_deref() {
+        None | Some("balanced") => ("", ""),
+        // Ordered dithering skips error diffusion's pass over every pixel.
+        Some("fast") => ("", "=dither=bayer:bayer_scale=5"),
+        // Fewer colours, no dither noise, and only the part of a frame that changed.
+        Some("maximum") => (
+            "=max_colors=128:stats_mode=diff",
+            "=dither=none:diff_mode=rectangle",
+        ),
+        Some(_) => {
+            return Err(JobError::invalid_options(
+                "gif_compression must be fast, balanced or maximum",
+            ))
+        }
+    };
     let p = probe(ctx, input);
     let staged = input.stage("", target)?;
     let mut cmd = ffmpeg(ctx)?.arg("-i").arg_cat("file:", &input.path);
@@ -337,7 +352,8 @@ pub fn convert(ctx: &Ctx, input: &Input, target: &str) -> JobResult<PathBuf> {
                 .args(["-an", "-filter_complex"])
                 // GIF viewers ignore a pixel aspect, so size from the displayed shape.
                 .arg(format!(
-                    "[0:v:0]fps={fps},scale='min({width},iw*sar)':'ow/dar':flags=lanczos,setsar=1,split[a][b];[a]palettegen[p];[b][p]paletteuse"
+                    "[0:v:0]fps={fps},scale='min({width},iw*sar)':'ow/dar':flags=lanczos,setsar=1,split[a][b];[a]palettegen{}[p];[b][p]paletteuse{}",
+                    gif_palette.0, gif_palette.1
                 ))
                 .args(["-loop", "0"]);
         }

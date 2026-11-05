@@ -2584,6 +2584,14 @@
         <translation>Largeur maximale du GIF</translation>
     </message>
     <message>
+        <source>GIF compression</source>
+        <translation>Compression GIF</translation>
+    </message>
+    <message>
+        <source>Smallest file uses fewer colours and no dithering, so smooth gradients can show bands.</source>
+        <translation>« Fichier le plus petit&#xa0;» utilise moins de couleurs et aucun tramage&#xa0;: les dégradés peuvent présenter des bandes.</translation>
+    </message>
+    <message>
         <source>Pictures keep the layout and also work for scanned PDFs, but the text cannot be edited.</source>
         <translation>Les images conservent la mise en page et conviennent aussi aux PDF numérisés, mais le texte n’est pas modifiable.</translation>
     </message>

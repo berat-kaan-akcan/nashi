@@ -218,6 +218,8 @@ pub struct Options {
     pub gif_fps: Option<u32>,
     /// Conversion to GIF: largest width in pixels, 2..=16384 (default 640).
     pub gif_max_width: Option<u32>,
+    /// Conversion to GIF: `fast`, `balanced` (default) or `maximum` (smallest file).
+    pub gif_compression: Option<String>,
     /// WAV and AIFF: `16`, `24`, `32`, `float32`; the source's depth when absent.
     pub sample_depth: Option<String>,
     /// FLAC: `fast`, `balanced` or `maximum`.

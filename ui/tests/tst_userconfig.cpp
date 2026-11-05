@@ -239,6 +239,29 @@ private Q_SLOTS:
         QVERIFY(!s.conversionOptions(QStringLiteral("wav")).contains(QStringLiteral("sample_depth")));
     }
 
+    void gifCompressionBecomesAnEngineOption()
+    {
+        QTemporaryDir dir;
+        Settings s(dir.filePath(QStringLiteral("nashi.conf")), nullptr);
+        const QString gif = QStringLiteral("gif");
+        const QString kind = QStringLiteral("gifCompression");
+        QVERIFY(s.formatDefaultKinds(gif).contains(kind));
+        QVERIFY(!s.formatDefaultKinds(QStringLiteral("mp4")).contains(kind));
+        QVERIFY(!s.conversionOptions(gif).contains(QStringLiteral("gif_compression")));
+        s.setFormatDefault(gif, kind, QStringLiteral("maximum"));
+        QCOMPARE(s.conversionOptions(gif).value(QStringLiteral("gif_compression")).toString(), QStringLiteral("maximum"));
+        s.setFormatDefault(gif, kind, QStringLiteral("fast"));
+        QCOMPARE(s.conversionOptions(gif).value(QStringLiteral("gif_compression")).toString(), QStringLiteral("fast"));
+        // Balanced is the engine's default and sends nothing.
+        s.setFormatDefault(gif, kind, QString());
+        QVERIFY(!s.conversionOptions(gif).contains(QStringLiteral("gif_compression")));
+        s.store().setValue(QStringLiteral("formats/gif/gifCompression"), QStringLiteral("huge"));
+        QVERIFY(!s.conversionOptions(gif).contains(QStringLiteral("gif_compression")));
+        s.setFormatDefault(gif, kind, QStringLiteral("maximum"));
+        s.restoreFormatDefaults(gif);
+        QVERIFY(s.conversionOptions(gif).isEmpty());
+    }
+
     void pdfLayoutBecomesAnEngineOption()
     {
         QTemporaryDir dir;

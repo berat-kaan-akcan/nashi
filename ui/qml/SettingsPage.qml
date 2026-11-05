@@ -422,6 +422,25 @@ Page {
                         options: [320, 480, 640, 960, 1280].map(w => ({ value: w, text: w + " px" }))
                     }
                 }
+                FormatRow {
+                    objectName: "formatGifCompression"
+                    visible: formatSection.kinds.includes("gifCompression")
+                    label: qsTr("Compression")
+                    FormatChoice {
+                        objectName: "formatGifCompressionChoice"
+                        kind: "gifCompression"
+                        accessibleName: qsTr("GIF compression")
+                        options: [
+                            { value: "fast", text: qsTr("Fast") },
+                            { value: "", text: qsTr("Balanced") },
+                            { value: "maximum", text: qsTr("Smallest file") }
+                        ]
+                    }
+                }
+                Hint {
+                    visible: formatSection.kinds.includes("gifCompression")
+                    text: qsTr("Smallest file uses fewer colours and no dithering, so smooth gradients can show bands.")
+                }
                 Hint {
                     visible: formatSection.kinds.includes("pdfLayout")
                     text: qsTr("Pictures keep the layout and also work for scanned PDFs, but the text cannot be edited.")

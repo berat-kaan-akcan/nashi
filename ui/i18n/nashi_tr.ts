@@ -2574,6 +2574,14 @@
         <translation>En fazla GIF genişliği</translation>
     </message>
     <message>
+        <source>GIF compression</source>
+        <translation>GIF sıkıştırması</translation>
+    </message>
+    <message>
+        <source>Smallest file uses fewer colours and no dithering, so smooth gradients can show bands.</source>
+        <translation>“En küçük dosya” daha az renk kullanır ve renkleri noktalarla karıştırmaz; yumuşak geçişlerde bantlar görülebilir.</translation>
+    </message>
+    <message>
         <source>Pictures keep the layout and also work for scanned PDFs, but the text cannot be edited.</source>
         <translation>Görseller düzeni korur ve taranmış PDF&apos;lerde de çalışır, ama metin düzenlenemez.</translation>
     </message>

@@ -158,6 +158,54 @@ fn gif_rate_and_width_apply() {
 }
 
 #[test]
+fn gif_compression_presets_differ_and_the_smallest_is_smaller() {
+    need!("ffmpeg", "ffprobe");
+    let d = tempfile::tempdir().unwrap();
+    // Smooth colours that move: where palette and dithering matter.
+    let v = d.path().join("v.mp4");
+    tool(
+        "ffmpeg",
+        &[
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "gradients=s=160x90:r=12:d=1:speed=0.05,drawbox=x='t*60':y=20:w=30:h=30:color=red:t=fill",
+            "-pix_fmt",
+            "yuv420p",
+            s(&v),
+        ],
+    );
+    let gif = |options: &str| {
+        let r = converted(&v, "gif", options);
+        r.ok();
+        let bytes = std::fs::read(r.one()).unwrap();
+        std::fs::remove_file(r.one()).unwrap();
+        bytes
+    };
+    let default = gif("{}");
+    let balanced = gif(r#"{"gif_compression":"balanced"}"#);
+    let fast = gif(r#"{"gif_compression":"fast"}"#);
+    let smallest = gif(r#"{"gif_compression":"maximum"}"#);
+    assert_eq!(default, balanced, "balanced is the engine's default");
+    assert_ne!(fast, balanced);
+    assert!(
+        smallest.len() < balanced.len(),
+        "maximum {} >= balanced {}",
+        smallest.len(),
+        balanced.len()
+    );
+    for out in [&fast, &smallest] {
+        assert!(out.starts_with(b"GIF89a"));
+    }
+    assert_eq!(
+        converted(&v, "gif", r#"{"gif_compression":"huge"}"#).error_codes(),
+        ["invalid_options"]
+    );
+}
+
+#[test]
 fn metadata_can_be_left_out_of_a_conversion() {
     need!("ffmpeg", "ffprobe", "magick");
     let d = tempfile::tempdir().unwrap();
