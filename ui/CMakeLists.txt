@@ -53,6 +53,7 @@ target_sources(nashi_ui PRIVATE
     src/recentmodel.cpp        src/recentmodel.h
     src/selection.cpp          src/selection.h
     src/settings.cpp           src/settings.h
+    src/kdetranslations.cpp    src/kdetranslations.h
     src/setupcheck.cpp         src/setupcheck.h
     src/shelfmodel.cpp         src/shelfmodel.h
     src/surfaces.cpp           src/surfaces.h

@@ -144,7 +144,7 @@ ApplicationWindow {
             required property string display
             required property int index
 
-            width: ListView.view ? ListView.view.width : 360
+            width: viewHost.width
             height: 52
 
             Rectangle {

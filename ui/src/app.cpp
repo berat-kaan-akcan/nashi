@@ -1,4 +1,6 @@
 #include "app.h"
+
+#include "kdetranslations.h"
 #include "actions.h"
 #include "appdbus.h"
 #include "cliargs.h"
@@ -38,6 +40,7 @@
 #include <QMimeData>
 #include <QMimeDatabase>
 #include <QQmlComponent>
+#include <QQmlContext>
 #include <QQmlEngine>
 #include <QQuickWindow>
 #include <QStandardPaths>
@@ -165,6 +168,7 @@ App *App::create(QQmlEngine *, QJSEngine *engine)
 void App::init(QQmlEngine *engine)
 {
     m_engine = engine;
+    engine->rootContext()->setContextObject(new KdeTranslations(engine));
     m_language->addEngine(engine);
     engine->addImageProvider(QStringLiteral("icon"), new IconProvider);
     m_toast->setEngine(engine);

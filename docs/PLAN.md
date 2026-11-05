@@ -31,7 +31,7 @@ Yedek giriş yolları: global kısayol (panodaki/seçili dosyalar), Dolphin sağ
 | **2 — inputd** | evdev akor algılama durum makinesi, D-Bus sinyalleri, udev kuralı, systemd user servisi | tamamlandı (Ajan B); gerçek cihaz testi Faz 5 |
 | **3 — Arayüz prototipi** | Tam ekran şeffaf layer-shell overlay, çark, bırakma, işi CLI'ye verme, ilerleme bildirimi, tepsi, ana pencere | tamamlandı (Ajan C); gerçek cihaz testi Faz 5 |
 | **4 — Paketleme + entegrasyon** | PKGBUILD, kurulum betiği, .desktop + MIME, Dolphin servis menüsü, Nautilus betiği | tamamlandı (Ajan D); gerçek cihaz testi Faz 5 |
-| **5 — Gerçek cihaz testi** | CachyOS üzerinde overlay + DnD + inputd denemesi, bulguya göre düzeltme | sonraki tur |
+| **5 — Gerçek cihaz testi** | CachyOS üzerinde overlay + DnD + inputd denemesi, bulguya göre düzeltme | doğrulandı; iki aşamalı çark yedeği denenmedi (`HANDOVER.md` §3.1) |
 | **6 — Medya araçları tamamı** | Kesme/kırpma/hız/bölme/birleştirme/karartma vb. ffmpeg araçlarının parametreli sürümleri, web indirme (yt-dlp) | tamamlandı (Tur 2) |
 | **7 — Editörler** | Görsel kırpma, not ekleme, karartma, video zaman çizelgesi (I/O), PDF sayfa düzenleme arayüzleri | tamamlandı (Tur 2) |
 | **8 — Diğer masaüstleri** | GNOME Shell eklentisi, wlroots/Hyprland testi, X11 yolu | sonraki tur |
@@ -69,7 +69,7 @@ Entegrasyon, bağımsız inceleme ve GitHub'a gönderme ana oturumdadır.
 
 ## Riskler
 
-- **Overlay + DnD (en büyük risk):** KWin'de sürükleme sırasında açılan layer-shell yüzeyine bırakma. Faz 5'te gerçek cihazda doğrulanacak; çalışmazsa raf + kısayol yolları devrede.
+- **Overlay + DnD:** KWin'de sürükleme sırasında açılan layer-shell yüzeyine bırakma 2026-11-05'te gerçek oturumda çalıştı (Dolphin kaynaklı).
 - **Bırakma öncesi dosya türü:** Wayland, bırakmadan önce veri okumaya teknik olarak izin veriyor (`wl_data_offer.receive`), ama kaynak uygulamaya bağlı. Okunamazsa iki aşamalı çark kullanılır.
 - **Shift = taşı:** Dolphin'de Shift ile sürükleme "taşı" anlamına gelir. Overlay bırakmayı **her zaman CopyAction** olarak kabul eder, kaynak silinmez.
 - **evdev izni:** Kullanıcı `input` grubuna eklenmeli; daemon yalnızca akor olaylarını dışarı verir, tuş içeriğini değil.

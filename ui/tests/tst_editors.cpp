@@ -132,6 +132,9 @@ class TestEditors : public QObject
 private Q_SLOTS:
     void initTestCase()
     {
+        // Outside ctest this would use the real settings, library and nashi-cli.
+        if (qEnvironmentVariableIsEmpty("NASHI_CLI") || qEnvironmentVariableIsEmpty("XDG_CONFIG_HOME"))
+            QFAIL("Run this test through ctest");
         QVERIFY(tempDir.isValid());
         photoPath = tempDir.filePath(QStringLiteral("photo.png"));
         videoPath = tempDir.filePath(QStringLiteral("clip.mp4"));

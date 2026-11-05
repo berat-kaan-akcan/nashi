@@ -109,13 +109,13 @@ systemctl --user restart nashi-inputd.service
 ```
 Kurulumdan sonra çalışan `nashi --background` işlemi de yeniden başlatılmalıdır.
 
-Arayüz ve servisler şu ana kadar birim testleri ve `QT_QPA_PLATFORM=offscreen` modunda doğrulandı; gerçek KWin Wayland masaüstü oturumunda henüz denenmedi:
-1. **Akor + Overlay + DnD:** Dolphin veya masaüstünden dosya sürüklerken `Shift`/`Ctrl`/`Alt` basıldığında `nashi-inputd` → D-Bus → `LayerShellQt` tam ekran çark açılışı ve bırakmanın kaynak dosyayı silmeden (`Qt::CopyAction`) işi başlatması.
-2. **Wayland MIME okuma:** Bırakma öncesi `wl_data_offer` üzerinden dosya türü okunabilirliği ve okunamayan kaynaklarda iki aşamalı çark yedek akışı.
-3. **Float rafı (`ShelfWindow`):** Sağ kenar `LayerShellQt` yerleşimi, rafa dosya bırakma ve raftan Dolphin / tarayıcı / sohbet uygulamalarına dışarı sürükleme.
-4. **Canlı medya oynatımı:** `TimelineEditor` ve `PreviewWindow` içindeki dinamik `QtMultimedia` bileşeninin PipeWire üzerinden ses/video çıkışı.
-5. **KDE Purpose paylaşımı:** `ShareSheet` üzerinden KDE Connect / Bluetooth / E-posta eklentileriyle gerçek dosya gönderimi.
-6. **Global kısayol ve kurulum:** `packaging/install.sh --user` (veya `makepkg -si`) ile kurulum, systemd `nashi-inputd.service` çalışması ve KDE Kısayollar altında `Ctrl+Shift+D` (`DownloadClipboard`) eylemi.
+**Gerçek KWin Wayland denemesi (2026-11-05, `r23.g7423a4f`):** kullanıcı denedi, `Katman: Wayland layer-shell` ve `nashi-inputd` çalışıyor.
+* **Sorunsuz:** Shift/Ctrl/Alt ile sürükleme + çark + bırakma (kaynak dosya silinmeden), iptal, format varsayılanları, Normalleştir, PDF Böl, PDF Birleştir, çark sesi, Float rafı ve dışarı sürükleme, KDE Paylaş, `Ctrl+Shift+D`.
+* **Klavye:** `nashi --wheel` ile açılan çarkta ok tuşları + Enter ile dönüştürme çalışıyor (`foto.png` → `foto.pdf`). Sürükleme sürerken klavye çarka gelmez, bu bekleneni.
+* **Kitaplık önizlemesi:** kullanıcı denedi, sorun yok.
+* **Denenmedi:** bırakma öncesi türü okunamayan kaynaklarda iki aşamalı çark yedeği.
+* **Düzeltildi, gerçek oturumda tekrar denenmedi:** Paylaş eklentilerinde boş kalan KDE metinleri (`i18nd`, `KdeTranslations`) ve kapanışta `ShareSheet.qml` `width` hatası.
+* **Bizden kaynaklanmayan günlük satırları:** Purpose'un `missing mandatory argument "device"` ve `JobView.qml: non-existent property` satırları. `installEventFilter ... different thread` uyarısının kaynağı bulunmadı, paylaşımı etkilemedi.
 
 ### 3.2. Upstream'de Bulunup Henüz Port Edilmeyen İkincil Özellikler
 * **Format tercihlerinin kalanı:** ses örnek derinliği, sıkıştırma ön ayarı, EPUB düzeni, PDF→Office düzeni ve Sıkıştır formu için kalıcı varsayılanlar.
@@ -146,7 +146,7 @@ Arayüz ve servisler şu ana kadar birim testleri ve `QT_QPA_PLATFORM=offscreen`
 * `ppt`, `xls`, `rar` ve `.pages` kaynaklı rotaların testi yok (proje kuralı her rota için test ister).
 * `routes.rs` video ve belge rotalarının çoğunda çıktı formatını doğrulamıyor.
 * `if which(...)` dalları araç yoksa skip bildirmeden geçiyor. CI'da `soffice`, `pandoc` ve `yt-dlp` kurulu değil.
-* `tst_desktop` ve benzerleri `ctest` dışında doğrudan çalıştırılırsa koda göre gerçek kullanıcı ayarlarını kullanır.
+* `tst_desktop`, `tst_editors` ve `tst_qmlsmoke` gerçek kullanıcı ayarlarını kullanmamak için `ctest` dışında çalışmayı reddeder. Tek test seçmek için `ctest -R` kullanın; diğer test ikilileri bu korumayı taşımaz.
 * Denetimde tam okunmayan test dosyaları: `protocol.rs`, `tst_overlay`, `tst_misc`, `tst_userconfig`, `tst_wheelmodel`, `tst_clipboardimport`, `tst_jobrunner`, `tst_cliargs`, `tst_clilocator`, `tst_jsonlines`, `tst_wheelgeometry`.
 
 ---

@@ -1,4 +1,5 @@
 #include "app.h"
+#include "kdetranslations.h"
 #include "jobmanager.h"
 #include "jobrunner.h"
 #include "recentmodel.h"
@@ -23,6 +24,8 @@
 #include <QTemporaryDir>
 #include <QTest>
 #include <QtQml/qqmlextensionplugin.h>
+
+#include <clocale>
 
 Q_IMPORT_QML_PLUGIN(NashiAppPlugin)
 
@@ -58,6 +61,9 @@ class TestDesktop : public QObject
 private Q_SLOTS:
     void initTestCase()
     {
+        // Outside ctest this would use the real settings, library and nashi-cli.
+        if (qEnvironmentVariableIsEmpty("NASHI_CLI") || qEnvironmentVariableIsEmpty("XDG_CONFIG_HOME"))
+            QFAIL("Run this test through ctest");
         g_prevHandler = qInstallMessageHandler(warningCapture);
         app = new App(App::Options{false, true}, this);
         // Mark welcome wizard done so windows open directly in tests.
@@ -403,6 +409,64 @@ private Q_SLOTS:
         wheel->setProperty("soundEnabled", false);
         wheel->setProperty("hoveredIndex", 3);
         QCOMPARE(requests(), 1);
+        QVERIFY2(g_warnings.isEmpty(), qPrintable(g_warnings.join(QLatin1Char('\n'))));
+    }
+
+    void kdeTranslationFunctionsExistForPurposePlugins()
+    {
+        QQmlComponent component(engine);
+        component.setData(
+            "import QtQml\nQtObject {\n"
+            "  property string known: i18nd('nashi-no-such-domain', 'No devices found')\n"
+            "  property string plain: i18n('Plain %1', 'x')\n"
+            "  property string filled: i18nd('nashi-no-such-domain', '%1 of %2', 3, 4)\n"
+            "}\n",
+            QUrl());
+        std::unique_ptr<QObject> obj(component.create());
+        QVERIFY2(obj, qPrintable(component.errorString()));
+        QCOMPARE(obj->property("known").toString(), QStringLiteral("No devices found"));
+        QCOMPARE(obj->property("plain").toString(), QStringLiteral("Plain x"));
+        QCOMPARE(obj->property("filled").toString(), QStringLiteral("3 of 4"));
+    }
+
+    void kdeTranslationsReadTheInstalledCatalogs()
+    {
+        const char *saved = setlocale(LC_MESSAGES, nullptr);
+        const QByteArray previous = saved ? QByteArray(saved) : QByteArray();
+        if (!setlocale(LC_MESSAGES, "tr_TR.UTF-8")
+            || !QFile::exists(QStringLiteral("/usr/share/locale/tr/LC_MESSAGES/purpose6_kdeconnect.mo"))) {
+            setlocale(LC_MESSAGES, previous.constData());
+            QSKIP("The Turkish locale or the KDE Connect catalog is not installed");
+        }
+        const QByteArray language = qgetenv("LANGUAGE");
+        qunsetenv("LANGUAGE");
+        const QString text = KdeTranslations().i18nd(QStringLiteral("purpose6_kdeconnect"), QStringLiteral("No devices found"));
+        qputenv("LANGUAGE", language);
+        setlocale(LC_MESSAGES, previous.constData());
+        QVERIFY(!text.isEmpty());
+        QVERIFY2(text != QStringLiteral("No devices found"), qPrintable(text));
+    }
+
+    void closingTheShareSheetIsClean()
+    {
+        if (!app->shareAvailable())
+            QSKIP("KDE Purpose is not installed");
+        QTemporaryDir dir;
+        const QString file = dir.filePath(QStringLiteral("share-close.txt"));
+        QFile f(file);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("x");
+        f.close();
+        app->runItem(QStringLiteral("action"), QStringLiteral("share"), QStringLiteral("Share"), {file});
+        auto *w = qobject_cast<QQuickWindow *>(app->shareWindow());
+        QVERIFY(w);
+        QTest::qWait(300);
+        saveShot(w, QStringLiteral("desktop-share-list"));
+        g_warnings.clear();
+        QVERIFY(w->close());
+        QTest::qWait(100);
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        QCoreApplication::processEvents();
         QVERIFY2(g_warnings.isEmpty(), qPrintable(g_warnings.join(QLatin1Char('\n'))));
     }
 
