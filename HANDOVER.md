@@ -98,12 +98,13 @@ Upstream'in `b3c60f2..be59b13` aralığı incelendi; Linux'u etkileyen hatalar �
 ## 3. Yapılmayanlar ve Kalan İşler
 
 ### 3.1. Faz 5 — Gerçek KDE Plasma 6 (Wayland) Oturumunda Canlı Doğrulama (Sıradaki Ana İş)
-**Önce kurulum:** Sistemdeki `nashi-git` paketi 31 Ekim tarihli eski sürümdür (`preview`/`download` yok). Faz 5'ten önce bu daldan derlenen paket kurulmalıdır:
+**Önce kurulum:** Sistemdeki `nashi-git` paketi bu dalın son commit'inden eski olabilir (`pacman -Q nashi-git` ile `git log -1` karşılaştırın). Faz 5'ten önce bu daldan derlenen paket kurulmalıdır:
 ```bash
 cd packaging/arch
 # -d: cargo rustup'tan geliyor, pacman onu göremiyor
 NASHI_LOCAL_SRC="$(git rev-parse --show-toplevel)" makepkg -f -d
-sudo pacman -U ./nashi-git-*.pkg.tar.zst
+# Klasörde eski paketler de durur: yalnızca en yenisini kur
+sudo pacman -U "./$(ls -t nashi-git-*.pkg.tar.zst | head -1)"
 systemctl --user restart nashi-inputd.service
 ```
 Kurulumdan sonra çalışan `nashi --background` işlemi de yeniden başlatılmalıdır.
