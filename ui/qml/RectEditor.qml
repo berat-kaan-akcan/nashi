@@ -383,6 +383,7 @@ Item {
 
             Item {
                 id: stage
+                objectName: "rectStage"
                 x: Math.round((viewport.width - viewport.dispW) / 2)
                 y: Math.round((viewport.height - viewport.dispH) / 2)
                 width: viewport.dispW
@@ -690,6 +691,8 @@ Item {
                 MouseArea {
                     id: pointerArea
                     anchors.fill: parent
+                    // The options page scrolls; a drag here belongs to the editor.
+                    preventStealing: true
                     anchors.margins: -8
                     hoverEnabled: true
                     focus: true

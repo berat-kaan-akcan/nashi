@@ -283,6 +283,7 @@ Item {
         // Responsive card grid supporting drag-and-drop reordering
         Item {
             id: gridStage
+            objectName: "pdfGrid"
             Layout.fillWidth: true
             Layout.preferredHeight: Math.max(cardH, rowsCount * (cardH + gap) - gap)
 
@@ -477,6 +478,8 @@ Item {
                             MouseArea {
                                 id: cardDragArea
                                 anchors.fill: parent
+                                // The options page scrolls; a drag here belongs to the card.
+                                preventStealing: true
                                 cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
 
                                 property real pressX: 0

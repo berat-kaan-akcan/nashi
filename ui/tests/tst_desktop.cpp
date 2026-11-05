@@ -7,7 +7,10 @@
 #include "settings.h"
 #include "shelfmodel.h"
 
+#include <QDrag>
 #include <QDragEnterEvent>
+#include <QFileInfo>
+#include <QPointer>
 #include <QDragMoveEvent>
 #include <QDropEvent>
 #include <QFile>
@@ -39,6 +42,15 @@ void warningCapture(QtMsgType type, const QMessageLogContext &ctx, const QString
         g_warnings.append(msg);
     if (g_prevHandler)
         g_prevHandler(type, ctx, msg);
+}
+
+// Items by object name in the visual tree, which also holds view delegates.
+void findItems(QQuickItem *root, const QString &name, QList<QQuickItem *> *found)
+{
+    if (root->objectName() == name)
+        found->append(root);
+    for (QQuickItem *child : root->childItems())
+        findItems(child, name, found);
 }
 
 void saveShot(QQuickWindow *w, const QString &name)
@@ -253,6 +265,89 @@ private Q_SLOTS:
 
         QCOMPARE(app->shelf()->rowCount(), 1);
         saveShot(w, QStringLiteral("desktop-shelf-light"));
+
+        app->shelf()->hide();
+        app->shelf()->clear();
+        QVERIFY2(g_warnings.isEmpty(), qPrintable(g_warnings.join(QLatin1Char('\n'))));
+    }
+
+    void shelfDragOutOffersCopiesOfTheFiles()
+    {
+        g_warnings.clear();
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        QStringList files;
+        for (const char *name : {"first.png", "second file.txt"}) {
+            files.append(dir.filePath(QString::fromUtf8(name)));
+            QFile f(files.last());
+            QVERIFY(f.open(QIODevice::WriteOnly));
+            f.write("kept");
+        }
+        app->shelf()->clear();
+        app->shelf()->add(files);
+        app->shelf()->show();
+        auto *w = qobject_cast<QQuickWindow *>(app->shelfWindow());
+        QVERIFY(w);
+        QVERIFY(QTest::qWaitForWindowExposed(w));
+        auto *list = w->findChild<QQuickItem *>(QStringLiteral("shelfListView"));
+        QVERIFY(list);
+        QTRY_COMPARE(list->property("count").toInt(), 2);
+
+        // Each tile's grip drags its own file; the chip below drags them all.
+        QQuickItem *grip = nullptr;
+        QQuickItem *all = nullptr;
+        const auto findSources = [&] {
+            grip = nullptr;
+            all = nullptr;
+            QList<QQuickItem *> sources;
+            findItems(w->contentItem(), QStringLiteral("shelfDragSource"), &sources);
+            for (QQuickItem *item : std::as_const(sources)) {
+                if (!item->isVisible() || item->width() <= 0)
+                    continue;
+                if (list->isAncestorOf(item)) {
+                    if (!grip || item->mapToScene(QPointF()).y() < grip->mapToScene(QPointF()).y())
+                        grip = item;
+                } else {
+                    all = item;
+                }
+            }
+            return grip && all;
+        };
+        // Delegates are laid out after the model fills.
+        QTRY_VERIFY(findSources());
+
+        const auto dragFrom = [&](QQuickItem *source) -> QStringList {
+            const QPoint start = source->mapToScene(QPointF(source->width() / 2, source->height() / 2)).toPoint();
+            QTest::mousePress(w, Qt::LeftButton, {}, start);
+            QPointer<QDrag> drag;
+            for (int step = 1; step <= 8 && !drag; ++step) {
+                QTest::mouseMove(w, start + QPoint(-6 * step, 2 * step));
+                const auto drags = source->findChildren<QDrag *>();
+                if (!drags.isEmpty())
+                    drag = drags.last();
+            }
+            QStringList urls;
+            if (drag) {
+                // A copy is all that is offered: dropping can never move the file.
+                if (drag->supportedActions() != Qt::CopyAction)
+                    urls.append(QStringLiteral("actions %1").arg(int(drag->supportedActions())));
+                for (const QUrl &u : drag->mimeData()->urls())
+                    urls.append(u.toLocalFile());
+            }
+            QTest::mouseRelease(w, Qt::LeftButton, {}, start + QPoint(-48, 16));
+            return urls;
+        };
+        QStringList one = dragFrom(grip);
+        QCOMPARE(one.size(), 1);
+        QVERIFY2(files.contains(one.first()), qPrintable(one.join(QLatin1Char(','))));
+        QStringList both = dragFrom(all);
+        both.sort();
+        QStringList expected = files;
+        expected.sort();
+        QCOMPARE(both, expected);
+        for (const QString &file : std::as_const(files))
+            QVERIFY(QFileInfo::exists(file));
+        QCOMPARE(app->shelf()->rowCount(), 2);
 
         app->shelf()->hide();
         app->shelf()->clear();

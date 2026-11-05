@@ -103,6 +103,24 @@ bool createDummyFile(const QString &path, const QByteArray &bytes = QByteArray("
     f.write(bytes);
     return true;
 }
+// Drag with the left button in small steps, as a hand would.
+void drag(QQuickWindow *w, QPointF from, QPointF to, int steps = 8)
+{
+    QTest::mousePress(w, Qt::LeftButton, {}, from.toPoint());
+    for (int i = 1; i <= steps; ++i)
+        QTest::mouseMove(w, (from + (to - from) * (double(i) / steps)).toPoint());
+    QTest::mouseRelease(w, Qt::LeftButton, {}, to.toPoint());
+}
+
+QVariantMap rectOf(QQuickWindow *w)
+{
+    return w->property("result").toMap().value(QStringLiteral("rect")).toMap();
+}
+
+bool near(const QVariant &value, double expected, double slack)
+{
+    return qAbs(value.toDouble() - expected) <= slack;
+}
 } // namespace
 
 class TestEditors : public QObject
@@ -226,6 +244,138 @@ private Q_SLOTS:
         QCOMPARE(editor->property("rectW").toInt(), 320);
         QCOMPARE(w->property("result").toMap().value(QStringLiteral("rect")).toMap().value(QStringLiteral("w")).toInt(),
                  320);
+
+        w->hide();
+        QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
+    }
+
+    void cropAndRedactFollowTheMouse()
+    {
+        g_messages.clear();
+        QQuickWindow *w = openEditor(QStringLiteral("cropImage"), QStringLiteral("Crop Image"), photoPath);
+        QVERIFY(w);
+        QTRY_COMPARE_WITH_TIMEOUT(w->property("mediaWidth").toInt(), 640, 10000);
+        auto *stage = w->findChild<QQuickItem *>(QStringLiteral("rectStage"));
+        QVERIFY(stage);
+        QTRY_VERIFY(stage->width() > 0);
+        // Image pixels to window coordinates; a pixel is `scale` points on screen.
+        const double scale = stage->width() / 640.0;
+        const auto at = [&](double x, double y) { return stage->mapToScene(QPointF(x * scale, y * scale)); };
+        const double slack = 2.0 / scale + 1;
+        QCOMPARE(rectOf(w).value(QStringLiteral("w")).toInt(), 640);
+
+        // The bottom-right handle resizes.
+        drag(w, at(640, 360), at(480, 270));
+        QVariantMap r = rectOf(w);
+        QVERIFY2(near(r[QStringLiteral("x")], 0, 0) && near(r[QStringLiteral("y")], 0, 0), qPrintable(QVariant(r).toString()));
+        QVERIFY2(near(r[QStringLiteral("w")], 480, slack) && near(r[QStringLiteral("h")], 270, slack),
+                 qPrintable(QStringLiteral("%1x%2").arg(r[QStringLiteral("w")].toInt()).arg(r[QStringLiteral("h")].toInt())));
+        const int width = r[QStringLiteral("w")].toInt();
+        const int height = r[QStringLiteral("h")].toInt();
+
+        // Inside the box moves it and keeps its size.
+        drag(w, at(200, 100), at(260, 140));
+        r = rectOf(w);
+        QVERIFY2(near(r[QStringLiteral("x")], 60, slack) && near(r[QStringLiteral("y")], 40, slack),
+                 qPrintable(QStringLiteral("%1,%2").arg(r[QStringLiteral("x")].toInt()).arg(r[QStringLiteral("y")].toInt())));
+        QCOMPARE(r[QStringLiteral("w")].toInt(), width);
+        QCOMPARE(r[QStringLiteral("h")].toInt(), height);
+        // Moving cannot push the box off the image.
+        drag(w, at(300, 200), at(639, 359));
+        r = rectOf(w);
+        QCOMPARE(r[QStringLiteral("x")].toInt() + r[QStringLiteral("w")].toInt(), 640);
+        QCOMPARE(r[QStringLiteral("y")].toInt() + r[QStringLiteral("h")].toInt(), 360);
+
+        // Outside the box draws a new one, here from right to left.
+        drag(w, at(140, 120), at(20, 20));
+        r = rectOf(w);
+        QVERIFY2(near(r[QStringLiteral("x")], 20, slack) && near(r[QStringLiteral("y")], 20, slack)
+                     && near(r[QStringLiteral("w")], 120, slack) && near(r[QStringLiteral("h")], 100, slack),
+                 qPrintable(QStringLiteral("%1,%2 %3x%4").arg(r[QStringLiteral("x")].toInt()).arg(r[QStringLiteral("y")].toInt())
+                                .arg(r[QStringLiteral("w")].toInt()).arg(r[QStringLiteral("h")].toInt())));
+
+        // With 1:1 chosen, dragging a corner keeps the square.
+        auto *editor = w->findChild<QObject *>(QStringLiteral("rectEditor"));
+        QMetaObject::invokeMethod(editor, "selectAspect", Q_ARG(QVariant, QStringLiteral("1:1")), Q_ARG(QVariant, 1), Q_ARG(QVariant, 1));
+        r = rectOf(w);
+        drag(w, at(r[QStringLiteral("x")].toDouble() + r[QStringLiteral("w")].toDouble(), r[QStringLiteral("y")].toDouble() + r[QStringLiteral("h")].toDouble()),
+             at(r[QStringLiteral("x")].toDouble() + 200, r[QStringLiteral("y")].toDouble() + 120));
+        r = rectOf(w);
+        QCOMPARE(r[QStringLiteral("w")].toInt(), r[QStringLiteral("h")].toInt());
+        QVERIFY(r[QStringLiteral("w")].toInt() < 360);
+
+        // Redaction: dragging on an empty spot adds a box, dragging a box moves only that one.
+        app->showOptions(QStringLiteral("redactImage"), QStringLiteral("Redact Image"), {photoPath});
+        QTRY_COMPARE_WITH_TIMEOUT(w->property("mediaWidth").toInt(), 640, 10000);
+        QTRY_VERIFY(stage->width() > 0);
+        const auto boxes = [&] { return w->property("result").toMap().value(QStringLiteral("rects")).toList(); };
+        QTRY_COMPARE(boxes().size(), 1);
+        const QVariantMap first = boxes().first().toMap();
+        drag(w, at(20, 20), at(120, 80));
+        QCOMPARE(boxes().size(), 2);
+        QVariantMap added = boxes().at(1).toMap();
+        QVERIFY2(near(added[QStringLiteral("x")], 20, slack) && near(added[QStringLiteral("w")], 100, slack)
+                     && near(added[QStringLiteral("h")], 60, slack),
+                 qPrintable(QStringLiteral("%1 %2x%3").arg(added[QStringLiteral("x")].toInt()).arg(added[QStringLiteral("w")].toInt())
+                                .arg(added[QStringLiteral("h")].toInt())));
+        drag(w, at(70, 50), at(70, 150));
+        added = boxes().at(1).toMap();
+        QVERIFY2(near(added[QStringLiteral("y")], 120, slack), qPrintable(QString::number(added[QStringLiteral("y")].toInt())));
+        QCOMPARE(boxes().first().toMap(), first);
+        // Delete removes the selected box.
+        QTest::keyClick(w, Qt::Key_Delete);
+        QCOMPARE(boxes().size(), 1);
+        QCOMPARE(boxes().first().toMap(), first);
+
+        w->hide();
+        QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
+    }
+
+    void timelineHandlesFollowTheMouse()
+    {
+        g_messages.clear();
+        QQuickWindow *w = openEditor(QStringLiteral("trimVideo"), QStringLiteral("Trim Video"), videoPath);
+        QVERIFY(w);
+        QTRY_VERIFY_WITH_TIMEOUT(w->property("duration").toDouble() > 12.0, 10000);
+        auto *track = w->findChild<QQuickItem *>(QStringLiteral("timelineTrack"));
+        auto *timeline = w->findChild<QObject *>(QStringLiteral("timelineEditor"));
+        QVERIFY(track && timeline);
+        QTRY_VERIFY(track->width() > 0);
+        const double duration = w->property("duration").toDouble();
+        const double body = track->property("rulerH").toDouble() + track->property("bodyH").toDouble() / 2;
+        const auto at = [&](double seconds, double y) {
+            QVariant x;
+            QMetaObject::invokeMethod(track, "timeToX", Q_RETURN_ARG(QVariant, x), Q_ARG(QVariant, seconds));
+            return track->mapToScene(QPointF(x.toDouble(), y));
+        };
+        // One point of the track, in seconds, plus rounding.
+        const double slack = duration / track->property("trackW").toDouble() * 2 + 0.05;
+        const auto result = [&] { return w->property("result").toMap(); };
+
+        drag(w, at(0, body), at(2.0, body));
+        QVERIFY2(near(result()[QStringLiteral("start")], 2.0, slack), qPrintable(result()[QStringLiteral("start")].toString()));
+        drag(w, at(duration, body), at(8.0, body));
+        QVERIFY2(near(result()[QStringLiteral("end")], 8.0, slack), qPrintable(result()[QStringLiteral("end")].toString()));
+        QVERIFY(near(result()[QStringLiteral("start")], 2.0, slack));
+        // The In handle cannot pass the Out handle.
+        drag(w, at(2.0, body), at(11.0, body));
+        QVERIFY(result()[QStringLiteral("start")].toDouble() < result()[QStringLiteral("end")].toDouble());
+        QVERIFY(near(result()[QStringLiteral("end")], 8.0, slack));
+        // The ruler moves the playhead and leaves the selection alone.
+        const QVariantMap before = result();
+        QTest::mouseClick(w, Qt::LeftButton, {}, at(5.0, 6).toPoint());
+        QVERIFY2(near(timeline->property("playhead"), 5.0, slack), qPrintable(timeline->property("playhead").toString()));
+        QCOMPARE(result(), before);
+
+        // Muting ranges: the selected range's edges drag too.
+        app->showOptions(QStringLiteral("redactAudio"), QStringLiteral("Redact Audio"), {audioPath});
+        QTRY_VERIFY_WITH_TIMEOUT(w->property("duration").toDouble() > 12.0, 10000);
+        QTRY_VERIFY(track->width() > 0);
+        const auto range = [&] { return result()[QStringLiteral("ranges")].toList().first().toList(); };
+        QCOMPARE(range().at(1).toDouble(), 1.0);
+        drag(w, at(1.0, body), at(3.0, body));
+        QVERIFY2(near(range().at(1), 3.0, slack), qPrintable(range().at(1).toString()));
+        QCOMPARE(range().at(0).toDouble(), 0.0);
 
         w->hide();
         QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
@@ -896,6 +1046,56 @@ private Q_SLOTS:
         QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
     }
 
+    void annotationShapesFollowTheMouse()
+    {
+        g_messages.clear();
+        QQuickWindow *w = openEditor(QStringLiteral("annotateImage"), QStringLiteral("Annotate Image"), photoPath);
+        QVERIFY(w);
+        auto *annotate = w->findChild<QObject *>(QStringLiteral("annotateEditor"));
+        auto *stage = w->findChild<QQuickItem *>(QStringLiteral("annotateStage"));
+        QVERIFY(annotate && stage);
+        QTRY_VERIFY_WITH_TIMEOUT(!annotate->property("resolvedImageUrl").toString().isEmpty(), 10000);
+        QTRY_VERIFY(stage->width() > 0);
+        QMetaObject::invokeMethod(annotate, "clearAll");
+        const double canvasW = annotate->property("canvasWidth").toDouble();
+        const double scale = stage->width() / canvasW;
+        const auto at = [&](double x, double y) { return stage->mapToScene(QPointF(x * scale, y * scale)); };
+        const double slack = 2.0 / scale + 1;
+        const auto items = [&] { return annotate->property("items").toList(); };
+        const int before = items().size();
+
+        // A rectangle drawn mostly downwards: the page must not scroll instead.
+        annotate->setProperty("currentTool", QStringLiteral("rect"));
+        drag(w, at(100, 40), at(300, 300));
+        QCOMPARE(items().size(), before + 1);
+        QVariantMap shape = items().last().toMap();
+        QCOMPARE(shape[QStringLiteral("kind")].toString(), QStringLiteral("rect"));
+        QVERIFY2(near(shape[QStringLiteral("x1")], 100, slack) && near(shape[QStringLiteral("y1")], 40, slack)
+                     && near(shape[QStringLiteral("x2")], 300, slack) && near(shape[QStringLiteral("y2")], 300, slack),
+                 qPrintable(QVariant(shape).toString()));
+
+        // A pen stroke keeps the points it passed through.
+        annotate->setProperty("currentTool", QStringLiteral("pen"));
+        drag(w, at(400, 50), at(420, 320), 10);
+        shape = items().last().toMap();
+        QCOMPARE(shape[QStringLiteral("kind")].toString(), QStringLiteral("pen"));
+        const QVariantList points = shape[QStringLiteral("points")].toList();
+        QVERIFY2(points.size() >= 5, qPrintable(QString::number(points.size())));
+        QVERIFY(near(points.last().toMap()[QStringLiteral("y")], 320, slack));
+
+        // Select and drag moves the shape under the pointer.
+        annotate->setProperty("currentTool", QStringLiteral("select"));
+        const QVariantMap rect = items().at(before).toMap();
+        drag(w, at(100, 170), at(130, 230));
+        const QVariantMap moved = items().at(before).toMap();
+        QVERIFY2(near(moved[QStringLiteral("x1")].toDouble() - rect[QStringLiteral("x1")].toDouble(), 30, slack)
+                     && near(moved[QStringLiteral("y1")].toDouble() - rect[QStringLiteral("y1")].toDouble(), 60, slack),
+                 qPrintable(QVariant(moved).toString()));
+
+        w->hide();
+        QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
+    }
+
     void annotationNumbersCalloutsAndMoving()
     {
         g_messages.clear();
@@ -1091,6 +1291,28 @@ private Q_SLOTS:
         QCOMPARE(pagesField->property("text").toString(), QStringLiteral("3,1,2,2"));
 
         saveEditorScreenshots(app, w, QStringLiteral("organizePDF"));
+
+        // Dragging a card onto another slot moves it there.
+        QMetaObject::invokeMethod(pdf, "resetPages");
+        auto *grid = w->findChild<QQuickItem *>(QStringLiteral("pdfGrid"));
+        QVERIFY(grid);
+        const auto slot = [&](int index) {
+            QVariant x;
+            QVariant y;
+            QMetaObject::invokeMethod(grid, "slotX", Q_RETURN_ARG(QVariant, x), Q_ARG(QVariant, index));
+            QMetaObject::invokeMethod(grid, "slotY", Q_RETURN_ARG(QVariant, y), Q_ARG(QVariant, index));
+            // The thumbnail, above the card's buttons.
+            return grid->mapToScene(QPointF(x.toDouble() + grid->property("cardW").toDouble() / 2, y.toDouble() + 80));
+        };
+        QVERIFY2(grid->property("cols").toInt() >= 4, qPrintable(grid->property("cols").toString()));
+        QVERIFY(slot(3).y() < w->height());
+        drag(w, slot(0), slot(2), 12);
+        QCOMPARE(w->property("result").toMap().value(QStringLiteral("pages")).toString(), QStringLiteral("2,3,1,4"));
+        drag(w, slot(3), slot(0), 12);
+        QCOMPARE(w->property("result").toMap().value(QStringLiteral("pages")).toString(), QStringLiteral("4,2,3,1"));
+        // A short wobble is not a move.
+        drag(w, slot(1), slot(1) + QPointF(6, 4), 3);
+        QCOMPARE(w->property("result").toMap().value(QStringLiteral("pages")).toString(), QStringLiteral("4,2,3,1"));
 
         // Reset restores 1..4 with 0° rotation and omits `rotations`
         QMetaObject::invokeMethod(pdf, "resetPages");

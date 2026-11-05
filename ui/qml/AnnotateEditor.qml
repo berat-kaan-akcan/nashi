@@ -888,6 +888,7 @@ Item {
 
             Item {
                 id: stage
+                objectName: "annotateStage"
                 x: Math.round((viewport.width - viewport.dispW) / 2)
                 y: Math.round((viewport.height - viewport.dispH) / 2)
                 width: viewport.dispW
@@ -971,6 +972,8 @@ Item {
                 MouseArea {
                     id: drawMouse
                     anchors.fill: parent
+                    // The options page scrolls; a drag here belongs to the editor.
+                    preventStealing: true
                     hoverEnabled: true
                     cursorShape: root.currentTool === "text" || root.currentTool === "callout" ? Qt.IBeamCursor
                                  : root.currentTool === "select" ? Qt.SizeAllCursor : Qt.CrossCursor

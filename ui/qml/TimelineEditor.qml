@@ -527,6 +527,7 @@ Item {
         // Waveform + Ruler + Trim / Mute handles track
         Rectangle {
             id: trackBox
+            objectName: "timelineTrack"
             Layout.fillWidth: true
             Layout.preferredHeight: 136
             radius: Theme.radiusRow
@@ -841,6 +842,8 @@ Item {
             MouseArea {
                 id: trackMouse
                 anchors.fill: parent
+                // The options page scrolls; a drag here belongs to the timeline.
+                preventStealing: true
                 hoverEnabled: true
                 focus: true
 
