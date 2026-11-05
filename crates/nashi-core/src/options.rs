@@ -218,6 +218,10 @@ pub struct Options {
     pub gif_fps: Option<u32>,
     /// Conversion to GIF: largest width in pixels, 2..=16384 (default 640).
     pub gif_max_width: Option<u32>,
+    /// WAV and AIFF: `16`, `24`, `32`, `float32`; the source's depth when absent.
+    pub sample_depth: Option<String>,
+    /// FLAC: `fast`, `balanced` or `maximum`.
+    pub audio_compression: Option<String>,
     /// Conversion of images, audio and video: leave out tags, chapters and album art.
     pub strip_metadata: Option<bool>,
     /// `trimAudio`: also remove silence from both ends of the selection.

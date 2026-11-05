@@ -194,3 +194,5 @@ nashi-cli download URL [--kind auto|video|audio|thumbnail|image] [--out-dir DIR]
 - `splitPDF` option `pages_per_file` (at least 1, default 1) writes parts named `stem-first-last.pdf`, or `stem-page.pdf` for a part of one page. It applies to the pages chosen by `pages`.
 - `mergePDF` and `organizePDF` option `uniform_width` (bool) scales every page to the width of the narrowest as shown, keeping its shape. It needs `gs` and `pdfinfo`. Pages that are already that wide are copied as they are; Ghostscript rewrites the others, so check form fields and links on those.
 - `normalizeAudio` options: `target_lufs` (-70..-5, default -16), `loudness_range` (1..50, default 11), `true_peak` (-9..0, default -1.5).
+- `wav` and `aiff` outputs of conversions and audio tools keep the source's sample depth (16, 24 or 32-bit integer, or float). Conversion option `sample_depth` (`16`, `24`, `32`, `float32`) chooses another. `audio_compression` (`fast`, `balanced`, `maximum`) sets the FLAC compression level. Other values return `invalid_options`.
+- `mergePDF` and `joinVideos` use the files in the order given on the command line.

@@ -150,6 +150,45 @@ void Settings::setWheelScale(double scale)
     Q_EMIT wheelScaleChanged();
 }
 
+namespace {
+
+const QStringList &compressImageSizes()
+{
+    static const QStringList v{QStringLiteral("original"), QStringLiteral("2560"), QStringLiteral("1920"), QStringLiteral("1280"),
+                               QStringLiteral("75%"), QStringLiteral("50%"), QStringLiteral("25%")};
+    return v;
+}
+
+} // namespace
+
+QString Settings::compressPreset() const
+{
+    return m_store.value(QStringLiteral("compress/preset")).toString() == QLatin1String("strong") ? QStringLiteral("strong")
+                                                                                                  : QStringLiteral("balanced");
+}
+
+void Settings::setCompressPreset(const QString &preset)
+{
+    if ((preset != QLatin1String("balanced") && preset != QLatin1String("strong")) || preset == compressPreset())
+        return;
+    m_store.setValue(QStringLiteral("compress/preset"), preset);
+    Q_EMIT compressDefaultsChanged();
+}
+
+QString Settings::compressImageSize() const
+{
+    const QString v = m_store.value(QStringLiteral("compress/imageSize")).toString();
+    return compressImageSizes().contains(v) ? v : QStringLiteral("original");
+}
+
+void Settings::setCompressImageSize(const QString &size)
+{
+    if (!compressImageSizes().contains(size) || size == compressImageSize())
+        return;
+    m_store.setValue(QStringLiteral("compress/imageSize"), size);
+    Q_EMIT compressDefaultsChanged();
+}
+
 bool Settings::wheelSound() const
 {
     return m_store.value(QStringLiteral("wheel/sound"), true).toBool();
@@ -231,8 +270,12 @@ QStringList Settings::formatDefaultKinds(const QString &format) const
     const QString kbps = QStringLiteral("audioKbps");
     if (qualityImages().contains(format))
         return {quality, keep};
-    if (otherImages().contains(format) || losslessAudio().contains(format))
+    if (otherImages().contains(format))
         return {keep};
+    if (format == QLatin1String("flac"))
+        return {QStringLiteral("audioCompression"), keep};
+    if (losslessAudio().contains(format))
+        return {QStringLiteral("sampleDepth"), keep};
     if (lossyAudio().contains(format))
         return {kbps, keep};
     if (videos().contains(format))
@@ -252,7 +295,14 @@ QVariantMap Settings::formatDefaults(const QString &format) const
     QString quality = m_store.value(formatKey(format, QStringLiteral("quality"))).toString();
     if (quality != QLatin1String("smaller") && quality != QLatin1String("higher"))
         quality = QStringLiteral("balanced");
+    const auto oneOf = [&](const char *kind, const QStringList &allowed) {
+        const QString v = m_store.value(formatKey(format, QString::fromLatin1(kind))).toString();
+        return allowed.contains(v) ? v : QString();
+    };
     return {
+        // Empty: leave the choice to the engine.
+        {QStringLiteral("sampleDepth"), oneOf("sampleDepth", {QStringLiteral("16"), QStringLiteral("24"), QStringLiteral("32"), QStringLiteral("float32")})},
+        {QStringLiteral("audioCompression"), oneOf("audioCompression", {QStringLiteral("fast"), QStringLiteral("balanced"), QStringLiteral("maximum")})},
         {QStringLiteral("quality"), quality},
         {QStringLiteral("keepMetadata"), m_store.value(formatKey(format, QStringLiteral("keepMetadata")), true).toBool()},
         // 0: leave the choice to the engine.
@@ -296,6 +346,13 @@ QJsonObject Settings::conversionOptions(const QString &target) const
     }
     if (kinds.contains(QStringLiteral("keepMetadata")) && !chosen.value(QStringLiteral("keepMetadata")).toBool())
         options.insert(QStringLiteral("strip_metadata"), true);
+    const auto text = [&](const char *kind, const char *key) {
+        const QString v = chosen.value(QString::fromLatin1(kind)).toString();
+        if (kinds.contains(QString::fromLatin1(kind)) && !v.isEmpty())
+            options.insert(QString::fromLatin1(key), v);
+    };
+    text("sampleDepth", "sample_depth");
+    text("audioCompression", "audio_compression");
     const auto number = [&](const char *kind, const char *key, int neutral) {
         const int v = chosen.value(QString::fromLatin1(kind)).toInt();
         if (kinds.contains(QString::fromLatin1(kind)) && v != neutral)

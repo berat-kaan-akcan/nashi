@@ -307,3 +307,113 @@ fn stripping_a_video_removes_its_tags_and_chapters() {
     assert_eq!(chapters(&clean.one()), "");
     assert_eq!(stream_value(&clean.one(), "v:0", "format_tags=title"), "");
 }
+
+fn sample_format(p: &Path) -> String {
+    stream_value(p, "a:0", "stream=codec_name")
+}
+
+#[test]
+fn pcm_targets_keep_the_depth_of_the_source_unless_told_otherwise() {
+    need!("ffmpeg", "ffprobe");
+    let d = tempfile::tempdir().unwrap();
+    let deep = d.path().join("deep.flac");
+    tool(
+        "ffmpeg",
+        &[
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=d=1",
+            "-c:a",
+            "flac",
+            "-sample_fmt",
+            "s32",
+            "-bits_per_raw_sample",
+            "24",
+            s(&deep),
+        ],
+    );
+    let w = wav(d.path(), "plain.wav", 1.0);
+    let flac16 = converted(&w, "flac", "{}");
+    flac16.ok();
+
+    let kept = converted(&deep, "wav", "{}");
+    kept.ok();
+    assert_eq!(sample_format(&kept.one()), "pcm_s24le");
+    let kept = converted(&deep, "aiff", "{}");
+    kept.ok();
+    assert_eq!(sample_format(&kept.one()), "pcm_s24be");
+    // 16-bit sources stay 16-bit.
+    let same = converted(&flac16.one(), "aiff", "{}");
+    same.ok();
+    assert_eq!(sample_format(&same.one()), "pcm_s16be");
+
+    for (depth, codec) in [
+        ("16", "pcm_s16le"),
+        ("24", "pcm_s24le"),
+        ("32", "pcm_s32le"),
+        ("float32", "pcm_f32le"),
+    ] {
+        let r = converted(&deep, "wav", &format!(r#"{{"sample_depth":"{depth}"}}"#));
+        r.ok();
+        assert_eq!(sample_format(&r.one()), codec, "{depth}");
+    }
+    let bad = converted(&deep, "wav", r#"{"sample_depth":"8"}"#);
+    assert_eq!(bad.error_codes(), ["invalid_options"]);
+}
+
+#[test]
+fn flac_compression_changes_the_size_only() {
+    need!("ffmpeg", "ffprobe");
+    let d = tempfile::tempdir().unwrap();
+    let noisy = d.path().join("noise.wav");
+    tool(
+        "ffmpeg",
+        &[
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "anoisesrc=d=3:c=pink:a=0.3",
+            s(&noisy),
+        ],
+    );
+    let size = |r: &Run| std::fs::metadata(r.one()).unwrap().len();
+    let fast = converted(&noisy, "flac", r#"{"audio_compression":"fast"}"#);
+    fast.ok();
+    let max = converted(&noisy, "flac", r#"{"audio_compression":"maximum"}"#);
+    max.ok();
+    assert!(size(&max) < size(&fast), "{} {}", size(&max), size(&fast));
+    let bad = converted(&noisy, "flac", r#"{"audio_compression":"huge"}"#);
+    assert_eq!(bad.error_codes(), ["invalid_options"]);
+}
+
+#[test]
+fn tools_keep_the_depth_of_a_pcm_file() {
+    need!("ffmpeg", "ffprobe");
+    let d = tempfile::tempdir().unwrap();
+    let deep = d.path().join("deep.wav");
+    tool(
+        "ffmpeg",
+        &[
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=d=3",
+            "-c:a",
+            "pcm_s24le",
+            s(&deep),
+        ],
+    );
+    let trimmed = tool_run("trimAudio", &[&deep], Some(r#"{"start":0.5,"end":2}"#));
+    trimmed.ok();
+    assert_eq!(sample_format(&trimmed.one()), "pcm_s24le");
+    let normal = tool_run("normalizeAudio", &[&deep], None);
+    normal.ok();
+    assert_eq!(sample_format(&normal.one()), "pcm_s24le");
+}

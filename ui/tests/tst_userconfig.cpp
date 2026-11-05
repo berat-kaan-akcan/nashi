@@ -220,6 +220,41 @@ private Q_SLOTS:
         QVERIFY(options("png").isEmpty());
     }
 
+    void pcmDepthAndFlacCompressionBecomeEngineOptions()
+    {
+        QTemporaryDir dir;
+        Settings s(dir.filePath(QStringLiteral("nashi.conf")), nullptr);
+        QVERIFY(s.formatDefaultKinds(QStringLiteral("wav")).contains(QStringLiteral("sampleDepth")));
+        QVERIFY(s.formatDefaultKinds(QStringLiteral("aiff")).contains(QStringLiteral("sampleDepth")));
+        QVERIFY(!s.formatDefaultKinds(QStringLiteral("flac")).contains(QStringLiteral("sampleDepth")));
+        QVERIFY(s.formatDefaultKinds(QStringLiteral("flac")).contains(QStringLiteral("audioCompression")));
+        QVERIFY(!s.formatDefaultKinds(QStringLiteral("wav")).contains(QStringLiteral("audioCompression")));
+        QVERIFY(s.conversionOptions(QStringLiteral("wav")).isEmpty());
+        s.setFormatDefault(QStringLiteral("wav"), QStringLiteral("sampleDepth"), QStringLiteral("24"));
+        QCOMPARE(s.conversionOptions(QStringLiteral("wav")).value(QStringLiteral("sample_depth")).toString(), QStringLiteral("24"));
+        s.setFormatDefault(QStringLiteral("flac"), QStringLiteral("audioCompression"), QStringLiteral("maximum"));
+        QCOMPARE(s.conversionOptions(QStringLiteral("flac")).value(QStringLiteral("audio_compression")).toString(), QStringLiteral("maximum"));
+        // An unknown value in the file means the default.
+        s.store().setValue(QStringLiteral("formats/wav/sampleDepth"), QStringLiteral("8"));
+        QVERIFY(!s.conversionOptions(QStringLiteral("wav")).contains(QStringLiteral("sample_depth")));
+    }
+
+    void compressDefaults()
+    {
+        QTemporaryDir dir;
+        Settings s(dir.filePath(QStringLiteral("nashi.conf")), nullptr);
+        QCOMPARE(s.compressPreset(), QStringLiteral("balanced"));
+        QCOMPARE(s.compressImageSize(), QStringLiteral("original"));
+        s.setCompressPreset(QStringLiteral("strong"));
+        s.setCompressImageSize(QStringLiteral("1920"));
+        QCOMPARE(s.compressPreset(), QStringLiteral("strong"));
+        QCOMPARE(s.compressImageSize(), QStringLiteral("1920"));
+        s.setCompressPreset(QStringLiteral("nonsense"));
+        QCOMPARE(s.compressPreset(), QStringLiteral("strong"));
+        s.setCompressImageSize(QStringLiteral("nonsense"));
+        QCOMPARE(s.compressImageSize(), QStringLiteral("1920"));
+    }
+
     void formatDefaultsOnlyOfferWhatTheFormatCanUse()
     {
         QTemporaryDir dir;

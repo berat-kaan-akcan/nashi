@@ -433,6 +433,44 @@ private Q_SLOTS:
         QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
     }
 
+    void compressFormStartsFromTheSavedDefaults()
+    {
+        g_messages.clear();
+        app->settings()->setCompressPreset(QStringLiteral("strong"));
+        app->settings()->setCompressImageSize(QStringLiteral("1280"));
+        QQuickWindow *w = openEditor(QStringLiteral("compress"), QStringLiteral("Compress"), photoPath);
+        QVERIFY(w);
+        QCOMPARE(w->property("compressPreset").toString(), QStringLiteral("strong"));
+        QCOMPARE(w->property("compressImageSizeChoice").toString(), QStringLiteral("1280"));
+        w->hide();
+        app->settings()->setCompressPreset(QStringLiteral("balanced"));
+        app->settings()->setCompressImageSize(QStringLiteral("original"));
+        QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
+    }
+
+    void mergeAndJoinFormsReorderTheFiles()
+    {
+        g_messages.clear();
+        QVERIFY(WheelModel::hasOptionsForm(QStringLiteral("joinVideos")));
+        app->showOptions(QStringLiteral("mergePDF"), QStringLiteral("Merge"), {pdfPath, photoPath, videoPath});
+        auto *w = qobject_cast<QQuickWindow *>(app->optionsWindow());
+        QVERIFY(w);
+        const auto files = [w] { return w->property("files").toStringList(); };
+        QMetaObject::invokeMethod(w, "moveFile", Q_ARG(QVariant, 2), Q_ARG(QVariant, -1));
+        QCOMPARE(files(), (QStringList{pdfPath, videoPath, photoPath}));
+        QMetaObject::invokeMethod(w, "moveFile", Q_ARG(QVariant, 0), Q_ARG(QVariant, -1));
+        QCOMPARE(files().first(), pdfPath);
+        QMetaObject::invokeMethod(w, "moveFile", Q_ARG(QVariant, 2), Q_ARG(QVariant, 1));
+        QCOMPARE(files().last(), photoPath);
+        QVERIFY(w->property("result").typeId() != QMetaType::QString);
+        w->hide();
+        app->showOptions(QStringLiteral("joinVideos"), QStringLiteral("Join"), {videoPath, photoPath});
+        QVERIFY(w->property("result").typeId() != QMetaType::QString);
+        QVERIFY(w->property("result").toMap().isEmpty());
+        w->hide();
+        QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
+    }
+
     void pdfAndLoudnessChoicesDoNotCarryOverToTheNextFile()
     {
         g_messages.clear();

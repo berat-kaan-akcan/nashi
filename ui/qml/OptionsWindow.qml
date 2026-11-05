@@ -43,6 +43,7 @@ ApplicationWindow {
         case "normalizeAudio": return "normalize"
         case "splitPDF": return "splitPdf"
         case "mergePDF": return "mergePdf"
+        case "joinVideos": return "join"
         }
         return ""
     }
@@ -261,8 +262,8 @@ ApplicationWindow {
         snapshotTimes = []
         snapshotMode = "frames"
         snapshotEvery = "1"
-        compressPreset = "balanced"
-        compressImageSizeChoice = "original"
+        compressPreset = App.settings.compressPreset
+        compressImageSizeChoice = App.settings.compressImageSize
         compressCustomWidth = ""
         compressCustomHeight = ""
         compressVideoHeight = 0
@@ -507,6 +508,18 @@ ApplicationWindow {
         if (framePositionX !== 50 || framePositionY !== 50)
             frame.position = { x: framePositionX / 100, y: framePositionY / 100 }
         return { frame: frame }
+    }
+
+    // Merge and Join work on the files in the order they are listed.
+    function moveFile(position, step) {
+        const target = position + step
+        if (target < 0 || target >= files.length)
+            return
+        const list = Array.from(files, String)
+        const moved = list[position]
+        list[position] = list[target]
+        list[target] = moved
+        files = list
     }
 
     function moveCollageImage(position, step) {
@@ -755,6 +768,8 @@ ApplicationWindow {
         }
         case "mergePdf":
             return uniformWidth ? { uniform_width: true } : {}
+        case "join":
+            return {}
         case "trim": {
             const r = rangeOrError()
             if (typeof r === "string")
@@ -1094,6 +1109,45 @@ ApplicationWindow {
                     selectByMouse: true
                     placeholderText: qsTr("All pages, or for example 1-3,5")
                     Accessible.name: qsTr("Pages to include")
+                }
+            }
+
+            SectionBox {
+                visible: win.group === "mergePdf" || win.group === "join"
+                title: qsTr("Order")
+                Repeater {
+                    model: win.group === "mergePdf" || win.group === "join" ? win.files.length : 0
+                    delegate: RowLayout {
+                        id: fileRow
+                        required property int index
+                        readonly property string name: App.fileName(String(win.files[index]))
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Text {
+                            Layout.fillWidth: true
+                            text: (fileRow.index + 1) + ". " + fileRow.name
+                            textFormat: Text.PlainText
+                            elide: Text.ElideMiddle
+                            font.pixelSize: Theme.sizeSmall
+                            color: Theme.text
+                        }
+                        NButton {
+                            compact: true
+                            kind: "quiet"
+                            iconName: "go-up"
+                            enabled: fileRow.index > 0
+                            Accessible.name: qsTr("Move %1 earlier").arg(fileRow.name)
+                            onClicked: win.moveFile(fileRow.index, -1)
+                        }
+                        NButton {
+                            compact: true
+                            kind: "quiet"
+                            iconName: "go-down"
+                            enabled: fileRow.index < win.files.length - 1
+                            Accessible.name: qsTr("Move %1 later").arg(fileRow.name)
+                            onClicked: win.moveFile(fileRow.index, 1)
+                        }
+                    }
                 }
             }
 

@@ -490,6 +490,31 @@ private Q_SLOTS:
         QVERIFY(qAbs(pageWidths(out.first()).first() - 200.0) < 1.0);
     }
 
+    void mergeAndJoinFollowTheChosenOrder()
+    {
+        NEED("magick");
+        NEED("ffmpeg");
+        NEED("pdfinfo");
+        NEED("qpdf");
+        QVERIFY(make(QStringLiteral("magick"), {QStringLiteral("-size"), QStringLiteral("300x300"), QStringLiteral("xc:white"), QStringLiteral("-units"), QStringLiteral("PixelsPerInch"),
+                                                QStringLiteral("-density"), QStringLiteral("72"), at("square.pdf")}));
+        QStringList out;
+        QVERIFY(runForm(QStringLiteral("mergePDF"), {at("book.pdf"), at("square.pdf")}, [](QQuickWindow *w) {
+            QMetaObject::invokeMethod(w, "moveFile", Q_ARG(QVariant, 1), Q_ARG(QVariant, -1));
+        }, &out));
+        QVERIFY(qAbs(pageWidths(out.first()).first() - 300.0) < 1.0);
+
+        QVERIFY(make(QStringLiteral("ffmpeg"), {QStringLiteral("-v"), QStringLiteral("error"), QStringLiteral("-f"), QStringLiteral("lavfi"), QStringLiteral("-i"), QStringLiteral("color=red:d=1:s=640x360:r=25"),
+                                                QStringLiteral("-f"), QStringLiteral("lavfi"), QStringLiteral("-i"), QStringLiteral("sine=d=1"), QStringLiteral("-shortest"),
+                                                QStringLiteral("-c:v"), QStringLiteral("libx264"), QStringLiteral("-pix_fmt"), QStringLiteral("yuv420p"), QStringLiteral("-c:a"), QStringLiteral("aac"), at("red.mp4")}));
+        QVERIFY(runForm(QStringLiteral("joinVideos"), {at("clip.mp4"), at("red.mp4")}, [](QQuickWindow *w) {
+            QMetaObject::invokeMethod(w, "moveFile", Q_ARG(QVariant, 1), Q_ARG(QVariant, -1));
+        }, &out));
+        QVERIFY(make(QStringLiteral("ffmpeg"), {QStringLiteral("-v"), QStringLiteral("error"), QStringLiteral("-y"), QStringLiteral("-i"), out.first(), QStringLiteral("-frames:v"), QStringLiteral("1"), at("first.png")}));
+        const QColor first = QImage(at("first.png")).pixelColor(320, 180);
+        QVERIFY2(first.red() > 200 && first.green() < 60, qPrintable(first.name()));
+    }
+
     void formatDefaultsReachTheEngine()
     {
         NEED("ffmpeg");
@@ -515,6 +540,14 @@ private Q_SLOTS:
         s->setFormatDefault(QStringLiteral("gif"), QStringLiteral("gifFps"), 5);
         QVERIFY(convert(QStringLiteral("gif"), at("clip.mp4"), &out));
         QCOMPARE(videoSize(out.first()), QStringLiteral("320,180"));
+
+        s->setFormatDefault(QStringLiteral("wav"), QStringLiteral("sampleDepth"), QStringLiteral("24"));
+        QVERIFY(convert(QStringLiteral("wav"), at("tone.mp3"), &out));
+        QCOMPARE(output(QStringLiteral("ffprobe"), {QStringLiteral("-v"), QStringLiteral("error"), QStringLiteral("-select_streams"), QStringLiteral("a:0"),
+                                                    QStringLiteral("-show_entries"), QStringLiteral("stream=codec_name"), QStringLiteral("-of"), QStringLiteral("csv=p=0"), out.first()}),
+                 QStringLiteral("pcm_s24le"));
+        s->setFormatDefault(QStringLiteral("flac"), QStringLiteral("audioCompression"), QStringLiteral("fast"));
+        QVERIFY(convert(QStringLiteral("flac"), at("tone.mp3"), &out));
 
         s->setFormatDefault(QStringLiteral("jpg"), QStringLiteral("quality"), QStringLiteral("smaller"));
         QVERIFY(convert(QStringLiteral("jpg"), at("photo.png"), &out));

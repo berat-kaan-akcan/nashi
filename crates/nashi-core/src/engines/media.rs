@@ -49,6 +49,65 @@ pub fn audio_codec(ext: &str) -> Vec<&'static str> {
     }
 }
 
+/// The PCM codec for WAV or AIFF: the chosen depth, else the source's, as sources
+/// deeper than 16 bits would otherwise lose detail on every conversion.
+fn pcm_codec(ext: &str, p: &Probe, depth: Option<&str>) -> String {
+    let endian = if ext == "wav" { "le" } else { "be" };
+    let source = p.audio_codec.as_deref().unwrap_or("");
+    let digits = |s: &str| {
+        s.chars()
+            .take_while(char::is_ascii_digit)
+            .collect::<String>()
+            .parse::<u32>()
+            .ok()
+    };
+    match depth {
+        Some("float32") => format!("pcm_f32{endian}"),
+        Some(bits) => format!("pcm_s{bits}{endian}"),
+        None if source.starts_with("pcm_f") => {
+            let wide = digits(&source[5..]).is_some_and(|d| d > 32);
+            format!("pcm_f{}{endian}", if wide { 64 } else { 32 })
+        }
+        None => {
+            let from_name = source
+                .strip_prefix("pcm_s")
+                .or_else(|| source.strip_prefix("pcm_u"))
+                .and_then(digits);
+            let bits = p.audio_bits.filter(|b| *b > 0).or(from_name).unwrap_or(16);
+            let width = match bits {
+                ..=16 => 16,
+                17..=24 => 24,
+                _ => 32,
+            };
+            format!("pcm_s{width}{endian}")
+        }
+    }
+}
+
+/// Encoder args for audio written to `ext`, following the file and the options.
+fn audio_for(ext: &str, p: &Probe, o: &crate::options::Options) -> Vec<String> {
+    match ext {
+        "wav" | "aiff" => vec![
+            "-c:a".to_string(),
+            pcm_codec(ext, p, o.sample_depth.as_deref()),
+        ],
+        "flac" => {
+            let level = match o.audio_compression.as_deref() {
+                Some("fast") => Some("0"),
+                Some("balanced") => Some("8"),
+                Some("maximum") => Some("12"),
+                _ => None,
+            };
+            let mut a = vec!["-c:a".to_string(), "flac".to_string()];
+            if let Some(level) = level {
+                a.extend(["-compression_level".to_string(), level.to_string()]);
+            }
+            a
+        }
+        _ => audio_at(ext, o.audio_kbps),
+    }
+}
+
 /// `audio_codec` at a chosen bitrate; lossless and PCM codecs have none to set.
 fn audio_at(ext: &str, kbps: Option<u32>) -> Vec<String> {
     let base = audio_codec(ext);
@@ -205,6 +264,22 @@ fn out(path: &Path) -> OsString {
 pub fn convert(ctx: &Ctx, input: &Input, target: &str) -> JobResult<PathBuf> {
     let o = ctx.opts;
     check_encoding(o)?;
+    if o.sample_depth
+        .as_deref()
+        .is_some_and(|d| !["16", "24", "32", "float32"].contains(&d))
+    {
+        return Err(JobError::invalid_options(
+            "sample_depth must be 16, 24, 32 or float32",
+        ));
+    }
+    if o.audio_compression
+        .as_deref()
+        .is_some_and(|c| !["fast", "balanced", "maximum"].contains(&c))
+    {
+        return Err(JobError::invalid_options(
+            "audio_compression must be fast, balanced or maximum",
+        ));
+    }
     if o.gif_fps.is_some_and(|f| !(1..=60).contains(&f)) {
         return Err(JobError::invalid_options(
             "gif_fps must be between 1 and 60",
@@ -249,7 +324,7 @@ pub fn convert(ctx: &Ctx, input: &Input, target: &str) -> JobResult<PathBuf> {
             if p.ogg_stream_tags && !strip {
                 cmd = cmd.args(["-map_metadata", "0:s:a:0"]);
             }
-            cmd = cmd.args(audio_at(target, o.audio_kbps)).args(audio_fit(
+            cmd = cmd.args(audio_for(target, &p, o)).args(audio_fit(
                 target,
                 p.channels,
                 p.sample_rate,
@@ -571,7 +646,7 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
             a.extend(["-vn".into(), "-map".into(), "0:a:0".into()]);
         }
         if p.has_audio {
-            a.extend(audio_codec(&ext).into_iter().map(String::from));
+            a.extend(audio_for(&ext, &p, o));
             a.extend(
                 audio_fit(&ext, p.channels, p.sample_rate)
                     .into_iter()
@@ -643,7 +718,7 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
                     "-ar",
                     &rate,
                 ])
-                .args(audio_codec(&ext))
+                .args(audio_for(&ext, &p, o))
                 .args(audio_fit(&ext, p.channels, p.sample_rate));
             finish(cmd, staged, p.duration, "Normalizing")
         }
@@ -653,7 +728,7 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
             let n = if ch == "mono" { "1" } else { "2" };
             let cmd = ffin(ffmpeg(ctx)?)
                 .args(["-vn", "-map", "0:a:0", "-ac", n])
-                .args(audio_codec(&ext))
+                .args(audio_for(&ext, &p, o))
                 .args(audio_fit(&ext, None, p.sample_rate));
             finish(cmd, staged, p.duration, "Converting channels")
         }
@@ -819,7 +894,7 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
             let staged = input.stage("-bleeped", &ext)?;
             let cmd = ffin(ffmpeg(ctx)?)
                 .args(["-vn", "-map", "0:a:0", "-af", &f])
-                .args(audio_codec(&ext))
+                .args(audio_for(&ext, &p, o))
                 .args(audio_fit(&ext, p.channels, p.sample_rate));
             finish(cmd, staged, p.duration, "Bleeping")
         }

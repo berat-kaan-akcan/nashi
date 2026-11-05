@@ -1668,6 +1668,10 @@
         <translation>Dahil edilecek sayfalar</translation>
     </message>
     <message>
+        <source>Order</source>
+        <translation>Sıra</translation>
+    </message>
+    <message>
         <source>Page size</source>
         <translation>Sayfa boyutu</translation>
     </message>
@@ -2486,6 +2490,46 @@
         <translation>%1 kbit/sn</translation>
     </message>
     <message>
+        <source>Sample depth</source>
+        <translation>Örnek derinliği</translation>
+    </message>
+    <message>
+        <source>Match the source</source>
+        <translation>Kaynakla aynı</translation>
+    </message>
+    <message>
+        <source>16-bit</source>
+        <translation>16 bit</translation>
+    </message>
+    <message>
+        <source>24-bit</source>
+        <translation>24 bit</translation>
+    </message>
+    <message>
+        <source>32-bit</source>
+        <translation>32 bit</translation>
+    </message>
+    <message>
+        <source>32-bit float</source>
+        <translation>32 bit kayan nokta</translation>
+    </message>
+    <message>
+        <source>Compression</source>
+        <translation>Sıkıştırma</translation>
+    </message>
+    <message>
+        <source>FLAC compression</source>
+        <translation>FLAC sıkıştırması</translation>
+    </message>
+    <message>
+        <source>Fast</source>
+        <translation>Hızlı</translation>
+    </message>
+    <message>
+        <source>Smallest file</source>
+        <translation>En küçük dosya</translation>
+    </message>
+    <message>
         <source>Frame rate</source>
         <translation>Kare hızı</translation>
     </message>
@@ -2516,6 +2560,34 @@
     <message>
         <source>Used each time you convert to this format. Tools such as Compress keep their own settings.</source>
         <translation>Bu formata her dönüştürmede kullanılır. Sıkıştır gibi araçlar kendi ayarlarını korur.</translation>
+    </message>
+    <message>
+        <source>Compress defaults</source>
+        <translation>Sıkıştırma varsayılanları</translation>
+    </message>
+    <message>
+        <source>Strength</source>
+        <translation>Güç</translation>
+    </message>
+    <message>
+        <source>Strong</source>
+        <translation>Güçlü</translation>
+    </message>
+    <message>
+        <source>Default compression strength</source>
+        <translation>Varsayılan sıkıştırma gücü</translation>
+    </message>
+    <message>
+        <source>Image size</source>
+        <translation>Görsel boyutu</translation>
+    </message>
+    <message>
+        <source>Default image size</source>
+        <translation>Varsayılan görsel boyutu</translation>
+    </message>
+    <message>
+        <source>Where the Compress window starts. You can still change them each time.</source>
+        <translation>Sıkıştır penceresi bu ayarlarla açılır. Her seferinde yine değiştirebilirsiniz.</translation>
     </message>
     <message>
         <source>Notifications</source>

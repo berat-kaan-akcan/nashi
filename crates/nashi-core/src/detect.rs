@@ -243,6 +243,9 @@ pub struct Probe {
     pub has_audio: bool,
     pub sample_rate: Option<u32>,
     pub channels: Option<u32>,
+    /// Codec and bits per sample of the first audio stream.
+    pub audio_codec: Option<String>,
+    pub audio_bits: Option<u32>,
     /// Stored pixel width over height of the first video stream, when not square.
     pub sar: Option<f64>,
     /// Index of an embedded JPEG or PNG cover picture.
@@ -388,6 +391,12 @@ pub fn ffprobe(deps: &Deps, path: &Path) -> Option<Probe> {
                 p.art_stream = s["index"].as_u64();
             }
             Some("audio") if !p.has_audio => {
+                p.audio_codec = s["codec_name"].as_str().map(String::from);
+                p.audio_bits = s["bits_per_raw_sample"]
+                    .as_str()
+                    .and_then(|b| b.parse().ok())
+                    .filter(|b: &u32| *b > 0)
+                    .or_else(|| s["bits_per_sample"].as_u64().map(|b| b as u32));
                 p.has_audio = true;
                 p.ogg_stream_tags = is_ogg && s["tags"].as_object().is_some_and(|t| !t.is_empty());
                 p.sample_rate = num(&s["sample_rate"]).map(|x| x as u32);

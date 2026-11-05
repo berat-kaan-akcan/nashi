@@ -353,6 +353,39 @@ Page {
                     }
                 }
                 FormatRow {
+                    objectName: "formatSampleDepth"
+                    visible: formatSection.kinds.includes("sampleDepth")
+                    label: qsTr("Sample depth")
+                    FormatChoice {
+                        objectName: "formatSampleDepthChoice"
+                        kind: "sampleDepth"
+                        accessibleName: qsTr("Sample depth")
+                        options: [
+                            { value: "", text: qsTr("Match the source") },
+                            { value: "16", text: qsTr("16-bit") },
+                            { value: "24", text: qsTr("24-bit") },
+                            { value: "32", text: qsTr("32-bit") },
+                            { value: "float32", text: qsTr("32-bit float") }
+                        ]
+                    }
+                }
+                FormatRow {
+                    objectName: "formatAudioCompression"
+                    visible: formatSection.kinds.includes("audioCompression")
+                    label: qsTr("Compression")
+                    FormatChoice {
+                        objectName: "formatAudioCompressionChoice"
+                        kind: "audioCompression"
+                        accessibleName: qsTr("FLAC compression")
+                        options: [
+                            { value: "", text: qsTr("Automatic") },
+                            { value: "fast", text: qsTr("Fast") },
+                            { value: "balanced", text: qsTr("Balanced") },
+                            { value: "maximum", text: qsTr("Smallest file") }
+                        ]
+                    }
+                }
+                FormatRow {
                     objectName: "formatGifFps"
                     visible: formatSection.kinds.includes("gifFps")
                     label: qsTr("Frame rate")
@@ -389,6 +422,35 @@ Page {
                 }
                 Hint {
                     text: qsTr("Used each time you convert to this format. Tools such as Compress keep their own settings.")
+                }
+            }
+
+            SectionBox {
+                title: qsTr("Compress defaults")
+                FormatRow {
+                    label: qsTr("Strength")
+                    ComboBox {
+                        objectName: "compressPresetBox"
+                        readonly property var values: ["balanced", "strong"]
+                        model: [qsTr("Balanced"), qsTr("Strong")]
+                        currentIndex: values.indexOf(page.settings.compressPreset)
+                        onActivated: (index) => page.settings.compressPreset = values[index]
+                        Accessible.name: qsTr("Default compression strength")
+                    }
+                }
+                FormatRow {
+                    label: qsTr("Image size")
+                    ComboBox {
+                        objectName: "compressImageSizeBox"
+                        readonly property var values: ["original", "2560", "1920", "1280", "75%", "50%", "25%"]
+                        model: [qsTr("Original"), "2560 px", "1920 px", "1280 px", "75%", "50%", "25%"]
+                        currentIndex: values.indexOf(page.settings.compressImageSize)
+                        onActivated: (index) => page.settings.compressImageSize = values[index]
+                        Accessible.name: qsTr("Default image size")
+                    }
+                }
+                Hint {
+                    text: qsTr("Where the Compress window starts. You can still change them each time.")
                 }
             }
 
