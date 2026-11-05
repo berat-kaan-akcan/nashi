@@ -207,7 +207,62 @@ fn pandoc(ctx: &Ctx, src: &Path, from: &str, to: &str, out: &Path) -> JobResult<
              data files); install the 'bubblewrap' package so Nashi can isolate it",
         ));
     };
+    if !bwrap_works(bwrap)? {
+        return Err(JobError::new(
+            ErrorCode::MissingDependency,
+            "pandoc cannot be isolated here: bubblewrap is not allowed to create \
+             namespaces (unprivileged user namespaces are off in the kernel or container)",
+        ));
+    }
     pandoc_bwrap(bwrap, p, src, from, to, out)
+}
+
+/// Whether pandoc can run isolated, by its own sandbox or by bubblewrap.
+fn pandoc_usable(ctx: &Ctx) -> JobResult<bool> {
+    let Some(p) = ctx.deps.path("pandoc") else {
+        return Ok(false);
+    };
+    if pandoc_sandbox_works(p)? {
+        return Ok(true);
+    }
+    match ctx.deps.path("bwrap") {
+        Some(bwrap) => bwrap_works(bwrap),
+        None => Ok(false),
+    }
+}
+
+/// bubblewrap's base command: nothing shared, read-only system files.
+fn bwrap_base(bwrap: &Path) -> Cmd {
+    let mut cmd = Cmd::new(bwrap)
+        .args(["--unshare-all", "--die-with-parent", "--new-session"])
+        .args(["--clearenv", "--setenv", "LC_ALL", "C.UTF-8"])
+        .args(["--setenv", "HOME", "/nonexistent"])
+        .args(["--ro-bind", "/usr", "/usr"]);
+    for p in [
+        "/lib",
+        "/lib64",
+        "/bin",
+        "/etc/ld.so.cache",
+        "/etc/localtime",
+    ] {
+        cmd = cmd.args(["--ro-bind-try", p, p]);
+    }
+    cmd
+}
+
+/// Whether bubblewrap can start a container here. Containers and hardened
+/// kernels often forbid the user namespaces it needs. Probed once per process.
+fn bwrap_works(bwrap: &Path) -> JobResult<bool> {
+    static WORKS: OnceLock<bool> = OnceLock::new();
+    if let Some(w) = WORKS.get() {
+        return Ok(*w);
+    }
+    let ok = bwrap_base(bwrap)
+        .args(["--", "/usr/bin/true"])
+        .run()?
+        .status
+        .success();
+    Ok(*WORKS.get_or_init(|| ok))
 }
 
 /// Whether `pandoc --sandbox` can write a docx (needs its data files). Probed
@@ -247,20 +302,7 @@ fn pandoc_bwrap(
     let (Some(out_dir), Some(out_name)) = (out.parent(), out.file_name()) else {
         return Err(JobError::tool_failed("invalid pandoc output path"));
     };
-    let mut cmd = Cmd::new(bwrap)
-        .args(["--unshare-all", "--die-with-parent", "--new-session"])
-        .args(["--clearenv", "--setenv", "LC_ALL", "C.UTF-8"])
-        .args(["--setenv", "HOME", "/nonexistent"])
-        .args(["--ro-bind", "/usr", "/usr"]);
-    for p in [
-        "/lib",
-        "/lib64",
-        "/bin",
-        "/etc/ld.so.cache",
-        "/etc/localtime",
-    ] {
-        cmd = cmd.args(["--ro-bind-try", p, p]);
-    }
+    let mut cmd = bwrap_base(bwrap);
     // A pandoc outside /usr (e.g. ~/.local/bin) is bound in at a fixed path.
     let prog: &OsStr = if pandoc.starts_with("/usr") {
         pandoc.as_os_str()
@@ -428,7 +470,8 @@ pub fn convert(ctx: &Ctx, input: &Input, target: &str) -> JobResult<Produced> {
                 )?;
                 return Ok(staged.commit()?.into());
             }
-            if let (true, Some(from)) = (ctx.deps.has("pandoc"), pandoc_format(&src_ext)) {
+            // Without a way to isolate pandoc, LibreOffice writes the book.
+            if let (Some(from), true) = (pandoc_format(&src_ext), pandoc_usable(ctx)?) {
                 let tmp = work.join("out.epub");
                 pandoc(ctx, &src, from, "epub", &tmp)?;
                 staged.take_from(&tmp)?;

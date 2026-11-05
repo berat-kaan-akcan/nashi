@@ -342,6 +342,11 @@ fn epub_source_routes() {
     let e = d.path().join("book.epub");
     for target in ["html", "txt", "md", "docx", "pdf"] {
         let r = convert(target, &[&e]);
+        // Reading an EPUB takes pandoc, which only runs isolated.
+        if r.error_codes() == ["missing_dependency"] {
+            skipped(r.errors()[0]["message"].as_str().unwrap());
+            return;
+        }
         r.ok();
         r.one();
     }
