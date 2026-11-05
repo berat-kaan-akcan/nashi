@@ -119,6 +119,33 @@ QList<double> pageWidths(const QString &file)
     return widths;
 }
 
+// Mean difference in grey between horizontal neighbours, and how many of them are equal.
+struct Texture {
+    double roughness = 0;
+    double equalShare = 0;
+};
+
+Texture texture(const QImage &image, const QRect &area)
+{
+    Texture t;
+    int pairs = 0;
+    int equal = 0;
+    for (int y = area.top(); y <= area.bottom(); ++y) {
+        for (int x = area.left(); x < area.right(); ++x) {
+            const int a = qGray(image.pixel(x, y));
+            const int b = qGray(image.pixel(x + 1, y));
+            t.roughness += qAbs(a - b);
+            equal += image.pixel(x, y) == image.pixel(x + 1, y);
+            ++pairs;
+        }
+    }
+    if (pairs > 0) {
+        t.roughness /= pairs;
+        t.equalShare = double(equal) / pairs;
+    }
+    return t;
+}
+
 int pdfPages(const QString &file)
 {
     const QString info = output(QStringLiteral("pdfinfo"), {file});
@@ -233,6 +260,8 @@ private Q_SLOTS:
                                                     QStringLiteral("xc:white"), QStringLiteral("-units"), QStringLiteral("PixelsPerInch"),
                                                     QStringLiteral("-density"), QStringLiteral("72"), at("book.pdf")}));
             QVERIFY(QFile::copy(at("book.pdf"), at("book2.pdf")));
+            QVERIFY(make(QStringLiteral("magick"), {QStringLiteral("-size"), QStringLiteral("640x360"), QStringLiteral("gradient:white-black"), at("third.png")}));
+            QVERIFY(make(QStringLiteral("magick"), {QStringLiteral("-seed"), QStringLiteral("7"), QStringLiteral("-size"), QStringLiteral("640x360"), QStringLiteral("plasma:"), at("noisy.png")}));
         }
         if (have("ffmpeg")) {
             QVERIFY(make(QStringLiteral("ffmpeg"), {QStringLiteral("-v"), QStringLiteral("error"), QStringLiteral("-f"), QStringLiteral("lavfi"), QStringLiteral("-i"), QStringLiteral("testsrc=d=6:s=640x360:r=25"),
@@ -317,6 +346,83 @@ private Q_SLOTS:
         QVERIFY2(covered.red() < 30 && covered.green() < 30 && covered.blue() < 30, qPrintable(covered.name()));
     }
 
+    void redactStylesBlurAndPixelate()
+    {
+        NEED("magick");
+        const QRect area(100, 100, 200, 100);
+        const QImage original = QImage(at("noisy.png")).convertToFormat(QImage::Format_RGB32);
+        const Texture before = texture(original, area);
+        QMap<QString, Texture> after;
+        for (const QString &style : {QStringLiteral("blur"), QStringLiteral("pixelate")}) {
+            QStringList out;
+            QVERIFY(runForm(QStringLiteral("redactImage"), {at("noisy.png")}, [&](QQuickWindow *w) {
+                QTRY_VERIFY_WITH_TIMEOUT(w->property("mediaWidth").toInt() > 0, 15000);
+                auto *editor = w->findChild<QObject *>(QStringLiteral("rectEditor"));
+                QVERIFY(editor);
+                QMetaObject::invokeMethod(editor, "updateSelectedRect", Q_ARG(QVariant, area.x()), Q_ARG(QVariant, area.y()),
+                                          Q_ARG(QVariant, area.width()), Q_ARG(QVariant, area.height()));
+                QMetaObject::invokeMethod(editor, "setSelectedStyle", Q_ARG(QVariant, style));
+            }, &out));
+            const QImage image = QImage(out.first()).convertToFormat(QImage::Format_RGB32);
+            QCOMPARE(image.size(), original.size());
+            // Covered, but not with black.
+            QVERIFY(qGray(image.pixel(area.center())) > 0 || qGray(image.pixel(area.center() + QPoint(7, 3))) > 0);
+            QCOMPARE(image.pixel(20, 20), original.pixel(20, 20));
+            after.insert(style, texture(image, area.adjusted(4, 4, -4, -4)));
+        }
+        const QString why = QStringLiteral("before %1/%2, blur %3/%4, pixelate %5/%6")
+                                .arg(before.roughness).arg(before.equalShare)
+                                .arg(after[QStringLiteral("blur")].roughness).arg(after[QStringLiteral("blur")].equalShare)
+                                .arg(after[QStringLiteral("pixelate")].roughness).arg(after[QStringLiteral("pixelate")].equalShare);
+        QVERIFY2(after[QStringLiteral("blur")].roughness < before.roughness * 0.6, qPrintable(why));
+        // Pixelation leaves blocks of one colour; a blur leaves a smooth slope.
+        QVERIFY2(after[QStringLiteral("pixelate")].equalShare > 0.8, qPrintable(why));
+        QVERIFY2(after[QStringLiteral("blur")].equalShare < after[QStringLiteral("pixelate")].equalShare, qPrintable(why));
+    }
+
+    void redactAudioBleepsTheRange()
+    {
+        NEED("ffmpeg");
+        QStringList out;
+        QVERIFY(runForm(QStringLiteral("redactAudio"), {at("tone.mp3")}, [](QQuickWindow *w) {
+            QTRY_VERIFY_WITH_TIMEOUT(w->property("duration").toDouble() > 5.0, 15000);
+            w->setProperty("ranges", QVariantList{QVariantList{2.0, 3.0}});
+            w->setProperty("audioMode", QStringLiteral("bleep"));
+        }, &out));
+        // A bleep is a loud tone where a mute would be silence.
+        QVERIFY2(meanVolume(out.first(), 2.2, 0.5) > -30.0, qPrintable(QString::number(meanVolume(out.first(), 2.2, 0.5))));
+        const QString tone = measured({QStringLiteral("-ss"), QStringLiteral("2.2"), QStringLiteral("-t"), QStringLiteral("0.5"), QStringLiteral("-i"), out.first(),
+                                       QStringLiteral("-af"), QStringLiteral("astats=measure_overall=Zero_crossings_rate:measure_perchannel=none"),
+                                       QStringLiteral("-f"), QStringLiteral("null"), QStringLiteral("-")});
+        const QString source = measured({QStringLiteral("-ss"), QStringLiteral("2.2"), QStringLiteral("-t"), QStringLiteral("0.5"), QStringLiteral("-i"), at("tone.mp3"),
+                                         QStringLiteral("-af"), QStringLiteral("astats=measure_overall=Zero_crossings_rate:measure_perchannel=none"),
+                                         QStringLiteral("-f"), QStringLiteral("null"), QStringLiteral("-")});
+        const auto rate = [](const QString &report) {
+            const qsizetype at = report.lastIndexOf(QLatin1String("Zero crossings rate:"));
+            return at < 0 ? -1.0 : report.mid(at + 20).trimmed().split(QLatin1Char('\n')).first().toDouble();
+        };
+        // Not the source's 440 Hz: the bleep is a higher tone.
+        QVERIFY2(rate(tone) > rate(source) * 1.5, qPrintable(QStringLiteral("%1 vs %2").arg(rate(tone)).arg(rate(source))));
+    }
+
+    void trimRemovesSilenceAtTheEnds()
+    {
+        NEED("ffmpeg");
+        QVERIFY(make(QStringLiteral("ffmpeg"), {QStringLiteral("-v"), QStringLiteral("error"), QStringLiteral("-y"),
+                                                QStringLiteral("-f"), QStringLiteral("lavfi"), QStringLiteral("-i"), QStringLiteral("anullsrc=r=44100:cl=mono:d=1.5"),
+                                                QStringLiteral("-f"), QStringLiteral("lavfi"), QStringLiteral("-i"), QStringLiteral("sine=d=2:r=44100"),
+                                                QStringLiteral("-f"), QStringLiteral("lavfi"), QStringLiteral("-i"), QStringLiteral("anullsrc=r=44100:cl=mono:d=1.5"),
+                                                QStringLiteral("-filter_complex"), QStringLiteral("[0][1][2]concat=n=3:v=0:a=1"), at("padded.wav")}));
+        QStringList out;
+        QVERIFY(runForm(QStringLiteral("trimAudio"), {at("padded.wav")}, [](QQuickWindow *w) {
+            QTRY_VERIFY_WITH_TIMEOUT(w->property("duration").toDouble() > 4.5, 15000);
+            auto *silence = w->findChild<QObject *>(QStringLiteral("trimSilenceSwitch"));
+            QVERIFY(silence);
+            silence->setProperty("checked", true);
+        }, &out));
+        QVERIFY2(qAbs(seconds(out.first()) - 2.0) < 0.3, qPrintable(QString::number(seconds(out.first()))));
+    }
+
     void redactAudioMutesTheRange()
     {
         NEED("ffmpeg");
@@ -359,6 +465,45 @@ private Q_SLOTS:
         QCOMPARE(QImage(out.first()).width(), 2048);
     }
 
+    void everyCollageLayoutPlacesTheImages()
+    {
+        NEED("magick");
+        const QStringList three{at("photo.png"), at("second.png"), at("third.png")};
+        const QList<QPair<QString, QSize>> layouts{
+            {QStringLiteral("grid"), QSize(600, 600)},
+            {QStringLiteral("row"), QSize(600, 200)},
+            {QStringLiteral("column"), QSize(600, 1800)},
+            {QStringLiteral("featured"), QSize(600, 400)},
+        };
+        for (const auto &[layout, size] : layouts) {
+            QStringList out;
+            QVERIFY2(runForm(QStringLiteral("createCollage"), three, [&](QQuickWindow *w) {
+                w->setProperty("collageLayout", layout);
+                w->setProperty("collageWidth", 600);
+            }, &out), qPrintable(layout));
+            const QImage image(out.first());
+            QVERIFY2(image.size() == size, qPrintable(QStringLiteral("%1: %2x%3").arg(layout).arg(image.width()).arg(image.height())));
+            QVERIFY(QFile::remove(out.first()));
+        }
+        // Row: the second image, green to yellow, is in the middle and has no blue.
+        // Fit leaves the chosen colour around each picture; fill covers the cell.
+        for (const QString &fit : {QStringLiteral("fit"), QStringLiteral("fill")}) {
+            QStringList out;
+            QVERIFY(runForm(QStringLiteral("createCollage"), three, [&](QQuickWindow *w) {
+                w->setProperty("collageLayout", QStringLiteral("row"));
+                w->setProperty("collageWidth", 600);
+                w->setProperty("collageFit", fit);
+                w->setProperty("collageColor", QStringLiteral("#ff00ff"));
+            }, &out));
+            const QImage image(out.first());
+            const QColor middle = image.pixelColor(300, 100);
+            QVERIFY2(middle.green() > 150 && middle.blue() < 60, qPrintable(middle.name()));
+            const QColor top = image.pixelColor(300, 5);
+            QVERIFY2((top == QColor(Qt::magenta)) == (fit == QLatin1String("fit")), qPrintable(fit + QLatin1Char(' ') + top.name()));
+            QVERIFY(QFile::remove(out.first()));
+        }
+    }
+
     void annotationReachesTheImage()
     {
         NEED("magick");
@@ -379,7 +524,6 @@ private Q_SLOTS:
         NEED("magick");
         NEED("ffmpeg");
         NEED("gs");
-        QVERIFY(make(QStringLiteral("magick"), {QStringLiteral("-size"), QStringLiteral("640x360"), QStringLiteral("plasma:"), at("noisy.png")}));
         const auto compressed = [this](const QString &file, const QString &preset, QStringList *out) {
             return runForm(QStringLiteral("compress"), {file}, [&](QQuickWindow *w) {
                 QTRY_VERIFY_WITH_TIMEOUT(!w->property("fileCategory").toString().isEmpty(), 15000);
@@ -403,6 +547,29 @@ private Q_SLOTS:
             w->setProperty("compressVideoHeight", 180);
         }, &out));
         QCOMPARE(videoSize(out.first()), QStringLiteral("320,180"));
+    }
+
+    void compressReachesASizeOrAPercentage()
+    {
+        NEED("magick");
+        NEED("ffmpeg");
+        const auto limited = [this](const QString &file, const QString &limit, const QString &value, const QString &unit, QStringList *out) {
+            return runForm(QStringLiteral("compress"), {file}, [&](QQuickWindow *w) {
+                QTRY_VERIFY_WITH_TIMEOUT(!w->property("fileCategory").toString().isEmpty(), 15000);
+                w->setProperty("compressLimit", limit);
+                w->setProperty("compressLimitValue", value);
+                w->setProperty("compressLimitUnit", unit);
+            }, out);
+        };
+        QStringList out;
+        QVERIFY(limited(at("clip.mp4"), QStringLiteral("size"), QStringLiteral("150"), QStringLiteral("KB"), &out));
+        QVERIFY2(QFileInfo(out.first()).size() <= 150 * 1024, qPrintable(QString::number(QFileInfo(out.first()).size())));
+        QVERIFY(seconds(out.first()) > 5.0);
+        const qint64 photo = QFileInfo(at("noisy.png")).size();
+        QVERIFY(limited(at("noisy.png"), QStringLiteral("percent"), QStringLiteral("60"), QStringLiteral("MB"), &out));
+        QVERIFY2(QFileInfo(out.first()).size() <= photo * 0.4,
+                 qPrintable(QStringLiteral("%1 of %2").arg(QFileInfo(out.first()).size()).arg(photo)));
+        QCOMPARE(QImage(out.first()).isNull(), false);
     }
 
     void splitAndSnapshotsWriteThePieces()
@@ -553,10 +720,18 @@ private Q_SLOTS:
         QVERIFY(convert(QStringLiteral("mkv"), at("clip.mp4"), &out));
         QCOMPARE(videoSize(out.first()), QStringLiteral("320,180"));
 
+        // The settings file outlives the run; start GIF from its defaults.
+        s->restoreFormatDefaults(QStringLiteral("gif"));
         s->setFormatDefault(QStringLiteral("gif"), QStringLiteral("gifWidth"), 320);
         s->setFormatDefault(QStringLiteral("gif"), QStringLiteral("gifFps"), 5);
         QVERIFY(convert(QStringLiteral("gif"), at("clip.mp4"), &out));
         QCOMPARE(videoSize(out.first()), QStringLiteral("320,180"));
+        const qint64 balancedGif = QFileInfo(out.first()).size();
+        s->setFormatDefault(QStringLiteral("gif"), QStringLiteral("gifCompression"), QStringLiteral("maximum"));
+        QVERIFY(convert(QStringLiteral("gif"), at("clip.mp4"), &out));
+        QVERIFY2(QFileInfo(out.first()).size() < balancedGif,
+                 qPrintable(QStringLiteral("%1 >= %2").arg(QFileInfo(out.first()).size()).arg(balancedGif)));
+        s->restoreFormatDefaults(QStringLiteral("gif"));
 
         s->setFormatDefault(QStringLiteral("wav"), QStringLiteral("sampleDepth"), QStringLiteral("24"));
         QVERIFY(convert(QStringLiteral("wav"), at("tone.mp3"), &out));
