@@ -114,8 +114,8 @@ Kurulumdan sonra çalışan `nashi --background` işlemi de yeniden başlatılma
 * **Klavye:** `nashi --wheel` ile açılan çarkta ok tuşları + Enter ile dönüştürme çalışıyor (`foto.png` → `foto.pdf`). Sürükleme sürerken klavye çarka gelmez, bu bekleneni.
 * **Kitaplık önizlemesi:** kullanıcı denedi, sorun yok.
 * **Denenmedi:** bırakma öncesi türü okunamayan kaynaklarda iki aşamalı çark yedeği.
-* **Düzeltildi, gerçek oturumda tekrar denenmedi:** Paylaş eklentilerinde boş kalan KDE metinleri (`i18nd`, `KdeTranslations`) ve kapanışta `ShareSheet.qml` `width` hatası.
-* **Bizden kaynaklanmayan günlük satırları:** Purpose'un `missing mandatory argument "device"` ve `JobView.qml: non-existent property` satırları. `installEventFilter ... different thread` uyarısının kaynağı bulunmadı, paylaşımı etkilemedi.
+* **Düzeltildi ve gerçek oturumda doğrulandı (`r25.gaa26cf8`):** Paylaş eklentilerinde boş kalan KDE metinleri artık Türkçe görünüyor (`KdeTranslations`); kapanıştaki `ShareSheet.qml` `width` hatası kalktı.
+* **Bizden kaynaklanmayan günlük satırları:** Purpose'un `missing mandatory argument "device"`, `JobView.qml: non-existent property` ve `bluetoothplugin_config.qml` binding loop satırları. `installEventFilter ... different thread` uyarısının kaynağı bulunmadı, paylaşımı etkilemedi.
 
 ### 3.2. Upstream'de Bulunup Henüz Port Edilmeyen İkincil Özellikler
 * **Format tercihlerinin kalanı:** ses örnek derinliği, sıkıştırma ön ayarı, EPUB düzeni, PDF→Office düzeni ve Sıkıştır formu için kalıcı varsayılanlar.
