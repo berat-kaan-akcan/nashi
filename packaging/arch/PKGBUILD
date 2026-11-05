@@ -17,10 +17,12 @@ arch=('x86_64' 'aarch64')
 url="https://github.com/berat-kaan-akcan/nashi"
 license=('MIT')
 depends=(
-  'gcc-libs'
+  'bash'
   'glibc'
   'hicolor-icon-theme'
   'layer-shell-qt'
+  'libgcc'
+  'libstdc++'
   'qt6-base'
   'qt6-declarative'
   'qt6-svg'

@@ -298,7 +298,8 @@ private Q_SLOTS:
         QCOMPARE(app->shelf()->rowCount(), 1);
         QVERIFY2(g_warnings.isEmpty(), qPrintable(g_warnings.join(QLatin1Char('\n'))));
         app->runItem(QStringLiteral("action"), QStringLiteral("share"), QStringLiteral("Share"), {file});
-        QVERIFY(app->shareWindow());
+        // Without KDE Purpose the action only reports that sharing is unavailable.
+        QCOMPARE(app->shareWindow() != nullptr, app->shareAvailable());
         // Opening the share sheet logs a thread warning in offscreen runs; its source is not pinned down yet.
         g_warnings.clear();
         app->shelf()->clear();

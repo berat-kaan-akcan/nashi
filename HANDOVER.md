@@ -1,9 +1,7 @@
 # Nashi for Linux — Proje Devir ve Durum Raporu (Handover)
 
 **Son Güncelleme:** 2026-11-05  
-**Oturum ID:** `b0364c0b-ac2c-45e1-b669-93cff908cf00`  
-**Proje Çalışma Dizini:** `/home/berat/Masaüstü/nashi`  
-**Git Durumu:** Tur 2 işi yerel `round-2-upstream-sync` dalına commit edildi; `main` ile birleştirilmedi ve GitHub'a push edilmedi.
+**Git Durumu:** Tur 2 işi `main` ile birleştirildi ve GitHub'a gönderildi (2026-11-05). Etiket ve AUR yayını henüz yok.
 
 ---
 
@@ -11,10 +9,10 @@
 
 Nashi ([`orkunisitmak/nashi-app`](https://github.com/orkunisitmak/nashi-app), MIT), dosya sürüklerken tuşa basıp imleç altındaki dairesel çarktan dönüştürme/düzenleme yapan masaüstü uygulamasının Linux (**CachyOS / KDE Plasma 6 Wayland** öncelikli) portudur.
 
-* **Motor & CLI (Rust):** [`crates/nashi-core`](file:///home/berat/Masaüstü/nashi/crates/nashi-core) (46 format kataloğu, dönüştürme/düzenleme motorları, önizleme ve web indirme) ve [`crates/nashi-cli`](file:///home/berat/Masaüstü/nashi/crates/nashi-cli) (JSON-lines alt süreç protokolü).
-* **Giriş Servisi (Rust):** [`crates/nashi-inputd`](file:///home/berat/Masaüstü/nashi/crates/nashi-inputd) (`evdev` ile sürükle + `Shift`/`Ctrl`/`Alt`/`Meta` akor algılama, D-Bus sinyalleri, tuş kaydı tutmaz).
-* **Arayüz (C++17 & Qt6 / QML):** [`ui/`](file:///home/berat/Masaüstü/nashi/ui) (`LayerShellQt` tam ekran çark overlay'i, ana pencere, görsel editörler, Kütüphane önizlemesi, Float rafı, Web indirme, KDE Purpose paylaşımı).
-* **Paketleme & Entegrasyon:** [`packaging/`](file:///home/berat/Masaüstü/nashi/packaging) ve [`data/`](file:///home/berat/Masaüstü/nashi/data) (Arch `PKGBUILD`, `install.sh`, `.desktop`, D-Bus servisi, Dolphin servis menüsü, Nautilus betiği).
+* **Motor & CLI (Rust):** [`crates/nashi-core`](crates/nashi-core) (46 format kataloğu, dönüştürme/düzenleme motorları, önizleme ve web indirme) ve [`crates/nashi-cli`](crates/nashi-cli) (JSON-lines alt süreç protokolü).
+* **Giriş Servisi (Rust):** [`crates/nashi-inputd`](crates/nashi-inputd) (`evdev` ile sürükle + `Shift`/`Ctrl`/`Alt`/`Meta` akor algılama, D-Bus sinyalleri, tuş kaydı tutmaz).
+* **Arayüz (C++17 & Qt6 / QML):** [`ui/`](ui) (`LayerShellQt` tam ekran çark overlay'i, ana pencere, görsel editörler, Kütüphane önizlemesi, Float rafı, Web indirme, KDE Purpose paylaşımı).
+* **Paketleme & Entegrasyon:** [`packaging/`](packaging) ve [`data/`](data) (Arch `PKGBUILD`, `install.sh`, `.desktop`, D-Bus servisi, Dolphin servis menüsü, Nautilus betiği).
 
 ---
 
@@ -26,8 +24,8 @@ Nashi ([`orkunisitmak/nashi-app`](https://github.com/orkunisitmak/nashi-app), MI
 * Tam ekran şeffaf `LayerShellQt` çark katmanı, ilerleme bildirimi (`ToastWindow`), sistem tepsisi (`Tray`), Dolphin/Nautilus sağ tık menüleri.
 
 ### 2.2. Upstream Tasarım Dili ve Tur 2 Adım 1–3
-* **Tasarım sistemi:** Açık/koyu tema (`Theme.qml`), krem zemin, orman yeşili ve armut altını gradyan butonlar, armut maskot (`ui/resources/mark.svg`, `mark-happy.svg`), uygulama ikonu ve ortak bileşenler (`NButton`, `Card`, `Pill`, `PageHeading`, `SectionBox`, `ActionTile`, `KeyChip`). [`NOTICE`](file:///home/berat/Masaüstü/nashi/NOTICE) atfı eklendi.
-* **HTML → PDF:** Katalog upstream ile eşitlendi. [`htmlsafe.rs`](file:///home/berat/Masaüstü/nashi/crates/nashi-core/src/engines/htmlsafe.rs) HTML'i LibreOffice'e vermeden önce `script`/`iframe`/uzak bağlantılardan arındırır; yalnızca aynı klasör altındaki yerel görselleri `data:` URI olarak gömer (güvenlik atlatma yolları testlerle kapatıldı).
+* **Tasarım sistemi:** Açık/koyu tema (`Theme.qml`), krem zemin, orman yeşili ve armut altını gradyan butonlar, armut maskot (`ui/resources/mark.svg`, `mark-happy.svg`), uygulama ikonu ve ortak bileşenler (`NButton`, `Card`, `Pill`, `PageHeading`, `SectionBox`, `ActionTile`, `KeyChip`). [`NOTICE`](NOTICE) atfı eklendi.
+* **HTML → PDF:** Katalog upstream ile eşitlendi. [`htmlsafe.rs`](crates/nashi-core/src/engines/htmlsafe.rs) HTML'i LibreOffice'e vermeden önce `script`/`iframe`/uzak bağlantılardan arındırır; yalnızca aynı klasör altındaki yerel görselleri `data:` URI olarak gömer (güvenlik atlatma yolları testlerle kapatıldı).
 * **Hızlı UI kazanımları:**
   * Pano içe aktarma (`Ctrl+V`: dosya, görsel → `.png`, metin → `.txt`, link → indirme penceresi).
   * Kısayollar (`Ctrl+1/2/3`, `Ctrl+O`, `Ctrl+F`, `Ctrl+,`).
@@ -35,31 +33,31 @@ Nashi ([`orkunisitmak/nashi-app`](https://github.com/orkunisitmak/nashi-app), MI
   * İlk açılış sihirbazı (`WelcomeWindow.qml`): `input` grubu, `nashi-inputd` durumu ve eksik paketler için tek tıkla `pacman` kurulum komutu kopyalama.
 
 ### 2.3. Motor v0.2 — Önizleme, Editör Seçenekleri ve Web İndirme (Tur 2 Adım 4–5)
-* Sözleşmeler [`docs/CLI-PROTOCOL.md`](file:///home/berat/Masaüstü/nashi/docs/CLI-PROTOCOL.md) ve [`docs/DBUS.md`](file:///home/berat/Masaüstü/nashi/docs/DBUS.md) içinde v0.2 olarak güncellendi.
+* Sözleşmeler [`docs/CLI-PROTOCOL.md`](docs/CLI-PROTOCOL.md) ve [`docs/DBUS.md`](docs/DBUS.md) içinde v0.2 olarak güncellendi.
 * **Yön (orientation) tutarlılığı:** Görsellerde EXIF `5..=8` ve tüm görsel araçlarında `-auto-orient`, videolarda rotasyon meta verisi (`±90°`/`±270°`) dikkate alınarak gerçek ekran boyutları döndürülüyor.
-* **`nashi-cli preview` ([`preview.rs`](file:///home/berat/Masaüstü/nashi/crates/nashi-core/src/preview.rs)):** `--kind frame` (görsel/video karesi PNG), `--kind waveform` (`showwavespic` şeffaf dalga formu PNG), `--kind pages` (PDF sayfa küçük resimleri).
+* **`nashi-cli preview` ([`preview.rs`](crates/nashi-core/src/preview.rs)):** `--kind frame` (görsel/video karesi PNG), `--kind waveform` (`showwavespic` şeffaf dalga formu PNG), `--kind pages` (PDF sayfa küçük resimleri).
 * **Editör motor eklemeleri:**
   * `annotateImage`: Arayüzün ürettiği şeffaf PNG katmanını kaynak görselle birleştirir (`{"overlay": "..."}`).
   * `organizePDF`: Yeniden sıralanan sayfalar için `rotations` (`0`/`90`/`180`/`270`) desteği.
   * `redactImage` / `redactVideo`: Siyah kutu yanında `blur` (bulanıklaştırma) ve `pixelate` (pikselleştirme) stilleri.
-* **`nashi-cli download` ([`download.rs`](file:///home/berat/Masaüstü/nashi/crates/nashi-core/src/download.rs)):** `yt-dlp` (`auto`/`video`/`audio`/`thumbnail`) ve `curl` (`image`/doğrudan dosya) ile güvenli indirme, canlı yüzde ilerlemesi, atomik benzersiz dosya adlandırma ve iptal temizliği.
+* **`nashi-cli download` ([`download.rs`](crates/nashi-core/src/download.rs)):** `yt-dlp` (`auto`/`video`/`audio`/`thumbnail`) ve `curl` (`image`/doğrudan dosya) ile güvenli indirme, canlı yüzde ilerlemesi, atomik benzersiz dosya adlandırma ve iptal temizliği.
 
 ### 2.4. Görsel Editörler ve Masaüstü Özellikleri (Tur 2 Adım 4–6)
 * **27 aracın tamamı çarkta açık** (`annotateImage` dahil):
-  * [`RectEditor.qml`](file:///home/berat/Masaüstü/nashi/ui/qml/RectEditor.qml): Fareyle kırpma ve çoklu dikdörtgen karartma (`black`/`blur`/`pixelate`), en-boy oranı şablonları, video kare seçici.
-  * [`TimelineEditor.qml`](file:///home/berat/Masaüstü/nashi/ui/qml/TimelineEditor.qml): Dalga formu üzerinde In/Out tutamakları, dinamik `QtMultimedia` oynatıcı, `Space`/`I`/`O` kısayolları ve `redactAudio` çoklu sessize alma aralıkları.
-  * [`PdfOrganizer.qml`](file:///home/berat/Masaüstü/nashi/ui/qml/PdfOrganizer.qml): PDF sayfa küçük resimleri, sürükle-bırak sıralama, 90° döndürme, çoğaltma, silme ve sıfırlama.
-  * [`AnnotateEditor.qml`](file:///home/berat/Masaüstü/nashi/ui/qml/AnnotateEditor.qml) + [`PreviewClient::renderAnnotationOverlay`](file:///home/berat/Masaüstü/nashi/ui/src/previewclient.cpp#L154-L280): Kalem, fosforlu kalem, çizgi, ok, dikdörtgen, elips, metin, geri al/yinele ve C++ `QPainter` ile tam çözünürlükte şeffaf PNG katman üretimi (offscreen dahil her ortamda çalışır).
+  * [`RectEditor.qml`](ui/qml/RectEditor.qml): Fareyle kırpma ve çoklu dikdörtgen karartma (`black`/`blur`/`pixelate`), en-boy oranı şablonları, video kare seçici.
+  * [`TimelineEditor.qml`](ui/qml/TimelineEditor.qml): Dalga formu üzerinde In/Out tutamakları, dinamik `QtMultimedia` oynatıcı, `Space`/`I`/`O` kısayolları ve `redactAudio` çoklu sessize alma aralıkları.
+  * [`PdfOrganizer.qml`](ui/qml/PdfOrganizer.qml): PDF sayfa küçük resimleri, sürükle-bırak sıralama, 90° döndürme, çoğaltma, silme ve sıfırlama.
+  * [`AnnotateEditor.qml`](ui/qml/AnnotateEditor.qml) + [`PreviewClient::renderAnnotationOverlay`](ui/src/previewclient.cpp): Kalem, fosforlu kalem, çizgi, ok, dikdörtgen, elips, metin, geri al/yinele ve C++ `QPainter` ile tam çözünürlükte şeffaf PNG katman üretimi (offscreen dahil her ortamda çalışır).
 * **Masaüstü özellikleri:**
-  * [`DownloadWindow.qml`](file:///home/berat/Masaüstü/nashi/ui/qml/DownloadWindow.qml): Linkten indirme penceresi, CLI (`--download`, `--download-clipboard`), D-Bus (`Download`, `DownloadClipboard`) ve `.desktop` `Ctrl+Shift+D` eylemi.
-  * [`PreviewWindow.qml`](file:///home/berat/Masaüstü/nashi/ui/qml/PreviewWindow.qml): Kütüphane öğeleri için görsel, PDF sayfaları, metin, ses ve video önizleme (`←`/`→`, `Space`) ve "Nashi'de kullan" / "Yeniden kullan" akışı.
-  * [`ShelfWindow.qml`](file:///home/berat/Masaüstü/nashi/ui/qml/ShelfWindow.qml) + [`ShelfModel`](file:///home/berat/Masaüstü/nashi/ui/src/shelfmodel.h): Ekranın sağ kenarına sabitlenen Float dosya tutma rafı (`CopyAction` ile içeri alma, `text/uri-list` ile başka uygulamalara dışarı sürükleme, CLI `--shelf`, D-Bus `ToggleShelf`/`AddToShelf`).
-  * [`ShareSheet.qml`](file:///home/berat/Masaüstü/nashi/ui/qml/ShareSheet.qml): Dinamik KDE Purpose (`org.kde.purpose`) paylaşım menüsü.
+  * [`DownloadWindow.qml`](ui/qml/DownloadWindow.qml): Linkten indirme penceresi, CLI (`--download`, `--download-clipboard`), D-Bus (`Download`, `DownloadClipboard`) ve `.desktop` `Ctrl+Shift+D` eylemi.
+  * [`PreviewWindow.qml`](ui/qml/PreviewWindow.qml): Kütüphane öğeleri için görsel, PDF sayfaları, metin, ses ve video önizleme (`←`/`→`, `Space`) ve "Nashi'de kullan" / "Yeniden kullan" akışı.
+  * [`ShelfWindow.qml`](ui/qml/ShelfWindow.qml) + [`ShelfModel`](ui/src/shelfmodel.h): Ekranın sağ kenarına sabitlenen Float dosya tutma rafı (`CopyAction` ile içeri alma, `text/uri-list` ile başka uygulamalara dışarı sürükleme, CLI `--shelf`, D-Bus `ToggleShelf`/`AddToShelf`).
+  * [`ShareSheet.qml`](ui/qml/ShareSheet.qml): Dinamik KDE Purpose (`org.kde.purpose`) paylaşım menüsü.
 
 ### 2.5. Çeviri, Paketleme ve Test Durumu
-* **Türkçe çeviri ([`ui/i18n/nashi_tr.ts`](file:///home/berat/Masaüstü/nashi/ui/i18n/nashi_tr.ts)):** **735/735** metin eksiksiz çevrildi (`0 unfinished`).
+* **Türkçe çeviri ([`ui/i18n/nashi_tr.ts`](ui/i18n/nashi_tr.ts)):** **735/735** metin eksiksiz çevrildi (`0 unfinished`).
 * **İkon kontrolü:** QML içindeki 60 ikon referansının tamamı sistem ikon temalarında doğrulandı.
-* **Paketleme ([`packaging/arch/PKGBUILD`](file:///home/berat/Masaüstü/nashi/packaging/arch/PKGBUILD)):** `optdepends` listesine `curl`, `qt6-multimedia` ve `purpose` eklendi.
+* **Paketleme ([`packaging/arch/PKGBUILD`](packaging/arch/PKGBUILD)):** `optdepends` listesine `curl`, `qt6-multimedia` ve `purpose` eklendi.
 * **Son test koşusu (2026-11-05):**
   * `cargo fmt --all -- --check` → **PASS**
   * `cargo clippy --workspace --all-targets -- -D warnings` → **PASS (0 uyarı)**
@@ -88,7 +86,7 @@ Upstream'in `b3c60f2..be59b13` aralığı incelendi; Linux'u etkileyen hatalar �
 * **Test notu:** ImageMagick'te `info:` Türkçe yerelde dosyaya yazar, o dosya durdukça da `LC_ALL=C.UTF-8` ile bile dosya adı sayılır. Testlerde `magick` çağrılarına `LC_ALL` verin; ortada `crates/nashi-cli/info:` kalırsa `adjust`/`compose` testleri topluca düşer.
 
 ### 2.6. Test Denetimi (2026-11-04)
-* **Mutasyon testi:** Motor kasıtlı bozularak testlerin hatayı yakalayıp yakalamadığı ölçüldü. İlk ölçümde 9 mutasyonun 8'i yakalanmıyordu. [`crates/nashi-cli/tests/behavior.rs`](file:///home/berat/Masaüstü/nashi/crates/nashi-cli/tests/behavior.rs) (piksel, ses seviyesi, LUFS ve dosya boyutu ölçümleri) ve `v02.rs` düzeltmeleriyle işlevsel açıkların tamamı kapandı. Yalnızca `--proto-redir` kaldırılınca test geçiyor, çünkü `--proto` aynı yönlendirmeyi tek başına engelliyor; ikisi birden kaldırılınca test düşüyor.
+* **Mutasyon testi:** Motor kasıtlı bozularak testlerin hatayı yakalayıp yakalamadığı ölçüldü. İlk ölçümde 9 mutasyonun 8'i yakalanmıyordu. [`crates/nashi-cli/tests/behavior.rs`](crates/nashi-cli/tests/behavior.rs) (piksel, ses seviyesi, LUFS ve dosya boyutu ölçümleri) ve `v02.rs` düzeltmeleriyle işlevsel açıkların tamamı kapandı. Yalnızca `--proto-redir` kaldırılınca test geçiyor, çünkü `--proto` aynı yönlendirmeyi tek başına engelliyor; ikisi birden kaldırılınca test düşüyor.
 * **Düzeltilen hata:** Metinsiz (taranmış) PDF'ten `txt`/`md`/`epub` üretimi başarılı görünüp boş çıktı veriyordu; artık `invalid_input` hatası veriyor.
 * **Düzeltilen testler:** `tst_desktop` Recent sınırı (50) yüzünden 51. çalıştırmada kırılıyordu; `tst_qmlsmoke` artık kaynak klasördeki her QML dosyasının modülde olduğunu doğruluyor.
 * **Rota taraması:** Katalogdaki 276 rotanın 254'ü gerçek CLI ile çalıştı, 9'u bilerek desteklenmiyor (çarkta da görünmüyor), 2'si (`pdf→txt`, `pdf→md`) metinsiz PDF ile denendi (düzeltilen hata), 11'i örnek dosya üretilemediği için denenemedi (`.pages` kaynaklı 8, `rar` kaynaklı 3).
@@ -136,9 +134,17 @@ Kurulumdan sonra çalışan `nashi --background` işlemi de yeniden başlatılma
 * **"Taşı" (`move`) eylemi:** Nashi kuralı gereği kullanıcı girdi dosyaları asla taşınmaz, değiştirilmez veya silinmez.
 * **Otomatik güncelleyici:** Linux'ta güncellemeler `pacman` / AUR üzerinden yönetilir.
 
-### 3.5. Git Tarafında Bekleyenler
-* `round-2-upstream-sync` dalının `main` ile birleştirilmesi ve push edilmesi kullanıcı kararını bekliyor.
-* `nashi-app/` (upstream referans klonu) ve `.vscode/` `.gitignore`'a eklendi.
+### 3.5. AUR Yayını (hazır, yüklenmedi)
+`nashi-git` ve `nashi` adları AUR'da boş (2026-11-05). `namcap` paket üzerinde çalıştırıldı; `NashiApp` ve `qt6-svg` uyarıları yanlış alarmdır (gömülü modül ve çalışma anında yüklenen SVG eklentisi). `namcap PKGBUILD` denetimi çalıştırılamadı. Yükleme bakımcının AUR hesabı ve SSH anahtarı ile yapılır:
+```bash
+git clone ssh://aur@aur.archlinux.org/nashi-git.git aur-nashi-git
+cp packaging/arch/{PKGBUILD,nashi.install,.SRCINFO} aur-nashi-git/
+cd aur-nashi-git
+git add PKGBUILD nashi.install .SRCINFO
+git commit -m "Initial upload"
+git push
+```
+`PKGBUILD` değişirse `makepkg --printsrcinfo > .SRCINFO` ile yenileyin. `NASHI_LOCAL_SRC` ayarlıyken üretilen `.SRCINFO` yüklenmemelidir: kaynak listesi boş çıkar.
 
 ### 3.6. Testlerde Kalan Açıklar
 * Qt testlerinin tamamı `fake-nashi-cli` kullanıyor; arayüz gerçek motorla ve editör JSON'ları gerçek motora karşı test edilmiyor.
@@ -172,6 +178,6 @@ NASHI_CLI="$PWD/target/debug/nashi-cli" ./build/ui/nashi
 ### Zorunlu Kurallar
 * **Açık onay kuralı:** Kullanıcıdan açık onay almadan asla `git add`, `git commit`, `git push`, `git checkout`, `git reset`, `rm` veya yapılandırma/gizli dosya değişikliği çalıştırmayın.
 * **Girdi dosyası güvenliği:** Kullanıcının girdi dosyaları **asla taşınmaz, değiştirilmez veya silinmez**; tüm bırakma alanları `Qt::CopyAction` kullanır ve çıktılar atomik olarak benzersiz isimle üretilir.
-* **Sözleşme senkronu:** CLI veya D-Bus davranışı değişirse [`docs/CLI-PROTOCOL.md`](file:///home/berat/Masaüstü/nashi/docs/CLI-PROTOCOL.md) ve [`docs/DBUS.md`](file:///home/berat/Masaüstü/nashi/docs/DBUS.md) aynı değişiklikte güncellenir.
-* **Çeviri kuralı:** Yeni UI dizgileri eklendiğinde `cmake --build build/ui --target update_translations` çalıştırılıp [`ui/i18n/nashi_tr.ts`](file:///home/berat/Masaüstü/nashi/ui/i18n/nashi_tr.ts) eksiksiz çevrilmelidir.
+* **Sözleşme senkronu:** CLI veya D-Bus davranışı değişirse [`docs/CLI-PROTOCOL.md`](docs/CLI-PROTOCOL.md) ve [`docs/DBUS.md`](docs/DBUS.md) aynı değişiklikte güncellenir.
+* **Çeviri kuralı:** Yeni UI dizgileri eklendiğinde `cmake --build build/ui --target update_translations` çalıştırılıp [`ui/i18n/nashi_tr.ts`](ui/i18n/nashi_tr.ts) eksiksiz çevrilmelidir.
 
