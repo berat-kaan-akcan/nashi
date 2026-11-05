@@ -147,8 +147,7 @@ git push
 ### 3.6. Testlerde Kalan Açıklar
 * `tst_forms_engine` tüm seçenek formlarını ve format varsayılanlarını gerçek `nashi-cli` ile çalıştırır ve etkisini ölçer (`cargo build` yapılmamışsa kendini atlar). Formların yalnızca bir kısmı sınanır: kırpma stilleri, bip, sessizlik silme, hedef dosya boyutu ve kolaj düzenlerinin tamamı yalnızca `fake-nashi-cli` ile denetlenir. Diğer Qt testleri sahte CLI kullanır.
 * Editörlerin fare etkileşimleri (kırpma, PDF sürükleme, zaman çizelgesi tutamakları) ve raftan dışarı sürükleme test edilmiyor.
-* `ppt`, `xls`, `rar` ve `.pages` kaynaklı rotaların testi yok (proje kuralı her rota için test ister).
-* `routes.rs` video ve belge rotalarının çoğunda çıktı formatını doğrulamıyor.
+* `all_routes.rs` katalogdaki her rotayı çalıştırıp çıktıyı dosya imzasıyla doğrular (2026-11-05: 259 rota). `.pages` kaynaklı 8 rota sınanmıyor, çünkü bu dosyayı üretecek araç yok.
 * `if which(...)` dalları araç yoksa skip bildirmeden geçiyor. CI'da `soffice`, `pandoc` ve `yt-dlp` kurulu değil.
 * `tst_desktop`, `tst_editors` ve `tst_qmlsmoke` gerçek kullanıcı ayarlarını kullanmamak için `ctest` dışında çalışmayı reddeder. Tek test seçmek için `ctest -R` kullanın; diğer test ikilileri bu korumayı taşımaz.
 * Denetimde tam okunmayan test dosyaları: `protocol.rs`, `tst_overlay`, `tst_misc`, `tst_userconfig`, `tst_wheelmodel`, `tst_clipboardimport`, `tst_jobrunner`, `tst_cliargs`, `tst_clilocator`, `tst_jsonlines`, `tst_wheelgeometry`.
