@@ -464,6 +464,7 @@ pub fn pdf_pages(deps: &Deps, path: &Path) -> Option<u32> {
         if let Some(out) = probe_output(pi, &[&p], Duration::from_secs(20)) {
             if let Some(n) = out
                 .lines()
+                .rev() // the file's own text fields come first
                 .find_map(|l| l.strip_prefix("Pages:").and_then(|v| v.trim().parse().ok()))
             {
                 return Some(n);

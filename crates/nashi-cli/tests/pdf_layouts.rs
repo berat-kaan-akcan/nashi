@@ -225,3 +225,94 @@ fn page_images_refuse_an_enormous_page_before_rendering_it() {
     assert!(r.outputs().is_empty());
     converted(&big, "png", r#"{"dpi":36}"#).ok();
 }
+
+/// A PDF with blank pages, written by hand to set boxes and a title freely.
+fn hand_pdf(path: &Path, pages: usize, boxes: &str, title: &str) {
+    let first_page = 4;
+    let kids: Vec<String> = (0..pages)
+        .map(|i| format!("{} 0 R", first_page + i))
+        .collect();
+    let mut objects = vec![
+        "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
+        format!(
+            "<< /Type /Pages /Kids [{}] /Count {pages} >>",
+            kids.join(" ")
+        ),
+        format!("<< /Title ({title}) >>"),
+    ];
+    for _ in 0..pages {
+        objects.push(format!("<< /Type /Page /Parent 2 0 R {boxes} >>"));
+    }
+    let mut out = b"%PDF-1.4\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, object) in objects.iter().enumerate() {
+        offsets.push(out.len());
+        out.extend(format!("{} 0 obj\n{object}\nendobj\n", i + 1).as_bytes());
+    }
+    let table = out.len();
+    out.extend(format!("xref\n0 {}\n0000000000 65535 f \n", objects.len() + 1).as_bytes());
+    for offset in offsets {
+        out.extend(format!("{offset:010} 00000 n \n").as_bytes());
+    }
+    out.extend(
+        format!(
+            "trailer\n<< /Size {} /Root 1 0 R /Info 3 0 R >>\nstartxref\n{table}\n%%EOF\n",
+            objects.len() + 1
+        )
+        .as_bytes(),
+    );
+    std::fs::write(path, out).unwrap();
+}
+
+#[test]
+fn only_the_visible_part_of_a_page_is_rendered_and_measured() {
+    need!("pdftoppm", "pdfinfo");
+    let d = tempfile::tempdir().unwrap();
+    let f = d.path().join("crop.pdf");
+    // A small visible box on a page far too large to render at this resolution.
+    hand_pdf(
+        &f,
+        1,
+        "/MediaBox [0 0 14000 14000] /CropBox [0 0 100 50]",
+        "t",
+    );
+    let started = std::time::Instant::now();
+    let r = converted(&f, "png", r#"{"dpi":720}"#);
+    r.ok();
+    assert!(started.elapsed().as_secs() < 30);
+    let header = head(&r.one());
+    let size = |at: usize| u32::from_be_bytes(header[at..at + 4].try_into().unwrap());
+    assert_eq!((size(16), size(20)), (1000, 500));
+    let doc = converted(&f, "docx", r#"{"pdf_layout":"pages","dpi":720}"#);
+    doc.ok();
+}
+
+#[test]
+fn a_title_cannot_hide_pages_from_the_size_check() {
+    need!("pdftoppm", "pdfinfo");
+    let d = tempfile::tempdir().unwrap();
+    let f = d.path().join("title.pdf");
+    // Too large, and the title's false lines claim one tiny page. Current poppler
+    // prints line breaks in a title as `?`; this holds should one print them as they are.
+    hand_pdf(
+        &f,
+        4,
+        "/MediaBox [0 0 7200 7200]",
+        "x\nPages:          1\nPage    1 size:      1 x 1 pts\nPage    1 rot:  0",
+    );
+    for env in [&[][..], &[("NASHI_DISABLE_TOOLS", "qpdf")][..]] {
+        let r = run_env(
+            &[
+                "convert",
+                "--json",
+                "png",
+                "--options",
+                r#"{"dpi":1200}"#,
+                s(&f),
+            ],
+            env,
+        );
+        assert_eq!(r.error_codes(), ["invalid_input"], "{env:?}: {}", r.stdout);
+        assert!(r.outputs().is_empty());
+    }
+}

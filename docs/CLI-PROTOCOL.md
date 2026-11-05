@@ -198,3 +198,4 @@ nashi-cli download URL [--kind auto|video|audio|thumbnail|image] [--out-dir DIR]
 - `mergePDF` and `joinVideos` use the files in the order given on the command line.
 - PDF to `epub` or `docx` option `pdf_layout`: `editable` (default) or `pages`, which writes each page as a JPEG in a fixed-layout EPUB or a DOCX section of the page's size. It needs `pdftoppm` and `pdfinfo`, works for PDFs with no text, and uses `dpi` (default 150). A page over 100 megapixels, a file over 20 gigapixels or pictures over 2 GB return `invalid_input`.
 - `normalizeAudio` measures the file first and then changes the level evenly where the target allows, which keeps its dynamics. It falls back to dynamic normalizing where that would exceed the true peak limit.
+- PDF to pictures, `jpg`/`png` and `pdf_layout: pages`, render each page's visible box (CropBox). Size limits apply to both.

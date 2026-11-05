@@ -33,10 +33,16 @@ pub fn to_images(
         return Err(JobError::invalid_options("dpi must be between 36 and 1200"));
     }
     // Sizes need pdfinfo, which this route can do without.
+    let mut base = Cmd::new(ppm)
+        .arg("-cropbox")
+        .args(fmt_args)
+        .arg("-r")
+        .arg(dpi.to_string());
     if ctx.deps.has("pdfinfo") {
-        check_render_size(&shown_page_sizes(ctx, pdf)?, dpi)?;
+        let sizes = shown_page_sizes(ctx, pdf)?;
+        check_render_size(&sizes, dpi)?;
+        base = base.args(["-f", "1", "-l", &sizes.len().to_string()]);
     }
-    let base = Cmd::new(ppm).args(fmt_args).arg("-r").arg(dpi.to_string());
     if pages <= 1 {
         let staged = Staged::file(out_dir, stem, fmt)?;
         let work = WorkDir::new_in(out_dir)?;
@@ -87,7 +93,10 @@ fn check_render_size(sizes: &[(f64, f64)], dpi: u32) -> JobResult<()> {
     let scale = f64::from(dpi) / 72.0;
     let pixels = |(w, h): &(f64, f64)| w * scale * h * scale;
     let total: f64 = sizes.iter().map(pixels).sum();
-    if total > MAX_DOCUMENT_PIXELS || sizes.iter().any(|s| pixels(s) > MAX_PAGE_PIXELS) {
+    // Written so that a size that is not a number fails too.
+    let fits = |value: f64, limit: f64| value > 0.0 && value <= limit;
+    if !fits(total, MAX_DOCUMENT_PIXELS) || !sizes.iter().all(|s| fits(pixels(s), MAX_PAGE_PIXELS))
+    {
         return Err(too_large_to_render());
     }
     Ok(())
@@ -103,9 +112,11 @@ fn rendered_pages(ctx: &Ctx, pdf: &Path, work: &WorkDir) -> JobResult<Vec<super:
         return Err(JobError::invalid_options("dpi must be between 36 and 1200"));
     }
     check_render_size(&sizes, dpi)?;
+    // Render what pdfinfo measured: the visible box of the measured pages.
     Cmd::new(ppm)
-        .args(["-jpeg", "-jpegopt", "quality=90", "-r"])
+        .args(["-cropbox", "-jpeg", "-jpegopt", "quality=90", "-r"])
         .arg(dpi.to_string())
+        .args(["-f", "1", "-l", &sizes.len().to_string()])
         .arg(pdf)
         .arg(work.join("page"))
         .run_ok()?;
