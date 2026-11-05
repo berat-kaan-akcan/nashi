@@ -185,7 +185,14 @@ pub fn convert(ctx: &Ctx, input: &Input, target: &str) -> JobResult<Produced> {
     if src == target {
         return Err(JobError::unsupported(format!("file is already .{target}")));
     }
-    let req = catalog::route_requirements(&src, target).map_err(JobError::unsupported)?;
+    let mut req = catalog::route_requirements(&src, target).map_err(JobError::unsupported)?;
+    // Page images of a PDF go into EPUB or DOCX without LibreOffice.
+    if input.category() == Category::Pdf
+        && matches!(target, "epub" | "docx")
+        && ctx.opts.pdf_layout.as_deref() == Some("pages")
+    {
+        req = vec![&["pdftoppm"]];
+    }
     check_requirements(ctx.deps, &req)?;
     match input.category() {
         Category::Image => image::convert(ctx, input, target).map(Into::into),
