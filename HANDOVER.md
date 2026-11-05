@@ -58,7 +58,8 @@ Nashi ([`orkunisitmak/nashi-app`](https://github.com/orkunisitmak/nashi-app), MI
 * **Çeviriler ([`nashi_tr.ts`](ui/i18n/nashi_tr.ts), [`nashi_fr.ts`](ui/i18n/nashi_fr.ts)):** ikisinde de **760/760** metin çevrili (`0 unfinished`).
 * **İkon kontrolü:** QML içindeki 60 ikon referansının tamamı sistem ikon temalarında doğrulandı.
 * **Paketleme ([`packaging/arch/PKGBUILD`](packaging/arch/PKGBUILD)):** `optdepends` listesine `curl`, `qt6-multimedia` ve `purpose` eklendi.
-* **Son test koşusu (2026-11-05):**
+* **Son test koşusu (2026-11-06):** `cargo fmt --check` ve `clippy -D warnings` temiz; `cargo test --workspace` → **284 PASS, 0 FAIL, 0 skip** (`libwpg` `LD_LIBRARY_PATH` ile verildi); `NASHI_DISABLE_TOOLS=soffice,pandoc,yt-dlp` ile de 0 FAIL, skip'ler listelendi; `ctest` → **17/17 PASS**.
+* **Önceki test koşusu (2026-11-05):**
   * `cargo fmt --all -- --check` → **PASS**
   * `cargo clippy --workspace --all-targets -- -D warnings` → **PASS (0 uyarı)**
   * `cargo test --workspace` → **282 test PASS, 0 FAIL** (bu makinede tüm araçlar kurulu olduğu için skip yok)
@@ -84,6 +85,10 @@ Upstream'in `b3c60f2..be59b13` aralığı incelendi; Linux'u etkileyen hatalar �
 * **Ses:** `normalizeAudio` için `target_lufs`, `loudness_range`, `true_peak` ve form. Normalleştir, PDF Böl ve Birleştir artık çarktan tıklanınca önce form açar.
 * **Çark sesi:** upstream `WheelSelection.wav`, Ayarlar → Çark'tan kapatılabilir.
 * **Test notu:** ImageMagick'te `info:` Türkçe yerelde dosyaya yazar, o dosya durdukça da `LC_ALL=C.UTF-8` ile bile dosya adı sayılır. Testlerde `magick` çağrılarına `LC_ALL` verin; ortada `crates/nashi-cli/info:` kalırsa `adjust`/`compose` testleri topluca düşer.
+
+### 2.5.3. Eksiklerin Kapatılması (2026-11-06, commit edilmedi)
+* **GIF sıkıştırma ön ayarı:** Ayarlar → Format varsayılanları → GIF → Sıkıştırma (Hızlı / Dengeli / En küçük dosya); motor seçeneği `gif_compression` (`fast`, `balanced`, `maximum`). Dengeli bugünkü çıktıyla birebir aynı, seçenek gönderilmez. Hızlı: bayer titreşim, ölçümde ~%40 daha hızlı, boyut benzer. En küçük: 128 renk, titreşim yok, yalnızca değişen dikdörtgenler; üç farklı örnekte %18–54 daha küçük. Upstream'de bu seçici var ama motoru kullanmıyor.
+* **Bulunan hatalar:** (1) PDF → DOCX/EPUB "sayfaları resim olarak koru" LibreOffice kullanmadığı hâlde LibreOffice yoksa reddediliyordu; son CI hatası buydu. (2) Kırpma/karartma, işaretleme, PDF kartı ve zaman çizelgesinde fare dikey yönde sürüklenince seçenek sayfasının `ScrollView`'u sürüklemeyi alıyordu; tutamaç iki adımdan sonra duruyordu (`preventStealing`). (3) `.pages` dosyaları `libwpg` eksikken anlaşılmaz "source file could not be loaded" hatası veriyordu.
 
 ### 2.6. Test Denetimi (2026-11-04)
 * **Mutasyon testi:** Motor kasıtlı bozularak testlerin hatayı yakalayıp yakalamadığı ölçüldü. İlk ölçümde 9 mutasyonun 8'i yakalanmıyordu. [`crates/nashi-cli/tests/behavior.rs`](crates/nashi-cli/tests/behavior.rs) (piksel, ses seviyesi, LUFS ve dosya boyutu ölçümleri) ve `v02.rs` düzeltmeleriyle işlevsel açıkların tamamı kapandı. Yalnızca `--proto-redir` kaldırılınca test geçiyor, çünkü `--proto` aynı yönlendirmeyi tek başına engelliyor; ikisi birden kaldırılınca test düşüyor.
@@ -116,8 +121,8 @@ Kurulumdan sonra çalışan `nashi --background` işlemi de yeniden başlatılma
 * **Bizden kaynaklanmayan günlük satırları:** Purpose'un `missing mandatory argument "device"`, `JobView.qml: non-existent property` ve `bluetoothplugin_config.qml` binding loop satırları. `installEventFilter ... different thread` uyarısının kaynağı bulunmadı, paylaşımı etkilemedi.
 
 ### 3.2. Upstream'de Bulunup Henüz Port Edilmeyen İkincil Özellikler
-* **Format tercihlerinin kalanı:** GIF sıkıştırma ön ayarı ve `pages` için PDF'ten Pages çıktısı (Pages yazımı yok). Sayfa düzenli EPUB ve DOCX gerçek bir okuyucuda ve Word'de denenmedi; DOCX yalnızca LibreOffice ile açıldı.
-* **Çeviri:** Fransızca eklendi (`ui/i18n/nashi_fr.ts`, Ayarlar → Dil, katalog başlıkları, `.desktop` dosyaları): 760 metnin 219'u upstream'in `fr.lproj` çevirisinden, kalanı elle çevrildi. Anadili Fransızca olan biri okumadı. Paylaş eklentilerindeki KDE metinleri uygulama dilini değil sistem dilini izler.
+* **Format tercihlerinin kalanı:** `pages` için PDF'ten Pages çıktısı (Pages yazımı yok). GIF sıkıştırma ön ayarı 2026-11-06'da eklendi (aşağıda). Sayfa düzenli EPUB ve DOCX gerçek bir okuyucuda ve Word'de denenmedi; DOCX yalnızca LibreOffice ile açıldı.
+* **Çeviri:** Fransızca eklendi (`ui/i18n/nashi_fr.ts`, Ayarlar → Dil, katalog başlıkları, `.desktop` dosyaları): 760 metnin 219'u upstream'in `fr.lproj` çevirisinden, kalanı elle çevrildi. Anadili Fransızca olan biri okumadı (2026-11-06: yer tutucular ve Fransız noktalaması, `:` öncesi bölünmez boşluk dahil, otomatik denetlendi; bir satır düzeltildi. Dil ve üslup okuması hâlâ gerekli). Paylaş eklentilerindeki KDE metinleri uygulama dilini değil sistem dilini izler.
 * **Gerçek oturumda denenmeyenler:** Pick aşamasında klavye, çarktan Paylaş ve çark seçim sesi (`QtMultimedia` `SoundEffect`; offscreen'de çalınmaz).
 * **İşlem bitiş sesi:** Upstream'de yok, yalnızca çark seçim sesi var; o taşındı. Bitiş sesi istenirse ayrı karar gerekir.
 
@@ -145,10 +150,10 @@ git push
 `PKGBUILD` değişirse `makepkg --printsrcinfo > .SRCINFO` ile yenileyin. `NASHI_LOCAL_SRC` ayarlıyken üretilen `.SRCINFO` yüklenmemelidir: kaynak listesi boş çıkar.
 
 ### 3.6. Testlerde Kalan Açıklar
-* `tst_forms_engine` tüm seçenek formlarını ve format varsayılanlarını gerçek `nashi-cli` ile çalıştırır ve etkisini ölçer (`cargo build` yapılmamışsa kendini atlar). Formların yalnızca bir kısmı sınanır: kırpma stilleri, bip, sessizlik silme, hedef dosya boyutu ve kolaj düzenlerinin tamamı yalnızca `fake-nashi-cli` ile denetlenir. Diğer Qt testleri sahte CLI kullanır.
-* Editörlerin fare etkileşimleri (kırpma, PDF sürükleme, zaman çizelgesi tutamakları) ve raftan dışarı sürükleme test edilmiyor.
-* `all_routes.rs` katalogdaki her rotayı çalıştırıp çıktıyı dosya imzasıyla doğrular (2026-11-05: 259 rota). `.pages` kaynaklı 8 rota sınanmıyor, çünkü bu dosyayı üretecek araç yok.
-* `if which(...)` dalları araç yoksa skip bildirmeden geçiyor. CI'da `soffice`, `pandoc` ve `yt-dlp` kurulu değil.
+* `tst_forms_engine` seçenek formlarını ve format varsayılanlarını gerçek `nashi-cli` ile çalıştırır ve etkisini ölçer (`cargo build` yapılmamışsa kendini atlar). 2026-11-06'dan beri karartma stilleri (bulanık/piksel), bip, sessizlik silme, hedef boyut ve yüzde, dört kolaj düzeni, sığdır/doldur ve GIF sıkıştırması da gerçek motorla sınanıyor. Diğer Qt testleri sahte CLI kullanır.
+* Fare etkileşimleri (`tst_editors`): kırpma tutamağı/taşıma/çizme, 1:1 oranı, karartma kutusu ekleme/taşıma/Delete, zaman çizelgesi In/Out tutamakları ve cetvel, susturma aralığı kenarı, PDF kartı sürükleme, işaretleme dikdörtgeni/kalem/seçip taşıma. Raftan dışarı sürükleme (`tst_desktop`) QML'in başlattığı `QDrag`'in dosya URL'lerini ve yalnızca kopyalama iznini doğrular; offscreen platformda bırakma hedefi olmadığı için başka bir uygulamaya bırakma gerçek oturumda denenmeli.
+* `all_routes.rs` `.pages` örneğini elle (Pages '09 `index.xml`) üretir; 8 rota böylece sınanır. LibreOffice'in Pages içe aktarıcısı `libwpg`'ye bağlı ama Arch'ın `libreoffice-fresh` paketi bunu bağımlılık olarak listelemiyor: `libwpg` yoksa motor artık `missing_dependency` verir ve rotalar skip olarak raporlanır. Bu makineye `libwpg` 2026-11-06'da kuruldu; 8 rota ve metin testi sistem kütüphanesiyle geçti. Pages 5+ (IWA) örneği üretilemiyor; LibreOffice'in kendi `Pages_5.pages` test dosyasıyla elle denendi.
+* Araç yokken atlanan testler ve test parçaları `skipped(...)` / `have(...)` ile bildirilir; `NASHI_SKIP_LOG=dosya` hepsini o dosyaya yazar, CI bu listeyi iş özetine koyar. `NASHI_DISABLE_TOOLS=soffice,pandoc` testlerde de aracı yok sayar, eksik araçlı makineyi taklit etmek için kullanılır. CI artık `libreoffice-fresh`, `libwpg`, `pandoc-cli`, `bubblewrap`, `yt-dlp`, `unrar`, `qrencode` kurar; konteynerde `bwrap` çalışmazsa pandoc testleri skip listesinde görünür.
 * `tst_desktop`, `tst_editors` ve `tst_qmlsmoke` gerçek kullanıcı ayarlarını kullanmamak için `ctest` dışında çalışmayı reddeder. Tek test seçmek için `ctest -R` kullanın; diğer test ikilileri bu korumayı taşımaz.
 * Denetimde tam okunmayan test dosyaları: `protocol.rs`, `tst_overlay`, `tst_misc`, `tst_userconfig`, `tst_wheelmodel`, `tst_clipboardimport`, `tst_jobrunner`, `tst_cliargs`, `tst_clilocator`, `tst_jsonlines`, `tst_wheelgeometry`.
 
