@@ -171,3 +171,57 @@ fn page_layout_needs_pdftoppm_and_says_so() {
     assert_eq!(r.error_codes(), ["missing_dependency"]);
     assert!(r.outputs().is_empty());
 }
+
+#[test]
+fn page_layout_refuses_an_enormous_page_before_rendering_it() {
+    need!("magick", "pdftoppm", "pdfinfo");
+    let d = tempfile::tempdir().unwrap();
+    // 100 pixels at 1 dpi is a page 100 inches wide: 120000 pixels across at 1200 dpi.
+    let big = d.path().join("big.pdf");
+    tool(
+        "magick",
+        &[
+            "-size",
+            "100x100",
+            "xc:white",
+            "-units",
+            "PixelsPerInch",
+            "-density",
+            "1",
+            s(&big),
+        ],
+    );
+    let started = std::time::Instant::now();
+    let r = converted(&big, "docx", r#"{"pdf_layout":"pages","dpi":1200}"#);
+    assert_eq!(r.error_codes(), ["invalid_input"], "{}", r.stdout);
+    assert!(r.outputs().is_empty());
+    assert!(started.elapsed().as_secs() < 20);
+    assert_no_temp(d.path());
+    // The same page is fine at a low resolution.
+    let fine = converted(&big, "docx", r#"{"pdf_layout":"pages","dpi":36}"#);
+    fine.ok();
+}
+
+#[test]
+fn page_images_refuse_an_enormous_page_before_rendering_it() {
+    need!("magick", "pdftoppm", "pdfinfo");
+    let d = tempfile::tempdir().unwrap();
+    let big = d.path().join("big.pdf");
+    tool(
+        "magick",
+        &[
+            "-size",
+            "100x100",
+            "xc:white",
+            "-units",
+            "PixelsPerInch",
+            "-density",
+            "1",
+            s(&big),
+        ],
+    );
+    let r = converted(&big, "png", r#"{"dpi":1200}"#);
+    assert_eq!(r.error_codes(), ["invalid_input"], "{}", r.stdout);
+    assert!(r.outputs().is_empty());
+    converted(&big, "png", r#"{"dpi":36}"#).ok();
+}

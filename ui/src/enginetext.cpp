@@ -34,6 +34,8 @@ const char *const kMessages[] = {
     QT_TRANSLATE_NOOP("EngineMessages", "Framing"),
     QT_TRANSLATE_NOOP("EngineMessages", "Joining"),
     QT_TRANSLATE_NOOP("EngineMessages", "Joining clips"),
+    QT_TRANSLATE_NOOP("EngineMessages", "Measuring loudness"),
+    QT_TRANSLATE_NOOP("EngineMessages", "This PDF is too large to turn into pictures. Try a lower resolution."),
     QT_TRANSLATE_NOOP("EngineMessages", "Merging"),
     QT_TRANSLATE_NOOP("EngineMessages", "Normalizing"),
     QT_TRANSLATE_NOOP("EngineMessages", "Packing"),

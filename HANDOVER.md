@@ -117,7 +117,6 @@ Kurulumdan sonra çalışan `nashi --background` işlemi de yeniden başlatılma
 
 ### 3.2. Upstream'de Bulunup Henüz Port Edilmeyen İkincil Özellikler
 * **Format tercihlerinin kalanı:** GIF sıkıştırma ön ayarı ve `pages` için PDF'ten Pages çıktısı (Pages yazımı yok). Sayfa düzenli EPUB ve DOCX gerçek bir okuyucuda ve Word'de denenmedi; DOCX yalnızca LibreOffice ile açıldı.
-* **Ses yüksekliği:** Linux `loudnorm`'u tek geçişte çalıştırır, upstream iki geçişli. Testte hedefin ±1,5 LU içinde kaldı.
 * **Çeviri:** Fransızca (`fr`) yok. `ui/src/language.cpp` ve Ayarlar yalnızca `en`/`tr` tanıyor; 735 metin ve motor mesajları çevrilmeli.
 * **Gerçek oturumda denenmeyenler:** Pick aşamasında klavye, çarktan Paylaş ve çark seçim sesi (`QtMultimedia` `SoundEffect`; offscreen'de çalınmaz).
 * **İşlem bitiş sesi:** Upstream'de yok, yalnızca çark seçim sesi var; o taşındı. Bitiş sesi istenirse ayrı karar gerekir.

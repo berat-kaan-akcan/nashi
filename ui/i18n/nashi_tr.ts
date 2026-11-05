@@ -719,6 +719,14 @@
         <translation>Parçalar birleştiriliyor</translation>
     </message>
     <message>
+        <source>Measuring loudness</source>
+        <translation>Ses yüksekliği ölçülüyor</translation>
+    </message>
+    <message>
+        <source>This PDF is too large to turn into pictures. Try a lower resolution.</source>
+        <translation>Bu PDF görsele dönüştürülemeyecek kadar büyük. Daha düşük bir çözünürlük deneyin.</translation>
+    </message>
+    <message>
         <source>Merging</source>
         <translation>Birleştiriliyor</translation>
     </message>

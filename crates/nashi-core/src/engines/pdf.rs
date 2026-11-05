@@ -32,6 +32,10 @@ pub fn to_images(
     if !(36..=1200).contains(&dpi) {
         return Err(JobError::invalid_options("dpi must be between 36 and 1200"));
     }
+    // Sizes need pdfinfo, which this route can do without.
+    if ctx.deps.has("pdfinfo") {
+        check_render_size(&shown_page_sizes(ctx, pdf)?, dpi)?;
+    }
     let base = Cmd::new(ppm).args(fmt_args).arg("-r").arg(dpi.to_string());
     if pages <= 1 {
         let staged = Staged::file(out_dir, stem, fmt)?;
@@ -69,6 +73,26 @@ fn pdftotext(ctx: &Ctx, pdf: &Path, out: &Path) -> JobResult<()> {
     Ok(())
 }
 
+/// Limits for keeping pages as pictures: the pixels of one page and of the whole
+/// file, checked before rendering, and the JPEGs that are then held in memory.
+const MAX_PAGE_PIXELS: f64 = 100_000_000.0;
+const MAX_DOCUMENT_PIXELS: f64 = 20_000_000_000.0;
+const MAX_PAGE_IMAGES_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+
+fn too_large_to_render() -> JobError {
+    JobError::invalid_input("This PDF is too large to turn into pictures. Try a lower resolution.")
+}
+
+fn check_render_size(sizes: &[(f64, f64)], dpi: u32) -> JobResult<()> {
+    let scale = f64::from(dpi) / 72.0;
+    let pixels = |(w, h): &(f64, f64)| w * scale * h * scale;
+    let total: f64 = sizes.iter().map(pixels).sum();
+    if total > MAX_DOCUMENT_PIXELS || sizes.iter().any(|s| pixels(s) > MAX_PAGE_PIXELS) {
+        return Err(too_large_to_render());
+    }
+    Ok(())
+}
+
 /// Render each page as a JPEG, with the size it is shown at.
 fn rendered_pages(ctx: &Ctx, pdf: &Path, work: &WorkDir) -> JobResult<Vec<super::pagedoc::Page>> {
     ctx.progress(None, "Rendering pages");
@@ -78,6 +102,7 @@ fn rendered_pages(ctx: &Ctx, pdf: &Path, work: &WorkDir) -> JobResult<Vec<super:
     if !(36..=1200).contains(&dpi) {
         return Err(JobError::invalid_options("dpi must be between 36 and 1200"));
     }
+    check_render_size(&sizes, dpi)?;
     Cmd::new(ppm)
         .args(["-jpeg", "-jpegopt", "quality=90", "-r"])
         .arg(dpi.to_string())
@@ -94,6 +119,13 @@ fn rendered_pages(ctx: &Ctx, pdf: &Path, work: &WorkDir) -> JobResult<Vec<super:
     files.sort_by_key(|p| number(p));
     if files.len() != sizes.len() {
         return Err(JobError::tool_failed("pdftoppm did not render every page"));
+    }
+    let mut total = 0u64;
+    for file in &files {
+        total = total.saturating_add(std::fs::metadata(file)?.len());
+    }
+    if total > MAX_PAGE_IMAGES_BYTES {
+        return Err(too_large_to_render());
     }
     files
         .iter()

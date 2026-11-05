@@ -419,6 +419,27 @@ fn atempo_chain(speed: f64) -> String {
     parts.join(",")
 }
 
+/// The options that give `loudnorm` its first pass, from the JSON it printed.
+/// `None` when a value is not finite, as for silence: one pass handles that.
+fn measured_loudness(log: &str) -> Option<String> {
+    let start = log.rfind('{')?;
+    let end = log.rfind('}')?;
+    let v: serde_json::Value = serde_json::from_str(log.get(start..=end)?).ok()?;
+    let value = |key: &str| {
+        let text = v[key].as_str()?;
+        text.parse::<f64>().ok().filter(|n| n.is_finite())?;
+        Some(text.to_string())
+    };
+    Some(format!(
+        ":measured_I={}:measured_TP={}:measured_LRA={}:measured_thresh={}:offset={}:linear=true",
+        value("input_i")?,
+        value("input_tp")?,
+        value("input_lra")?,
+        value("input_thresh")?,
+        value("target_offset")?
+    ))
+}
+
 /// Options shared by `compress` and conversions.
 fn check_encoding(o: &crate::options::Options) -> JobResult<()> {
     if o.audio_kbps.is_some_and(|k| !(8..=512).contains(&k)) {
@@ -707,17 +728,24 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
             let lra = range(o.loudness_range, 11.0, 1.0, 50.0, "loudness_range")?;
             let peak = range(o.true_peak, -1.5, -9.0, 0.0, "true_peak")?;
             let staged = input.stage("-normalized", &ext)?;
+            let mut filter = format!("loudnorm=I={lufs}:TP={peak}:LRA={lra}");
+            // With the whole file measured first, the level can be changed evenly, so
+            // quiet and loud parts stay as far apart as they were.
+            ctx.progress(None, "Measuring loudness");
+            let measured = ffmpeg(ctx)?
+                .args(["-loglevel", "info"])
+                .arg("-i")
+                .arg_cat("file:", &input.path)
+                .args(["-vn", "-map", "0:a:0", "-af"])
+                .arg(format!("{filter}:print_format=json"))
+                .args(["-f", "null", "-"])
+                .run_ok()?;
+            if let Some(second_pass) = measured_loudness(&measured.stderr) {
+                filter.push_str(&second_pass);
+            }
             let rate = p.sample_rate.unwrap_or(48000).to_string();
             let cmd = ffin(ffmpeg(ctx)?)
-                .args([
-                    "-vn",
-                    "-map",
-                    "0:a:0",
-                    "-af",
-                    &format!("loudnorm=I={lufs}:TP={peak}:LRA={lra}"),
-                    "-ar",
-                    &rate,
-                ])
+                .args(["-vn", "-map", "0:a:0", "-af", &filter, "-ar", &rate])
                 .args(audio_for(&ext, &p, o))
                 .args(audio_fit(&ext, p.channels, p.sample_rate));
             finish(cmd, staged, p.duration, "Normalizing")

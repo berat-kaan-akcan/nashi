@@ -373,3 +373,71 @@ fn normalize_rejects_values_out_of_range() {
         assert_eq!(r.error_codes(), ["invalid_options"], "{bad}");
     }
 }
+
+fn loudness_range(p: &Path) -> f64 {
+    let o = Command::new("ffmpeg")
+        .args(["-hide_banner", "-nostats", "-i"])
+        .arg(p)
+        .args(["-af", "ebur128=framelog=quiet", "-f", "null", "-"])
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&o.stderr).into_owned();
+    let line = text
+        .lines()
+        .rfind(|l| l.trim_start().starts_with("LRA:"))
+        .unwrap();
+    line.split_whitespace().nth(1).unwrap().parse().unwrap()
+}
+
+#[test]
+fn normalize_keeps_quiet_and_loud_parts_apart() {
+    need!("ffmpeg");
+    let d = tempfile::tempdir().unwrap();
+    let src = d.path().join("dynamic.wav");
+    tool(
+        "ffmpeg",
+        &[
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "anoisesrc=d=6:c=pink:a=0.02",
+            "-f",
+            "lavfi",
+            "-i",
+            "anoisesrc=d=6:c=pink:a=0.5",
+            "-filter_complex",
+            "[0][1]concat=n=2:v=0:a=1",
+            s(&src),
+        ],
+    );
+    let before = loudness_range(&src);
+    let r = tool_run("normalizeAudio", &[&src], None);
+    r.ok();
+    let out = r.one();
+    assert!(
+        (loudness_range(&out) - before).abs() < 1.5,
+        "{before} -> {}",
+        loudness_range(&out)
+    );
+    assert!(
+        (integrated_lufs(&out) + 16.0).abs() < 1.5,
+        "{}",
+        integrated_lufs(&out)
+    );
+}
+
+#[test]
+fn normalize_handles_silence() {
+    need!("ffmpeg");
+    let d = tempfile::tempdir().unwrap();
+    let src = d.path().join("silent.wav");
+    tool(
+        "ffmpeg",
+        &["-v", "error", "-f", "lavfi", "-i", "anullsrc=d=2", s(&src)],
+    );
+    let r = tool_run("normalizeAudio", &[&src], None);
+    r.ok();
+    r.one();
+}
