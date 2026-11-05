@@ -37,7 +37,8 @@ bool WheelModel::hasOptionsForm(const QString &toolId)
         QStringLiteral("frameImage"),       QStringLiteral("redactImage"), QStringLiteral("redactVideo"),
         QStringLiteral("redactAudio"),      QStringLiteral("organizePDF"), QStringLiteral("annotateImage"),
         QStringLiteral("compress"),        QStringLiteral("splitVideo"),  QStringLiteral("videoSnapshots"),
-        QStringLiteral("removeMetadata"),  QStringLiteral("createCollage"),
+        QStringLiteral("removeMetadata"),  QStringLiteral("createCollage"), QStringLiteral("normalizeAudio"),
+        QStringLiteral("splitPDF"),        QStringLiteral("mergePDF"),
     };
     return forms.contains(toolId);
 }

@@ -150,6 +150,19 @@ void Settings::setWheelScale(double scale)
     Q_EMIT wheelScaleChanged();
 }
 
+bool Settings::wheelSound() const
+{
+    return m_store.value(QStringLiteral("wheel/sound"), true).toBool();
+}
+
+void Settings::setWheelSound(bool on)
+{
+    if (on == wheelSound())
+        return;
+    m_store.setValue(QStringLiteral("wheel/sound"), on);
+    Q_EMIT wheelSoundChanged();
+}
+
 int Settings::pdfImageDpi() const
 {
     bool ok = false;
@@ -164,6 +177,135 @@ void Settings::setPdfImageDpi(int dpi)
         return;
     m_store.setValue(QStringLiteral("convert/pdfImageDpi"), dpi);
     Q_EMIT pdfImageDpiChanged();
+}
+
+namespace {
+
+const QStringList &qualityImages()
+{
+    static const QStringList v{QStringLiteral("jpg"), QStringLiteral("webp"), QStringLiteral("heic"), QStringLiteral("avif")};
+    return v;
+}
+const QStringList &otherImages()
+{
+    static const QStringList v{QStringLiteral("png"), QStringLiteral("tiff")};
+    return v;
+}
+const QStringList &lossyAudio()
+{
+    static const QStringList v{QStringLiteral("mp3"), QStringLiteral("m4a"), QStringLiteral("ogg"), QStringLiteral("opus"),
+                               QStringLiteral("wma")};
+    return v;
+}
+const QStringList &losslessAudio()
+{
+    static const QStringList v{QStringLiteral("wav"), QStringLiteral("flac"), QStringLiteral("aiff")};
+    return v;
+}
+const QStringList &videos()
+{
+    static const QStringList v{QStringLiteral("mp4"), QStringLiteral("mov"), QStringLiteral("mkv"), QStringLiteral("webm"),
+                               QStringLiteral("avi"), QStringLiteral("wmv")};
+    return v;
+}
+
+constexpr int kDefaultGifFps = 12;
+constexpr int kDefaultGifWidth = 640;
+
+QString formatKey(const QString &format, const QString &kind)
+{
+    return QStringLiteral("formats/%1/%2").arg(format, kind);
+}
+
+} // namespace
+
+QStringList Settings::formatDefaultFormats() const
+{
+    return qualityImages() + otherImages() + lossyAudio() + losslessAudio() + videos() + QStringList{QStringLiteral("gif")};
+}
+
+QStringList Settings::formatDefaultKinds(const QString &format) const
+{
+    const QString quality = QStringLiteral("quality");
+    const QString keep = QStringLiteral("keepMetadata");
+    const QString kbps = QStringLiteral("audioKbps");
+    if (qualityImages().contains(format))
+        return {quality, keep};
+    if (otherImages().contains(format) || losslessAudio().contains(format))
+        return {keep};
+    if (lossyAudio().contains(format))
+        return {kbps, keep};
+    if (videos().contains(format))
+        return {quality, QStringLiteral("videoHeight"), kbps, keep};
+    if (format == QLatin1String("gif"))
+        return {QStringLiteral("gifFps"), QStringLiteral("gifWidth")};
+    return {};
+}
+
+QVariantMap Settings::formatDefaults(const QString &format) const
+{
+    const auto number = [&](const char *kind, int fallback, int low, int high) {
+        bool ok = false;
+        const int v = m_store.value(formatKey(format, QString::fromLatin1(kind)), fallback).toInt(&ok);
+        return ok && v >= low && v <= high ? v : fallback;
+    };
+    QString quality = m_store.value(formatKey(format, QStringLiteral("quality"))).toString();
+    if (quality != QLatin1String("smaller") && quality != QLatin1String("higher"))
+        quality = QStringLiteral("balanced");
+    return {
+        {QStringLiteral("quality"), quality},
+        {QStringLiteral("keepMetadata"), m_store.value(formatKey(format, QStringLiteral("keepMetadata")), true).toBool()},
+        // 0: leave the choice to the engine.
+        {QStringLiteral("audioKbps"), number("audioKbps", 0, 8, 512)},
+        {QStringLiteral("videoHeight"), number("videoHeight", 0, 2, 16384)},
+        {QStringLiteral("gifFps"), number("gifFps", kDefaultGifFps, 1, 60)},
+        {QStringLiteral("gifWidth"), number("gifWidth", kDefaultGifWidth, 2, 16384)},
+    };
+}
+
+void Settings::setFormatDefault(const QString &format, const QString &kind, const QVariant &value)
+{
+    if (!formatDefaultKinds(format).contains(kind) || formatDefaults(format).value(kind) == value)
+        return;
+    m_store.setValue(formatKey(format, kind), value);
+    Q_EMIT formatDefaultsChanged();
+}
+
+void Settings::restoreFormatDefaults(const QString &format)
+{
+    if (!formatDefaultFormats().contains(format))
+        return;
+    m_store.remove(QStringLiteral("formats/") + format);
+    Q_EMIT formatDefaultsChanged();
+}
+
+QJsonObject Settings::conversionOptions(const QString &target) const
+{
+    QJsonObject options;
+    const QStringList kinds = formatDefaultKinds(target);
+    const QVariantMap chosen = formatDefaults(target);
+    const QString quality = chosen.value(QStringLiteral("quality")).toString();
+    const bool smaller = quality == QLatin1String("smaller");
+    if (kinds.contains(QStringLiteral("quality")) && quality != QLatin1String("balanced")) {
+        if (videos().contains(target)) {
+            const int neutral = target == QLatin1String("webm") ? 32 : 23;
+            options.insert(QStringLiteral("crf"), neutral + (smaller ? 6 : -5));
+        } else {
+            options.insert(QStringLiteral("quality"), smaller ? 45 : 95);
+        }
+    }
+    if (kinds.contains(QStringLiteral("keepMetadata")) && !chosen.value(QStringLiteral("keepMetadata")).toBool())
+        options.insert(QStringLiteral("strip_metadata"), true);
+    const auto number = [&](const char *kind, const char *key, int neutral) {
+        const int v = chosen.value(QString::fromLatin1(kind)).toInt();
+        if (kinds.contains(QString::fromLatin1(kind)) && v != neutral)
+            options.insert(QString::fromLatin1(key), v);
+    };
+    number("audioKbps", "audio_kbps", 0);
+    number("videoHeight", "max_height", 0);
+    number("gifFps", "gif_fps", kDefaultGifFps);
+    number("gifWidth", "gif_max_width", kDefaultGifWidth);
+    return options;
 }
 
 QString Settings::urlToLocalPath(const QUrl &url) const

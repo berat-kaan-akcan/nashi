@@ -383,18 +383,141 @@ fn split(ctx: &Ctx, input: &Input) -> JobResult<Produced> {
             .ok_or_else(|| JobError::invalid_input("could not read the page count"))?)
             .collect(),
     };
+    let part_size = ctx.opts.pages_per_file.unwrap_or(1);
+    if part_size == 0 {
+        return Err(JobError::invalid_options(
+            "pages_per_file must be at least 1",
+        ));
+    }
     let staged = input.stage_dir("-pages")?;
     let work = WorkDir::new_in(&input.out_dir)?;
     let stem = input.stem();
-    for (n, page) in pages.iter().enumerate() {
+    let parts = pages.len().div_ceil(part_size as usize);
+    for (n, part) in pages.chunks(part_size as usize).enumerate() {
         crate::process::check_cancel()?;
-        ctx.progress(Some(n as f64 / pages.len() as f64), "Splitting");
+        ctx.progress(Some(n as f64 / parts as f64), "Splitting");
         // Tools write to a fixed, %-free name; then move under the real name.
         let tmp = work.join(&format!("p{n}.pdf"));
-        extract_page(ctx, &input.path, *page, &tmp)?;
-        std::fs::rename(&tmp, staged.path().join(format!("{stem}-{page}.pdf")))?;
+        let name = match part {
+            [only] => {
+                extract_page(ctx, &input.path, *only, &tmp)?;
+                format!("{stem}-{only}.pdf")
+            }
+            _ => {
+                extract_part(ctx, &input.path, part, &tmp, &work)?;
+                format!("{stem}-{}-{}.pdf", part[0], part[part.len() - 1])
+            }
+        };
+        std::fs::rename(&tmp, staged.path().join(name))?;
     }
     Ok(staged.commit()?.into())
+}
+
+/// Several pages of `src` as one PDF.
+fn extract_part(ctx: &Ctx, src: &Path, pages: &[u32], out: &Path, work: &WorkDir) -> JobResult<()> {
+    if let Some(qpdf) = ctx.deps.path("qpdf") {
+        let list = pages
+            .iter()
+            .map(u32::to_string)
+            .collect::<Vec<_>>()
+            .join(",");
+        let r = Cmd::new(qpdf)
+            .arg("--empty")
+            .arg("--pages")
+            .arg(src)
+            .arg(&list)
+            .arg("--")
+            .arg(out)
+            .run()?;
+        if !matches!(r.status.code(), Some(0) | Some(3)) {
+            return Err(crate::process::failure("qpdf", &r));
+        }
+        return Ok(());
+    }
+    let mut files = Vec::new();
+    for page in pages {
+        let one = work.join(&format!("one-{page}.pdf"));
+        extract_page(ctx, src, *page, &one)?;
+        files.push(one);
+    }
+    let paths: Vec<&Path> = files.iter().map(PathBuf::as_path).collect();
+    join_pdfs(ctx, &paths, out, work)
+}
+
+/// Each page's size as it is shown, in points, rotation applied.
+fn shown_page_sizes(ctx: &Ctx, path: &Path) -> JobResult<Vec<(f64, f64)>> {
+    let count = pdf_pages(ctx.deps, path)
+        .ok_or_else(|| JobError::invalid_input("could not read the page count"))?;
+    let info = Cmd::new(require(ctx.deps, "pdfinfo")?)
+        .args(["-f", "1", "-l", &count.to_string()])
+        .arg(path)
+        .run_ok()?
+        .stdout;
+    let mut sizes = Vec::new();
+    let mut turned = Vec::new();
+    for line in info.lines().filter(|l| l.starts_with("Page ")) {
+        let Some((label, value)) = line.split_once(':') else {
+            continue;
+        };
+        let mut words = value.split_whitespace();
+        if label.ends_with(" size") {
+            let w = words.next().and_then(|v| v.parse::<f64>().ok());
+            let h = words.nth(1).and_then(|v| v.parse::<f64>().ok());
+            if let (Some(w), Some(h)) = (w, h) {
+                sizes.push((w, h));
+            }
+        } else if label.ends_with(" rot") {
+            let deg = words
+                .next()
+                .and_then(|v| v.parse::<i32>().ok())
+                .unwrap_or(0);
+            turned.push(deg.rem_euclid(180) == 90);
+        }
+    }
+    if sizes.len() != count as usize || turned.len() != sizes.len() {
+        return Err(JobError::invalid_input("could not read the page sizes"));
+    }
+    Ok(sizes
+        .into_iter()
+        .zip(turned)
+        .map(|((w, h), t)| if t { (h, w) } else { (w, h) })
+        .collect())
+}
+
+/// Copy `src` to `out` with every page scaled to the width of the narrowest.
+/// Pages already that wide stay untouched; Ghostscript rewrites the others.
+fn write_uniform_width(ctx: &Ctx, src: &Path, out: &Path, work: &WorkDir) -> JobResult<()> {
+    let sizes = shown_page_sizes(ctx, src)?;
+    let narrowest = sizes.iter().map(|s| s.0).fold(f64::INFINITY, f64::min);
+    if !narrowest.is_finite() || narrowest <= 0.0 {
+        return Err(JobError::invalid_input("The PDF has no valid page sizes."));
+    }
+    let mut files = Vec::new();
+    for (n, (w, h)) in sizes.iter().enumerate() {
+        crate::process::check_cancel()?;
+        let page = n as u32 + 1;
+        let one = work.join(&format!("uniform-{page}.pdf"));
+        extract_page(ctx, src, page, &one)?;
+        if (w - narrowest).abs() < 0.5 {
+            files.push(one);
+            continue;
+        }
+        let scaled = work.join(&format!("scaled-{page}.pdf"));
+        gs_base(ctx)?
+            .args(["-dFIXEDMEDIA", "-dPDFFitPage"])
+            .arg(format!("-dDEVICEWIDTHPOINTS={}", narrowest.round()))
+            .arg(format!(
+                "-dDEVICEHEIGHTPOINTS={}",
+                (h * narrowest / w).round().max(1.0)
+            ))
+            .arg(gs_out(&scaled))
+            .arg("-f")
+            .arg(&one)
+            .run_ok()?;
+        files.push(scaled);
+    }
+    let paths: Vec<&Path> = files.iter().map(PathBuf::as_path).collect();
+    join_pdfs(ctx, &paths, out, work)
 }
 
 fn extract_page(ctx: &Ctx, src: &Path, page: u32, out: &Path) -> JobResult<()> {
@@ -441,6 +564,9 @@ fn organize(ctx: &Ctx, input: &Input) -> JobResult<Produced> {
         JobError::invalid_options("organizePDF needs a pages option (new page order)")
     })?;
     let d = ctx.deps;
+    if ctx.opts.uniform_width == Some(true) {
+        require(d, "gs")?;
+    }
     let pages = parse_pages(spec, pdf_pages(d, &input.path))?;
     let rotations = match &ctx.opts.rotations {
         Some(r) => Some(crate::options::normalize_rotations(r, pages.len())?),
@@ -499,37 +625,60 @@ fn organize(ctx: &Ctx, input: &Input) -> JobResult<Produced> {
         }
         Cmd::new(unite).args(&parts).arg(staged.path()).run_ok()?;
     }
+    if ctx.opts.uniform_width == Some(true) {
+        let work = WorkDir::new_in(&input.out_dir)?;
+        let ordered = work.join("ordered.pdf");
+        std::fs::rename(staged.path(), &ordered)?;
+        write_uniform_width(ctx, &ordered, staged.path(), &work)?;
+    }
     Ok(staged.commit()?.into())
 }
 
-/// Merge PDFs into `merged.pdf` (qpdf, pdfunite, gs).
-pub fn merge(ctx: &Ctx, inputs: &[Input], out_dir: &Path) -> JobResult<PathBuf> {
-    ctx.progress(None, "Merging");
-    let staged = Staged::file(out_dir, "merged", "pdf")?;
+/// Join PDFs into one with the first tool available (qpdf, pdfunite, gs).
+fn join_pdfs(ctx: &Ctx, paths: &[&Path], out: &Path, work: &WorkDir) -> JobResult<()> {
     let d = ctx.deps;
-    let paths: Vec<&Path> = inputs.iter().map(|i| i.path.as_path()).collect();
     if let Some(qpdf) = d.path("qpdf") {
         let r = Cmd::new(qpdf)
             .arg("--empty")
             .arg("--pages")
-            .args(&paths)
+            .args(paths)
             .arg("--")
-            .arg(staged.path())
+            .arg(out)
             .run()?;
         if !matches!(r.status.code(), Some(0) | Some(3)) {
             return Err(crate::process::failure("qpdf", &r));
         }
     } else if let Some(unite) = d.path("pdfunite") {
-        Cmd::new(unite).args(&paths).arg(staged.path()).run_ok()?;
+        Cmd::new(unite).args(paths).arg(out).run_ok()?;
     } else {
-        let work = WorkDir::new_in(out_dir)?;
-        let tmp = work.join("merged.pdf");
+        // Ghostscript reads the output name as a pattern: write to a plain one first.
+        let tmp = work.join("joined.pdf");
         gs_base(ctx)?
             .arg(gs_out(&tmp))
             .arg("-f")
-            .args(&paths)
+            .args(paths)
             .run_ok()?;
-        staged.take_from(&tmp)?;
+        std::fs::rename(&tmp, out)?;
+    }
+    Ok(())
+}
+
+/// Merge PDFs into `merged.pdf`.
+pub fn merge(ctx: &Ctx, inputs: &[Input], out_dir: &Path) -> JobResult<PathBuf> {
+    ctx.progress(None, "Merging");
+    let uniform = ctx.opts.uniform_width == Some(true);
+    if uniform {
+        require(ctx.deps, "gs")?;
+    }
+    let staged = Staged::file(out_dir, "merged", "pdf")?;
+    let paths: Vec<&Path> = inputs.iter().map(|i| i.path.as_path()).collect();
+    let work = WorkDir::new_in(out_dir)?;
+    if uniform {
+        let joined = work.join("all.pdf");
+        join_pdfs(ctx, &paths, &joined, &work)?;
+        write_uniform_width(ctx, &joined, staged.path(), &work)?;
+    } else {
+        join_pdfs(ctx, &paths, staged.path(), &work)?;
     }
     Ok(staged.commit()?)
 }

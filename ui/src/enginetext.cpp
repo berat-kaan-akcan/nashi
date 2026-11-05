@@ -96,6 +96,8 @@ const char *const kMessages[] = {
     QT_TRANSLATE_NOOP("EngineMessages", "spreadsheet to text is not supported"),
     QT_TRANSLATE_NOOP("EngineMessages", "joinVideos needs at least two videos"),
     QT_TRANSLATE_NOOP("EngineMessages", "mergePDF needs at least two PDFs"),
+    QT_TRANSLATE_NOOP("EngineMessages", "could not read the page sizes"),
+    QT_TRANSLATE_NOOP("EngineMessages", "The PDF has no valid page sizes."),
     QT_TRANSLATE_NOOP("EngineMessages", "page %1 is beyond the last page (%2)"),
     QT_TRANSLATE_NOOP("EngineMessages", "invalid page list '%1'"),
     QT_TRANSLATE_NOOP("EngineMessages", "file is already .%1"),

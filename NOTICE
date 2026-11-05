@@ -1,6 +1,6 @@
 This project's conversion catalog (reference/upstream-FeatureCatalog.json and the
 catalog derived from it in crates/nashi-core), the pear artwork (ui/resources/mark*.svg,
-ui/resources/nashi.svg, data/icons/…) and the UI design language (ui/qml/Theme.qml) are
+ui/resources/nashi.svg, data/icons/…), the wheel sound (ui/resources/wheel-selection.wav) and the UI design language (ui/qml/Theme.qml) are
 based on Nashi:
 https://github.com/orkunisitmak/nashi-app
 

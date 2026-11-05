@@ -108,7 +108,7 @@ qt_add_qml_module(nashi_ui
     URI NashiApp
     VERSION 1.0
     QML_FILES ${NASHI_QML_FILES}
-    RESOURCES resources/nashi.svg resources/mark.svg resources/mark-happy.svg
+    RESOURCES resources/nashi.svg resources/mark.svg resources/mark-happy.svg resources/wheel-selection.wav
     RESOURCE_PREFIX /qt/qml
     OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/NashiApp
 )

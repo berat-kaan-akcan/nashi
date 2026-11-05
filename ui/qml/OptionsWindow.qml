@@ -40,6 +40,9 @@ ApplicationWindow {
         case "createCollage": return "collage"
         case "splitVideo": return "split"
         case "videoSnapshots": return "snapshots"
+        case "normalizeAudio": return "normalize"
+        case "splitPDF": return "splitPdf"
+        case "mergePDF": return "mergePdf"
         }
         return ""
     }
@@ -78,6 +81,11 @@ ApplicationWindow {
 
     // ---- state ---------------------------------------------------------
     property real speed: 2
+    property int targetLufs: -16
+    property int loudnessRange: 11
+    property real truePeak: -1.5
+    property int pagesPerFile: 1
+    property bool uniformWidth: false
     property real rotate: 0
     property string flip: ""
     property string borderColor: "#ffffff"
@@ -720,6 +728,27 @@ ApplicationWindow {
         }
         case "speed":
             return { speed: speed }
+        case "normalize":
+            return { target_lufs: targetLufs, loudness_range: loudnessRange, true_peak: truePeak }
+        case "splitPdf": {
+            const options = {}
+            if (pagesPerFile > 1)
+                options.pages_per_file = pagesPerFile
+            const p = splitPdfPages.text.replace(/\s+/g, "")
+            if (p.length > 0) {
+                if (!/^\d+(-\d+)?(,\d+(-\d+)?)*$/.test(p))
+                    return qsTr("List pages like 3,1,2 or 1-4,6.")
+                if (pageCount > 0) {
+                    for (const n of p.split(/[,-]/))
+                        if (parseInt(n, 10) < 1 || parseInt(n, 10) > pageCount)
+                            return qsTr("This PDF has %n page(s).", "", pageCount)
+                }
+                options.pages = p
+            }
+            return options
+        }
+        case "mergePdf":
+            return uniformWidth ? { uniform_width: true } : {}
         case "trim": {
             const r = rangeOrError()
             if (typeof r === "string")
@@ -794,12 +823,15 @@ ApplicationWindow {
                     if (parseInt(n, 10) < 1 || parseInt(n, 10) > maxP)
                         return qsTr("This PDF has %n page(s).", "", maxP)
             }
+            const options = { pages: p }
             const expanded = pdfOrganizer.expandSpec(p)
             if (expanded && expanded.length === pdfOrganizer.items.length
                     && pdfOrganizer.hasNonZeroRotation()) {
-                return { pages: p, rotations: pdfOrganizer.rotationsList() }
+                options.rotations = pdfOrganizer.rotationsList()
             }
-            return { pages: p }
+            if (uniformWidth)
+                options.uniform_width = true
+            return options
         }
         case "annotate":
             if (annotateEditor.items.length === 0)
@@ -991,6 +1023,81 @@ ApplicationWindow {
                     font.pixelSize: Theme.sizeSmall
                     color: Theme.secondaryText
                     text: qsTr("New length: about %1").arg(win.formatTime(win.duration / win.speed))
+                }
+            }
+
+            SectionBox {
+                visible: win.group === "normalize"
+                title: qsTr("Loudness")
+                ValueSlider {
+                    label: qsTr("Target loudness")
+                    low: -40
+                    high: -5
+                    unit: " LUFS"
+                    value: win.targetLufs
+                    onEdited: (v) => win.targetLufs = v
+                }
+                ValueSlider {
+                    label: qsTr("Loudness range")
+                    low: 1
+                    high: 20
+                    unit: " LU"
+                    value: win.loudnessRange
+                    onEdited: (v) => win.loudnessRange = v
+                }
+                FieldLabel {
+                    text: qsTr("True peak limit")
+                }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 6
+                    Repeater {
+                        model: [-3, -2, -1.5, -1, -0.5]
+                        delegate: Choice {
+                            required property real modelData
+                            text: qsTr("%1 dBTP").arg(modelData)
+                            on: win.truePeak === modelData
+                            onClicked: win.truePeak = modelData
+                        }
+                    }
+                }
+            }
+
+            SectionBox {
+                visible: win.group === "splitPdf"
+                title: qsTr("Split into parts")
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
+                    FieldLabel {
+                        text: qsTr("Pages per file")
+                    }
+                    SpinBox {
+                        from: 1
+                        to: 1000
+                        editable: true
+                        value: win.pagesPerFile
+                        onValueModified: win.pagesPerFile = value
+                        Accessible.name: qsTr("Pages per file")
+                    }
+                }
+                TextField {
+                    id: splitPdfPages
+                    objectName: "splitPdfPages"
+                    Layout.fillWidth: true
+                    selectByMouse: true
+                    placeholderText: qsTr("All pages, or for example 1-3,5")
+                    Accessible.name: qsTr("Pages to include")
+                }
+            }
+
+            SectionBox {
+                visible: win.group === "mergePdf"
+                title: qsTr("Page size")
+                Switch {
+                    text: qsTr("Make all pages the same width")
+                    checked: win.uniformWidth
+                    onToggled: win.uniformWidth = checked
                 }
             }
 
@@ -2108,6 +2215,12 @@ ApplicationWindow {
             SectionBox {
                 visible: win.group === "pages"
                 title: qsTr("Pages")
+
+                Switch {
+                    text: qsTr("Make all pages the same width")
+                    checked: win.uniformWidth
+                    onToggled: win.uniformWidth = checked
+                }
 
                 PdfOrganizer {
                     id: pdfOrganizer

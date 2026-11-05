@@ -65,6 +65,30 @@ Page {
         color: Theme.secondaryText
     }
 
+    component FormatRow: RowLayout {
+        property alias label: rowLabel.text
+        Layout.fillWidth: true
+        spacing: 12
+        Text {
+            id: rowLabel
+            Layout.preferredWidth: 130
+            font.pixelSize: Theme.sizeBody
+            color: Theme.text
+        }
+    }
+
+    // A list of { value, text } bound to one format default.
+    component FormatChoice: ComboBox {
+        required property string kind
+        required property var options
+        property string accessibleName
+        model: options.map(o => o.text)
+        currentIndex: options.findIndex(o => o.value === formatSection.chosen[kind])
+        displayText: currentIndex >= 0 ? currentText : String(formatSection.chosen[kind])
+        onActivated: (index) => formatSection.choose(kind, options[index].value)
+        Accessible.name: accessibleName
+    }
+
     ScrollView {
         id: scroll
         anchors.fill: parent
@@ -228,6 +252,11 @@ Page {
                 Hint {
                     text: qsTr("Makes the drag wheel smaller or larger. Slices, labels and drop targets scale together.")
                 }
+                Switch {
+                    text: qsTr("Play a sound when reaching a slice")
+                    checked: page.settings.wheelSound
+                    onToggled: page.settings.wheelSound = checked
+                }
             }
 
             SectionBox {
@@ -253,6 +282,113 @@ Page {
                 }
                 Hint {
                     text: qsTr("Higher values give sharper page images and larger files.")
+                }
+            }
+
+            SectionBox {
+                id: formatSection
+                title: qsTr("Format defaults")
+
+                readonly property string format: page.settings.formatDefaultFormats()[formatBox.currentIndex] ?? ""
+                readonly property var kinds: page.settings.formatDefaultKinds(format)
+                // Re-read when a value changes or another format is chosen.
+                property var chosen: page.settings.formatDefaults(format)
+                onFormatChanged: chosen = page.settings.formatDefaults(format)
+                Connections {
+                    target: page.settings
+                    function onFormatDefaultsChanged() {
+                        formatSection.chosen = page.settings.formatDefaults(formatSection.format)
+                    }
+                }
+                function choose(kind, value) {
+                    page.settings.setFormatDefault(format, kind, value)
+                }
+
+                FormatRow {
+                    label: qsTr("Convert to")
+                    ComboBox {
+                        id: formatBox
+                        objectName: "formatDefaultsBox"
+                        model: page.settings.formatDefaultFormats().map(f => f.toUpperCase())
+                        Accessible.name: qsTr("Format")
+                    }
+                }
+                FormatRow {
+                    objectName: "formatQuality"
+                    visible: formatSection.kinds.includes("quality")
+                    label: qsTr("Quality")
+                    FormatChoice {
+                        objectName: "formatQualityChoice"
+                        kind: "quality"
+                        accessibleName: qsTr("Quality")
+                        options: [
+                            { value: "smaller", text: qsTr("Smaller file") },
+                            { value: "balanced", text: qsTr("Balanced") },
+                            { value: "higher", text: qsTr("Higher quality") }
+                        ]
+                    }
+                }
+                FormatRow {
+                    objectName: "formatVideoHeight"
+                    visible: formatSection.kinds.includes("videoHeight")
+                    label: qsTr("Largest height")
+                    FormatChoice {
+                        objectName: "formatVideoHeightChoice"
+                        kind: "videoHeight"
+                        accessibleName: qsTr("Largest video height")
+                        options: [{ value: 0, text: qsTr("Original") }].concat(
+                            [2160, 1440, 1080, 720, 480, 360].map(h => ({ value: h, text: h + "p" })))
+                    }
+                }
+                FormatRow {
+                    objectName: "formatAudioKbps"
+                    visible: formatSection.kinds.includes("audioKbps")
+                    label: qsTr("Audio bitrate")
+                    FormatChoice {
+                        objectName: "formatAudioKbpsChoice"
+                        kind: "audioKbps"
+                        accessibleName: qsTr("Audio bitrate")
+                        options: [{ value: 0, text: qsTr("Automatic") }].concat(
+                            [96, 128, 192, 256, 320].map(k => ({ value: k, text: qsTr("%1 kbit/s").arg(k) })))
+                    }
+                }
+                FormatRow {
+                    objectName: "formatGifFps"
+                    visible: formatSection.kinds.includes("gifFps")
+                    label: qsTr("Frame rate")
+                    FormatChoice {
+                        objectName: "formatGifFpsChoice"
+                        kind: "gifFps"
+                        accessibleName: qsTr("GIF frame rate")
+                        options: [5, 10, 12, 15, 24, 30].map(f => ({ value: f, text: qsTr("%1 fps").arg(f) }))
+                    }
+                }
+                FormatRow {
+                    objectName: "formatGifWidth"
+                    visible: formatSection.kinds.includes("gifWidth")
+                    label: qsTr("Largest width")
+                    FormatChoice {
+                        objectName: "formatGifWidthChoice"
+                        kind: "gifWidth"
+                        accessibleName: qsTr("Largest GIF width")
+                        options: [320, 480, 640, 960, 1280].map(w => ({ value: w, text: w + " px" }))
+                    }
+                }
+                Switch {
+                    objectName: "formatKeepMetadata"
+                    visible: formatSection.kinds.includes("keepMetadata")
+                    text: qsTr("Keep metadata")
+                    checked: formatSection.chosen.keepMetadata
+                    onToggled: formatSection.choose("keepMetadata", checked)
+                }
+                NButton {
+                    compact: true
+                    kind: "quiet"
+                    text: qsTr("Restore defaults")
+                    onClicked: page.settings.restoreFormatDefaults(formatSection.format)
+                }
+                Hint {
+                    text: qsTr("Used each time you convert to this format. Tools such as Compress keep their own settings.")
                 }
             }
 

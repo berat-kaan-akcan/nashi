@@ -16,6 +16,7 @@
 #include <QMimeData>
 #include <QQmlComponent>
 #include <QQmlEngine>
+#include <QQuickItem>
 #include <QQuickWindow>
 #include <QSettings>
 #include <QSignalSpy>
@@ -307,6 +308,102 @@ private Q_SLOTS:
         QCOMPARE(jpg.value(QStringLiteral("dpi")).toInt(), 300);
         QVERIFY(app->convertOptions(QStringLiteral("mp3")).isEmpty());
         app->settings()->setPdfImageDpi(Settings::kDefaultPdfImageDpi);
+    }
+
+    void formatDefaultsJoinPdfResolution()
+    {
+        app->settings()->setPdfImageDpi(300);
+        app->settings()->setFormatDefault(QStringLiteral("jpg"), QStringLiteral("quality"), QStringLiteral("higher"));
+        const QJsonObject jpg = QJsonDocument::fromJson(app->convertOptions(QStringLiteral("jpg")).toUtf8()).object();
+        QCOMPARE(jpg.value(QStringLiteral("dpi")).toInt(), 300);
+        QCOMPARE(jpg.value(QStringLiteral("quality")).toInt(), 95);
+        app->settings()->setFormatDefault(QStringLiteral("mp3"), QStringLiteral("audioKbps"), 128);
+        const QJsonObject mp3 = QJsonDocument::fromJson(app->convertOptions(QStringLiteral("mp3")).toUtf8()).object();
+        QCOMPARE(mp3.value(QStringLiteral("audio_kbps")).toInt(), 128);
+        QVERIFY(!mp3.contains(QStringLiteral("dpi")));
+        app->settings()->restoreFormatDefaults(QStringLiteral("jpg"));
+        app->settings()->restoreFormatDefaults(QStringLiteral("mp3"));
+        app->settings()->setPdfImageDpi(Settings::kDefaultPdfImageDpi);
+    }
+
+    void settingsPageShowsOnlyTheControlsOfTheChosenFormat()
+    {
+        g_warnings.clear();
+        QQmlComponent component(engine);
+        component.loadFromModule("NashiApp", "SettingsPage");
+        QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+        std::unique_ptr<QObject> page(component.create());
+        QVERIFY(page);
+        auto *box = page->findChild<QObject *>(QStringLiteral("formatDefaultsBox"));
+        QVERIFY(box);
+        const auto shown = [&](const char *name) {
+            auto *row = page->findChild<QObject *>(QString::fromLatin1(name));
+            return row && row->property("visible").toBool();
+        };
+        const auto choose = [&](const char *format) {
+            const QStringList formats = app->settings()->formatDefaultFormats();
+            box->setProperty("currentIndex", formats.indexOf(QString::fromLatin1(format)));
+        };
+        choose("gif");
+        QVERIFY(shown("formatGifFps"));
+        QVERIFY(shown("formatGifWidth"));
+        QVERIFY(!shown("formatAudioKbps"));
+        choose("flac");
+        QVERIFY(!shown("formatAudioKbps"));
+        QVERIFY(shown("formatKeepMetadata"));
+        choose("mp4");
+        QVERIFY(shown("formatQuality"));
+        QVERIFY(shown("formatAudioKbps"));
+        QVERIFY(shown("formatVideoHeight"));
+        QVERIFY(!shown("formatGifFps"));
+
+        // A saved choice shows in its box, and choosing in the box saves it.
+        auto *height = page->findChild<QObject *>(QStringLiteral("formatVideoHeightChoice"));
+        QVERIFY(height);
+        Settings *settings = app->settings();
+        settings->setFormatDefault(QStringLiteral("mp4"), QStringLiteral("videoHeight"), 720);
+        QCOMPARE(height->property("displayText").toString(), QStringLiteral("720p"));
+        QVERIFY(QMetaObject::invokeMethod(height, "activated", Q_ARG(int, 3)));
+        QCOMPARE(settings->formatDefaults(QStringLiteral("mp4")).value(QStringLiteral("videoHeight")).toInt(), 1080);
+        settings->restoreFormatDefaults(QStringLiteral("mp4"));
+        QCOMPARE(height->property("currentIndex").toInt(), 0);
+        QVERIFY2(g_warnings.isEmpty(), qPrintable(g_warnings.join(QLatin1Char('\n'))));
+        if (!qEnvironmentVariableIsEmpty("NASHI_SCREENSHOT_DIR")) {
+            QQuickWindow window;
+            window.resize(760, 3400);
+            auto *item = qobject_cast<QQuickItem *>(page.get());
+            QVERIFY(item);
+            item->setParentItem(window.contentItem());
+            item->setSize(QSizeF(760, 3400));
+            choose("mp4");
+            window.show();
+            QVERIFY(QTest::qWaitForWindowExposed(&window));
+            saveShot(&window, QStringLiteral("settings-format-defaults"));
+            item->setParentItem(nullptr);
+        }
+    }
+
+    void wheelAsksForASoundOnlyWhenASliceIsReachedAndSoundIsOn()
+    {
+        QVERIFY(QFile::exists(QStringLiteral(":/qt/qml/NashiApp/resources/wheel-selection.wav")));
+        g_warnings.clear();
+        QQmlComponent component(engine);
+        component.loadFromModule("NashiApp", "Wheel");
+        QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+        std::unique_ptr<QObject> wheel(component.create());
+        QVERIFY(wheel);
+        const auto requests = [&] { return wheel->property("soundRequests").toInt(); };
+        wheel->setProperty("soundEnabled", true);
+        wheel->setProperty("hoveredIndex", 2);
+        QCOMPARE(requests(), 1);
+        wheel->setProperty("hoveredIndex", 2);
+        QCOMPARE(requests(), 1);
+        wheel->setProperty("hoveredIndex", -1);
+        QCOMPARE(requests(), 1);
+        wheel->setProperty("soundEnabled", false);
+        wheel->setProperty("hoveredIndex", 3);
+        QCOMPARE(requests(), 1);
+        QVERIFY2(g_warnings.isEmpty(), qPrintable(g_warnings.join(QLatin1Char('\n'))));
     }
 
     void shareSheetLoadsCleanly()

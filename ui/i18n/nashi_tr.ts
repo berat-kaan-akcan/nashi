@@ -967,6 +967,14 @@
         <translation>Birleştirmek için en az iki PDF gerekir</translation>
     </message>
     <message>
+        <source>could not read the page sizes</source>
+        <translation>Sayfa boyutları okunamadı</translation>
+    </message>
+    <message>
+        <source>The PDF has no valid page sizes.</source>
+        <translation>PDF&apos;te geçerli sayfa boyutu yok.</translation>
+    </message>
+    <message>
         <source>page %1 is beyond the last page (%2)</source>
         <translation>%1. sayfa son sayfadan sonra (son sayfa: %2)</translation>
     </message>
@@ -1622,6 +1630,50 @@
     <message>
         <source>Images (*.png *.jpg *.jpeg *.webp *.heic *.tiff *.avif *.bmp)</source>
         <translation>Görseller (*.png *.jpg *.jpeg *.webp *.heic *.tiff *.avif *.bmp)</translation>
+    </message>
+    <message>
+        <source>Loudness</source>
+        <translation>Ses yüksekliği</translation>
+    </message>
+    <message>
+        <source>Target loudness</source>
+        <translation>Hedef ses yüksekliği</translation>
+    </message>
+    <message>
+        <source>Loudness range</source>
+        <translation>Ses yüksekliği aralığı</translation>
+    </message>
+    <message>
+        <source>True peak limit</source>
+        <translation>Gerçek tepe sınırı</translation>
+    </message>
+    <message>
+        <source>%1 dBTP</source>
+        <translation>%1 dBTP</translation>
+    </message>
+    <message>
+        <source>Split into parts</source>
+        <translation>Parçalara böl</translation>
+    </message>
+    <message>
+        <source>Pages per file</source>
+        <translation>Dosya başına sayfa</translation>
+    </message>
+    <message>
+        <source>All pages, or for example 1-3,5</source>
+        <translation>Tüm sayfalar veya örneğin 1-3,5</translation>
+    </message>
+    <message>
+        <source>Pages to include</source>
+        <translation>Dahil edilecek sayfalar</translation>
+    </message>
+    <message>
+        <source>Page size</source>
+        <translation>Sayfa boyutu</translation>
+    </message>
+    <message>
+        <source>Make all pages the same width</source>
+        <translation>Tüm sayfaları aynı genişliğe getir</translation>
     </message>
     <message>
         <source>Left</source>
@@ -2358,6 +2410,10 @@
         <translation>Sürükleme çarkını küçültür ya da büyütür. Dilimler, etiketler ve bırakma alanları birlikte ölçeklenir.</translation>
     </message>
     <message>
+        <source>Play a sound when reaching a slice</source>
+        <translation>Bir dilime gelince ses çal</translation>
+    </message>
+    <message>
         <source>PDF to image</source>
         <translation>PDF&apos;ten görsele</translation>
     </message>
@@ -2376,6 +2432,90 @@
     <message>
         <source>Higher values give sharper page images and larger files.</source>
         <translation>Yüksek değerler daha net sayfa görselleri ve daha büyük dosyalar verir.</translation>
+    </message>
+    <message>
+        <source>Format defaults</source>
+        <translation>Format varsayılanları</translation>
+    </message>
+    <message>
+        <source>Convert to</source>
+        <translation>Hedef format</translation>
+    </message>
+    <message>
+        <source>Format</source>
+        <translation>Format</translation>
+    </message>
+    <message>
+        <source>Quality</source>
+        <translation>Kalite</translation>
+    </message>
+    <message>
+        <source>Smaller file</source>
+        <translation>Daha küçük dosya</translation>
+    </message>
+    <message>
+        <source>Balanced</source>
+        <translation>Dengeli</translation>
+    </message>
+    <message>
+        <source>Higher quality</source>
+        <translation>Daha yüksek kalite</translation>
+    </message>
+    <message>
+        <source>Largest height</source>
+        <translation>En fazla yükseklik</translation>
+    </message>
+    <message>
+        <source>Largest video height</source>
+        <translation>En fazla video yüksekliği</translation>
+    </message>
+    <message>
+        <source>Original</source>
+        <translation>Özgün</translation>
+    </message>
+    <message>
+        <source>Audio bitrate</source>
+        <translation>Ses bit hızı</translation>
+    </message>
+    <message>
+        <source>Automatic</source>
+        <translation>Otomatik</translation>
+    </message>
+    <message>
+        <source>%1 kbit/s</source>
+        <translation>%1 kbit/sn</translation>
+    </message>
+    <message>
+        <source>Frame rate</source>
+        <translation>Kare hızı</translation>
+    </message>
+    <message>
+        <source>GIF frame rate</source>
+        <translation>GIF kare hızı</translation>
+    </message>
+    <message>
+        <source>%1 fps</source>
+        <translation>%1 kare/sn</translation>
+    </message>
+    <message>
+        <source>Largest width</source>
+        <translation>En fazla genişlik</translation>
+    </message>
+    <message>
+        <source>Largest GIF width</source>
+        <translation>En fazla GIF genişliği</translation>
+    </message>
+    <message>
+        <source>Keep metadata</source>
+        <translation>Metadatayı koru</translation>
+    </message>
+    <message>
+        <source>Restore defaults</source>
+        <translation>Varsayılanlara dön</translation>
+    </message>
+    <message>
+        <source>Used each time you convert to this format. Tools such as Compress keep their own settings.</source>
+        <translation>Bu formata her dönüştürmede kullanılır. Sıkıştır gibi araçlar kendi ayarlarını korur.</translation>
     </message>
     <message>
         <source>Notifications</source>

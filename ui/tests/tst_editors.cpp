@@ -16,7 +16,6 @@
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QTemporaryDir>
-#include <QJSValue>
 #include <QTest>
 #include <QVariantList>
 #include <QVariantMap>
@@ -349,6 +348,84 @@ private Q_SLOTS:
         QVERIFY(!w->property("result").toMap().contains(QStringLiteral("trim_silence")));
         QCOMPARE(w->property("audioMode").toString(), QStringLiteral("mute"));
 
+        w->hide();
+        QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
+    }
+
+    void normalizeFormChoosesLoudness()
+    {
+        g_messages.clear();
+        QVERIFY(WheelModel::hasOptionsForm(QStringLiteral("normalizeAudio")));
+        QQuickWindow *w = openEditor(QStringLiteral("normalizeAudio"), QStringLiteral("Normalize"), audioPath);
+        QVERIFY(w);
+        const auto result = [w] { return w->property("result").toMap(); };
+        QCOMPARE(result().value(QStringLiteral("target_lufs")).toDouble(), -16.0);
+        QCOMPARE(result().value(QStringLiteral("loudness_range")).toDouble(), 11.0);
+        QCOMPARE(result().value(QStringLiteral("true_peak")).toDouble(), -1.5);
+        w->setProperty("targetLufs", -23);
+        w->setProperty("loudnessRange", 7);
+        w->setProperty("truePeak", -3.0);
+        QCOMPARE(result().value(QStringLiteral("target_lufs")).toDouble(), -23.0);
+        QCOMPARE(result().value(QStringLiteral("loudness_range")).toDouble(), 7.0);
+        QCOMPARE(result().value(QStringLiteral("true_peak")).toDouble(), -3.0);
+        saveEditorScreenshots(app, w, QStringLiteral("normalizeAudio"));
+        w->hide();
+        QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
+    }
+
+    void splitPdfFormChoosesPartsAndPages()
+    {
+        g_messages.clear();
+        QVERIFY(WheelModel::hasOptionsForm(QStringLiteral("splitPDF")));
+        QQuickWindow *w = openEditor(QStringLiteral("splitPDF"), QStringLiteral("Split"), pdfPath);
+        QVERIFY(w);
+        QTRY_VERIFY_WITH_TIMEOUT(w->property("pageCount").toInt() > 0, 10000);
+        const auto result = [w] { return w->property("result"); };
+        // One page per file and every page by default, as before the form existed.
+        // The form returns a message instead of options when something is wrong.
+        const auto isError = [&result] { return result().typeId() == QMetaType::QString; };
+        QVERIFY(!isError());
+        QVERIFY(result().toMap().isEmpty());
+        w->setProperty("pagesPerFile", 3);
+        QCOMPARE(result().toMap().value(QStringLiteral("pages_per_file")).toInt(), 3);
+        auto *field = w->findChild<QObject *>(QStringLiteral("splitPdfPages"));
+        QVERIFY(field);
+        field->setProperty("text", QStringLiteral("1"));
+        QCOMPARE(result().toMap().value(QStringLiteral("pages")).toString(), QStringLiteral("1"));
+        field->setProperty("text", QStringLiteral("one"));
+        QVERIFY(isError());
+        field->setProperty("text", QStringLiteral("9999"));
+        QVERIFY(isError());
+        field->setProperty("text", QString());
+        saveEditorScreenshots(app, w, QStringLiteral("splitPDF"));
+        w->setProperty("pagesPerFile", 1);
+        w->hide();
+        QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
+    }
+
+    void pdfFormsCanMakePagesTheSameWidth()
+    {
+        g_messages.clear();
+        QVERIFY(WheelModel::hasOptionsForm(QStringLiteral("mergePDF")));
+        QQuickWindow *w = openEditor(QStringLiteral("mergePDF"), QStringLiteral("Merge"), pdfPath);
+        QVERIFY(w);
+        QVERIFY(w->property("result").typeId() != QMetaType::QString);
+        QVERIFY(w->property("result").toMap().isEmpty());
+        w->setProperty("uniformWidth", true);
+        QCOMPARE(w->property("result").toMap().value(QStringLiteral("uniform_width")).toBool(), true);
+        saveEditorScreenshots(app, w, QStringLiteral("mergePDF"));
+        w->setProperty("uniformWidth", false);
+        w->hide();
+
+        w = openEditor(QStringLiteral("organizePDF"), QStringLiteral("Organize"), pdfPath);
+        QVERIFY(w);
+        auto *field = w->findChild<QObject *>(QStringLiteral("pdfPagesField"));
+        QVERIFY(field);
+        field->setProperty("text", QStringLiteral("1"));
+        QVERIFY(!w->property("result").toMap().contains(QStringLiteral("uniform_width")));
+        w->setProperty("uniformWidth", true);
+        QCOMPARE(w->property("result").toMap().value(QStringLiteral("uniform_width")).toBool(), true);
+        w->setProperty("uniformWidth", false);
         w->hide();
         QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
     }

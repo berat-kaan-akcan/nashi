@@ -1,6 +1,6 @@
 # Nashi for Linux — Proje Devir ve Durum Raporu (Handover)
 
-**Son Güncelleme:** 2026-11-04  
+**Son Güncelleme:** 2026-11-05  
 **Oturum ID:** `b0364c0b-ac2c-45e1-b669-93cff908cf00`  
 **Proje Çalışma Dizini:** `/home/berat/Masaüstü/nashi`  
 **Git Durumu:** Tur 2 işi yerel `round-2-upstream-sync` dalına commit edildi; `main` ile birleştirilmedi ve GitHub'a push edilmedi.
@@ -57,13 +57,13 @@ Nashi ([`orkunisitmak/nashi-app`](https://github.com/orkunisitmak/nashi-app), MI
   * [`ShareSheet.qml`](file:///home/berat/Masaüstü/nashi/ui/qml/ShareSheet.qml): Dinamik KDE Purpose (`org.kde.purpose`) paylaşım menüsü.
 
 ### 2.5. Çeviri, Paketleme ve Test Durumu
-* **Türkçe çeviri ([`ui/i18n/nashi_tr.ts`](file:///home/berat/Masaüstü/nashi/ui/i18n/nashi_tr.ts)):** **459/459** metin eksiksiz çevrildi (`0 unfinished`).
+* **Türkçe çeviri ([`ui/i18n/nashi_tr.ts`](file:///home/berat/Masaüstü/nashi/ui/i18n/nashi_tr.ts)):** **735/735** metin eksiksiz çevrildi (`0 unfinished`).
 * **İkon kontrolü:** QML içindeki 60 ikon referansının tamamı sistem ikon temalarında doğrulandı.
 * **Paketleme ([`packaging/arch/PKGBUILD`](file:///home/berat/Masaüstü/nashi/packaging/arch/PKGBUILD)):** `optdepends` listesine `curl`, `qt6-multimedia` ve `purpose` eklendi.
-* **Son test koşusu (2026-11-04):**
+* **Son test koşusu (2026-11-05):**
   * `cargo fmt --all -- --check` → **PASS**
   * `cargo clippy --workspace --all-targets -- -D warnings` → **PASS (0 uyarı)**
-  * `cargo test --workspace` → **141 test PASS, 0 FAIL** (bu makinede tüm araçlar kurulu olduğu için skip yok)
+  * `cargo test --workspace` → **258 test PASS, 0 FAIL** (bu makinede tüm araçlar kurulu olduğu için skip yok)
   * `QT_QPA_PLATFORM=offscreen ctest --test-dir build/ui --output-on-failure` → **15/15 test paketi PASS, 0 QML uyarısı** (`tst_editors`, `tst_desktop`, `tst_qmlsmoke`, `tst_translations_complete` dahil)
 
 ### 2.5.1. Upstream Eşitlemesi (`be59b13`, 2026-11-04)
@@ -79,6 +79,13 @@ Upstream'in `b3c60f2..be59b13` aralığı incelendi; Linux'u etkileyen hatalar �
 * **İşaretleme:** numara, açıklama balonu, seçip taşıma ve seçileni silme; geri alma artık tüm durumu saklıyor. Büyüteç, görsel ekleme, dolgu, opaklık ve yazı tipi seçimi yok.
 * **Arşiv sınırı ve mesajlar:** arşivler en fazla 20 GB açılır (liste, dosya boyutu sınırı, açılırken klasör izleme ve açılış sonrası toplam denetimi; `NASHI_ARCHIVE_LIMIT_BYTES` testler için düşürür). Kullanıcının görebileceği 100 motor mesajı `ui/src/enginetext.cpp` tablosuyla çevrilir; tablo dışındaki teknik mesajlar İngilizce kalır.
 * **Yeni özellikler:** ses kırpmada sessizlik silme, bip modu, PDF→görsel DPI ayarı, çarkta Paylaş/Float, Pick aşamasında klavyeyle çark, Kütüphane aramasında `İ/I/ı/i` eşleşmesi.
+
+### 2.5.2. Kalan İkincil Özellikler (2026-11-05, commit edilmedi)
+* **Format varsayılanları:** Ayarlar → Format varsayılanları; hedef formata göre kalite, en fazla yükseklik, ses bit hızı, GIF kare hızı/genişliği, metadata koruma. Dengeli varsayılanda seçenek gönderilmez, mevcut çıktılar değişmez. `avi`/`wmv` artık `crf` değerini sabit kuantizöre çevirir; bu Sıkıştır aracının bu kaplardaki çıktısını da küçültür.
+* **PDF:** `splitPDF` için `pages_per_file` ve sayfa seçimi; `mergePDF` ve `organizePDF` için `uniform_width` (en dar sayfa genişliği, Ghostscript ile yalnızca ölçeklenen sayfalar yeniden yazılır; form alanları ve bağlantılar bu sayfalarda ayrıca kontrol edilmeli).
+* **Ses:** `normalizeAudio` için `target_lufs`, `loudness_range`, `true_peak` ve form. Normalleştir, PDF Böl ve Birleştir artık çarktan tıklanınca önce form açar.
+* **Çark sesi:** upstream `WheelSelection.wav`, Ayarlar → Çark'tan kapatılabilir.
+* **Test notu:** ImageMagick'te `info:` Türkçe yerelde dosyaya yazar, o dosya durdukça da `LC_ALL=C.UTF-8` ile bile dosya adı sayılır. Testlerde `magick` çağrılarına `LC_ALL` verin; ortada `crates/nashi-cli/info:` kalırsa `adjust`/`compose` testleri topluca düşer.
 
 ### 2.6. Test Denetimi (2026-11-04)
 * **Mutasyon testi:** Motor kasıtlı bozularak testlerin hatayı yakalayıp yakalamadığı ölçüldü. İlk ölçümde 9 mutasyonun 8'i yakalanmıyordu. [`crates/nashi-cli/tests/behavior.rs`](file:///home/berat/Masaüstü/nashi/crates/nashi-cli/tests/behavior.rs) (piksel, ses seviyesi, LUFS ve dosya boyutu ölçümleri) ve `v02.rs` düzeltmeleriyle işlevsel açıkların tamamı kapandı. Yalnızca `--proto-redir` kaldırılınca test geçiyor, çünkü `--proto` aynı yönlendirmeyi tek başına engelliyor; ikisi birden kaldırılınca test düşüyor.
@@ -110,11 +117,12 @@ Arayüz ve servisler şu ana kadar birim testleri ve `QT_QPA_PLATFORM=offscreen`
 6. **Global kısayol ve kurulum:** `packaging/install.sh --user` (veya `makepkg -si`) ile kurulum, systemd `nashi-inputd.service` çalışması ve KDE Kısayollar altında `Ctrl+Shift+D` (`DownloadClipboard`) eylemi.
 
 ### 3.2. Upstream'de Bulunup Henüz Port Edilmeyen İkincil Özellikler
-* **`editImage` kalan ayarlar:** Vurgular, gölgeler, beyazlar, siyahlar, renk tonu kayması (tint), canlılık, netlik, doku, solma, puslanma giderme, gürültü azaltma ve vinyet henüz yok.
-* **PDF ek seçenekleri:** Sabit grup/sayfa aralığıyla bölme ve birleştirmede eşit sayfa genişliğine ölçekleme.
-* **Video/ses ek seçenekleri:** Özel LUFS ses yüksekliği hedefi.
-* **Upstream eşitlemesinden kalanlar:** Pick aşamasında klavye ve çarktan Paylaş gerçek KWin oturumunda denenmedi.
-* **Küçük uygulama detayları:** Format bazlı varsayılan kalite ayarları sayfası (ör. varsayılan JPEG kalitesi), işlem bitiş sesi, Fransızca (`fr`) çeviri.
+* **Format tercihlerinin kalanı:** ses örnek derinliği, sıkıştırma ön ayarı, EPUB düzeni, PDF→Office düzeni ve Sıkıştır formu için kalıcı varsayılanlar.
+* **PDF birleştirme:** formda dosya sırasını değiştirme yok (upstream'de var); sıra seçim sırasıdır.
+* **Ses yüksekliği:** Linux `loudnorm`'u tek geçişte çalıştırır, upstream iki geçişli. Testte hedefin ±1,5 LU içinde kaldı.
+* **Çeviri:** Fransızca (`fr`) yok. `ui/src/language.cpp` ve Ayarlar yalnızca `en`/`tr` tanıyor; 735 metin ve motor mesajları çevrilmeli.
+* **Gerçek oturumda denenmeyenler:** Pick aşamasında klavye, çarktan Paylaş ve çark seçim sesi (`QtMultimedia` `SoundEffect`; offscreen'de çalınmaz).
+* **İşlem bitiş sesi:** Upstream'de yok, yalnızca çark seçim sesi var; o taşındı. Bitiş sesi istenirse ayrı karar gerekir.
 
 ### 3.3. İleriki Fazlar
 * **Faz numarası olmayan isteğe bağlı eklentiler:** `tesseract` (OCR) ve `opencv` (yüz algılama) yardımlı otomatik karartma bölgesi önerisi; KWin betiği ile pencere yerleşim çarkı.

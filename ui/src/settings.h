@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QJsonObject>
 #include <QObject>
 #include <QSettings>
 #include <memory>
@@ -30,6 +31,8 @@ class Settings : public QObject
     // Wheel size factor, kMinWheelScale..kMaxWheelScale (upstream "wheelScale").
     Q_PROPERTY(double wheelScale READ wheelScale WRITE setWheelScale NOTIFY wheelScaleChanged)
     Q_PROPERTY(double minWheelScale READ minWheelScale CONSTANT)
+    // Short sound when the pointer reaches a wheel slice.
+    Q_PROPERTY(bool wheelSound READ wheelSound WRITE setWheelSound NOTIFY wheelSoundChanged)
     // Resolution of PDF and document pages converted to JPG or PNG.
     Q_PROPERTY(int pdfImageDpi READ pdfImageDpi WRITE setPdfImageDpi NOTIFY pdfImageDpiChanged)
     Q_PROPERTY(double maxWheelScale READ maxWheelScale CONSTANT)
@@ -69,11 +72,23 @@ public:
     double wheelScale() const;
     void setWheelScale(double scale);
     double minWheelScale() const { return kMinWheelScale; }
+    bool wheelSound() const;
+    void setWheelSound(bool on);
     int pdfImageDpi() const;
     void setPdfImageDpi(int dpi);
     double maxWheelScale() const { return kMaxWheelScale; }
     bool showShelfOnStartup() const;
     void setShowShelfOnStartup(bool on);
+
+    // Conversion defaults per output format (upstream's format preferences).
+    // Kinds: quality, keepMetadata, audioKbps, videoHeight, gifFps, gifWidth.
+    Q_INVOKABLE QStringList formatDefaultFormats() const;
+    Q_INVOKABLE QStringList formatDefaultKinds(const QString &format) const;
+    Q_INVOKABLE QVariantMap formatDefaults(const QString &format) const;
+    Q_INVOKABLE void setFormatDefault(const QString &format, const QString &kind, const QVariant &value);
+    Q_INVOKABLE void restoreFormatDefaults(const QString &format);
+    // Engine options for a conversion to `target`; only what differs from the engine's defaults.
+    QJsonObject conversionOptions(const QString &target) const;
 
     Q_INVOKABLE QString urlToLocalPath(const QUrl &url) const;
 
@@ -85,8 +100,10 @@ Q_SIGNALS:
     void reduceMotionChanged();
     void startAtLoginChanged();
     void wheelScaleChanged();
+    void wheelSoundChanged();
     void pdfImageDpiChanged();
     void showShelfOnStartupChanged();
+    void formatDefaultsChanged();
 
 private:
     QSettings m_store;

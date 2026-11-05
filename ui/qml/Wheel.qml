@@ -18,6 +18,35 @@ Item {
     property bool overCenter: false
     // Settings.wheelScale; scales both radii so drawing and hit-testing agree.
     property real wheelScale: 1.0
+    // Settings.wheelSound.
+    property bool soundEnabled: false
+    property int soundRequests: 0
+    property var soundEffect: null
+
+    onHoveredIndexChanged: {
+        if (hoveredIndex < 0 || !soundEnabled)
+            return
+        ++soundRequests
+        playSelectionSound()
+    }
+
+    // QtMultimedia is optional at runtime, so the effect is created on first use.
+    function playSelectionSound() {
+        const platform = Qt.platform.pluginName
+        if (platform === "offscreen" || platform === "minimal" || platform === "minimalegl")
+            return
+        if (!soundEffect) {
+            try {
+                soundEffect = Qt.createQmlObject(
+                    'import QtMultimedia\nSoundEffect { source: "qrc:/qt/qml/NashiApp/resources/wheel-selection.wav" }',
+                    pie, "wheelSound")
+            } catch (e) {
+                soundEnabled = false
+                return
+            }
+        }
+        soundEffect.play()
+    }
 
     readonly property WheelModel model: selection ? selection.model : null
     readonly property bool showItems: (stage === OverlayController.Live || stage === OverlayController.Pick)

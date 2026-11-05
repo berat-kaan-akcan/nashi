@@ -363,10 +363,11 @@ void App::runItem(const QString &kind, const QString &id, const QString &title, 
 
 QString App::convertOptions(const QString &target) const
 {
-    if (target != QLatin1String("jpg") && target != QLatin1String("png"))
+    QJsonObject options = m_settings->conversionOptions(target);
+    if (target == QLatin1String("jpg") || target == QLatin1String("png"))
+        options.insert(QStringLiteral("dpi"), m_settings->pdfImageDpi());
+    if (options.isEmpty())
         return {};
-    QJsonObject options;
-    options.insert(QStringLiteral("dpi"), m_settings->pdfImageDpi());
     return QString::fromUtf8(QJsonDocument(options).toJson(QJsonDocument::Compact));
 }
 

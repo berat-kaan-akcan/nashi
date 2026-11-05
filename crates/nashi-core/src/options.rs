@@ -210,16 +210,32 @@ pub struct Options {
     pub max_edge: Option<u32>,
     /// `compress` images: resize each to this fraction of its own size (0 < s <= 1).
     pub image_scale: Option<f64>,
-    /// `compress` video: shrink to at most this height.
+    /// `compress` and conversion to video: shrink to at most this height.
     pub max_height: Option<u32>,
-    /// `compress` lossy audio: bitrate in kbit/s.
+    /// `compress` and conversion to lossy audio or video: audio bitrate in kbit/s.
     pub audio_kbps: Option<u32>,
+    /// Conversion to GIF: frames per second, 1..=60 (default 12).
+    pub gif_fps: Option<u32>,
+    /// Conversion to GIF: largest width in pixels, 2..=16384 (default 640).
+    pub gif_max_width: Option<u32>,
+    /// Conversion of images, audio and video: leave out tags, chapters and album art.
+    pub strip_metadata: Option<bool>,
     /// `trimAudio`: also remove silence from both ends of the selection.
     pub trim_silence: Option<bool>,
     /// `trimAudio`: what counts as silence, in dB (default -50).
     pub silence_threshold_db: Option<f64>,
     /// `redactAudio`: `mute` (default) or `bleep`.
     pub audio_mode: Option<String>,
+    /// `splitPDF`: pages in each output file (default 1).
+    pub pages_per_file: Option<u32>,
+    /// `mergePDF`, `organizePDF`: scale every page to the width of the narrowest.
+    pub uniform_width: Option<bool>,
+    /// `normalizeAudio`: integrated loudness in LUFS, -70..=-5 (default -16).
+    pub target_lufs: Option<f64>,
+    /// `normalizeAudio`: loudness range in LU, 1..=50 (default 11).
+    pub loudness_range: Option<f64>,
+    /// `normalizeAudio`: true peak limit in dBTP, -9..=0 (default -1.5).
+    pub true_peak: Option<f64>,
     /// PDF → image resolution, 36..=1200 (default 150).
     pub dpi: Option<u32>,
     pub quality: Option<u32>,

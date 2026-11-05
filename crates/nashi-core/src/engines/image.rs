@@ -335,6 +335,9 @@ pub fn convert(ctx: &Ctx, input: &Input, target: &str) -> JobResult<PathBuf> {
         extra.push("-quality".into());
         extra.push(ctx.opts.quality.unwrap_or(90).to_string().into());
     }
+    if ctx.opts.strip_metadata == Some(true) {
+        extra.push("-strip".into());
+    }
     write_as(ctx, &src, &src_ext, target, &extra, false, &staged, &work)?;
     Ok(staged.commit()?)
 }

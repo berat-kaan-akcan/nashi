@@ -155,6 +155,119 @@ private Q_SLOTS:
         QCOMPARE(s.pdfImageDpi(), 36);
     }
 
+    void wheelSound()
+    {
+        QTemporaryDir dir;
+        const QString file = dir.filePath(QStringLiteral("nashi.conf"));
+        {
+            Settings s(file, nullptr);
+            QSignalSpy spy(&s, &Settings::wheelSoundChanged);
+            QVERIFY(s.wheelSound());
+            s.setWheelSound(false);
+            QCOMPARE(spy.count(), 1);
+            s.setWheelSound(false);
+            QCOMPARE(spy.count(), 1);
+        }
+        Settings again(file, nullptr);
+        QVERIFY(!again.wheelSound());
+    }
+
+    void formatDefaultsSendNothingUntilChanged()
+    {
+        QTemporaryDir dir;
+        Settings s(dir.filePath(QStringLiteral("nashi.conf")), nullptr);
+        for (const QString &format : s.formatDefaultFormats())
+            QVERIFY2(s.conversionOptions(format).isEmpty(), qPrintable(format));
+        QVERIFY(s.conversionOptions(QStringLiteral("pdf")).isEmpty());
+    }
+
+    void formatDefaultsBecomeEngineOptions()
+    {
+        QTemporaryDir dir;
+        Settings s(dir.filePath(QStringLiteral("nashi.conf")), nullptr);
+        const auto setting = [&](const char *format, const char *key, const QVariant &value) {
+            s.setFormatDefault(QString::fromLatin1(format), QString::fromLatin1(key), value);
+        };
+        const auto options = [&](const char *format) { return s.conversionOptions(QString::fromLatin1(format)); };
+
+        setting("jpg", "quality", QStringLiteral("smaller"));
+        QCOMPARE(options("jpg").value(QStringLiteral("quality")).toInt(), 45);
+        setting("jpg", "quality", QStringLiteral("higher"));
+        QCOMPARE(options("jpg").value(QStringLiteral("quality")).toInt(), 95);
+        setting("jpg", "keepMetadata", false);
+        QCOMPARE(options("jpg").value(QStringLiteral("strip_metadata")).toBool(), true);
+
+        // Each container has its own neutral CRF.
+        setting("mp4", "quality", QStringLiteral("smaller"));
+        QCOMPARE(options("mp4").value(QStringLiteral("crf")).toInt(), 29);
+        setting("webm", "quality", QStringLiteral("higher"));
+        QCOMPARE(options("webm").value(QStringLiteral("crf")).toInt(), 27);
+        setting("mp4", "videoHeight", 720);
+        QCOMPARE(options("mp4").value(QStringLiteral("max_height")).toInt(), 720);
+        setting("mp4", "audioKbps", 128);
+        QCOMPARE(options("mp4").value(QStringLiteral("audio_kbps")).toInt(), 128);
+
+        setting("mp3", "audioKbps", 320);
+        QCOMPARE(options("mp3").value(QStringLiteral("audio_kbps")).toInt(), 320);
+
+        setting("gif", "gifFps", 24);
+        setting("gif", "gifWidth", 960);
+        QCOMPARE(options("gif").value(QStringLiteral("gif_fps")).toInt(), 24);
+        QCOMPARE(options("gif").value(QStringLiteral("gif_max_width")).toInt(), 960);
+
+        // One format's choice stays out of the others.
+        QVERIFY(options("mkv").isEmpty());
+        QVERIFY(options("png").isEmpty());
+    }
+
+    void formatDefaultsOnlyOfferWhatTheFormatCanUse()
+    {
+        QTemporaryDir dir;
+        Settings s(dir.filePath(QStringLiteral("nashi.conf")), nullptr);
+        const auto kinds = [&](const char *format) { return s.formatDefaultKinds(QString::fromLatin1(format)); };
+        QVERIFY(kinds("jpg").contains(QStringLiteral("quality")));
+        QVERIFY(!kinds("png").contains(QStringLiteral("quality")));
+        QVERIFY(kinds("png").contains(QStringLiteral("keepMetadata")));
+        QVERIFY(kinds("mp3").contains(QStringLiteral("audioKbps")));
+        QVERIFY(!kinds("flac").contains(QStringLiteral("audioKbps")));
+        QVERIFY(kinds("flac").contains(QStringLiteral("keepMetadata")));
+        QVERIFY(kinds("mp4").contains(QStringLiteral("videoHeight")));
+        QVERIFY(kinds("gif").contains(QStringLiteral("gifFps")));
+        QVERIFY(kinds("pdf").isEmpty());
+
+        // A choice the format cannot use has no effect, even if the file says otherwise.
+        s.setFormatDefault(QStringLiteral("flac"), QStringLiteral("audioKbps"), 128);
+        QVERIFY(s.conversionOptions(QStringLiteral("flac")).isEmpty());
+        s.setFormatDefault(QStringLiteral("pdf"), QStringLiteral("keepMetadata"), false);
+        QVERIFY(s.conversionOptions(QStringLiteral("pdf")).isEmpty());
+    }
+
+    void formatDefaultsIgnoreBadValuesAndRestore()
+    {
+        QTemporaryDir dir;
+        const QString file = dir.filePath(QStringLiteral("nashi.conf"));
+        {
+            QSettings raw(file, QSettings::IniFormat);
+            raw.setValue(QStringLiteral("formats/mp3/audioKbps"), 7);
+            raw.setValue(QStringLiteral("formats/mp4/videoHeight"), 1);
+            raw.setValue(QStringLiteral("formats/jpg/quality"), QStringLiteral("nonsense"));
+            raw.setValue(QStringLiteral("formats/gif/gifFps"), 500);
+            raw.setValue(QStringLiteral("formats/gif/gifWidth"), 1);
+        }
+        Settings s(file, nullptr);
+        for (const char *format : {"mp3", "mp4", "jpg", "gif"})
+            QVERIFY2(s.conversionOptions(QString::fromLatin1(format)).isEmpty(), format);
+
+        QSignalSpy spy(&s, &Settings::formatDefaultsChanged);
+        s.setFormatDefault(QStringLiteral("mp4"), QStringLiteral("videoHeight"), 480);
+        QCOMPARE(spy.count(), 1);
+        QCOMPARE(s.formatDefaults(QStringLiteral("mp4")).value(QStringLiteral("videoHeight")).toInt(), 480);
+        s.restoreFormatDefaults(QStringLiteral("mp4"));
+        QCOMPARE(spy.count(), 2);
+        QCOMPARE(s.formatDefaults(QStringLiteral("mp4")).value(QStringLiteral("videoHeight")).toInt(), 0);
+        QVERIFY(s.conversionOptions(QStringLiteral("mp4")).isEmpty());
+    }
+
     void wheelScale()
     {
         QTemporaryDir dir;

@@ -49,6 +49,22 @@ pub fn audio_codec(ext: &str) -> Vec<&'static str> {
     }
 }
 
+/// `audio_codec` at a chosen bitrate; lossless and PCM codecs have none to set.
+fn audio_at(ext: &str, kbps: Option<u32>) -> Vec<String> {
+    let base = audio_codec(ext);
+    match kbps {
+        Some(kbps) if !matches!(base[1], "pcm_s16le" | "pcm_s16be" | "flac") => {
+            vec![
+                "-c:a".to_string(),
+                base[1].to_string(),
+                "-b:a".to_string(),
+                format!("{kbps}k"),
+            ]
+        }
+        _ => base.into_iter().map(String::from).collect(),
+    }
+}
+
 /// Extra encoder args for audio an encoder cannot take as it is. `channels` is
 /// `None` when the tool sets its own channel count.
 fn audio_fit(ext: &str, channels: Option<u32>, rate: Option<u32>) -> Vec<&'static str> {
@@ -78,6 +94,22 @@ fn audio_fit(ext: &str, channels: Option<u32>, rate: Option<u32>) -> Vec<&'stati
     }
 }
 
+/// The quantizer of encoders without CRF. Size doubles about every 6 CRF steps
+/// and halves as the quantizer doubles; CRF 23 lands on the usual 3.
+fn fixed_quantizer(crf: u32) -> u32 {
+    (3.0 * 2f64.powf((f64::from(crf) - 23.0) / 6.0))
+        .round()
+        .clamp(1.0, 31.0) as u32
+}
+
+/// Put a height limit in front of the even-size filter of `video_codec`. Never enlarges.
+fn limit_height(codec: &mut [String], max_height: Option<u32>) {
+    if let Some(h) = max_height {
+        let i = codec.iter().position(|x| x == "-vf").unwrap();
+        codec[i + 1] = format!("scale=-2:'min({h},ih)',{}", codec[i + 1]);
+    }
+}
+
 /// Video encoder args for a container; `crf` overrides the default quality.
 pub fn video_codec(ext: &str, crf: Option<u32>) -> Vec<String> {
     let even = "scale=trunc(iw/2)*2:trunc(ih/2)*2".to_string();
@@ -100,8 +132,21 @@ pub fn video_codec(ext: &str, crf: Option<u32>) -> Vec<String> {
             a.push(crf.unwrap_or(32).to_string());
             a
         }
-        "avi" => s(&["-c:v", "mpeg4", "-q:v", "3", "-vtag", "xvid"]),
-        "wmv" => s(&["-c:v", "wmv2", "-b:v", "2500k"]),
+        "avi" => {
+            let mut a = s(&["-c:v", "mpeg4", "-q:v"]);
+            a.push(crf.map_or(3, fixed_quantizer).to_string());
+            a.extend(s(&["-vtag", "xvid"]));
+            a
+        }
+        "wmv" => match crf {
+            Some(c) => vec![
+                "-c:v".to_string(),
+                "wmv2".to_string(),
+                "-q:v".to_string(),
+                fixed_quantizer(c).to_string(),
+            ],
+            None => s(&["-c:v", "wmv2", "-b:v", "2500k"]),
+        },
         _ => {
             let mut a = s(&["-c:v", "libx264", "-preset", "medium", "-crf"]);
             a.push(crf.unwrap_or(23).to_string());
@@ -158,20 +203,39 @@ fn out(path: &Path) -> OsString {
 
 /// Convert between audio/video/gif formats.
 pub fn convert(ctx: &Ctx, input: &Input, target: &str) -> JobResult<PathBuf> {
+    let o = ctx.opts;
+    check_encoding(o)?;
+    if o.gif_fps.is_some_and(|f| !(1..=60).contains(&f)) {
+        return Err(JobError::invalid_options(
+            "gif_fps must be between 1 and 60",
+        ));
+    }
+    if o.gif_max_width.is_some_and(|w| !(2..=16384).contains(&w)) {
+        return Err(JobError::invalid_options(
+            "gif_max_width must be between 2 and 16384",
+        ));
+    }
     let p = probe(ctx, input);
     let staged = input.stage("", target)?;
     let mut cmd = ffmpeg(ctx)?.arg("-i").arg_cat("file:", &input.path);
     let tcat = category_of(target);
+    let strip = o.strip_metadata == Some(true);
+    if strip {
+        cmd = cmd.args(["-map_metadata", "-1", "-map_chapters", "-1"]);
+    }
     match tcat {
         Category::Audio => {
             if !p.has_audio {
                 return Err(JobError::invalid_input("the file has no audio stream"));
             }
-            cmd = cmd.args(["-sn", "-dn", "-map", "0:a:0", "-map_metadata", "0"]);
+            cmd = cmd.args(["-sn", "-dn", "-map", "0:a:0"]);
+            if !strip {
+                cmd = cmd.args(["-map_metadata", "0"]);
+            }
             // Album art is an attached picture stream, not a tag.
             cmd = match p
                 .art_stream
-                .filter(|_| matches!(target, "mp3" | "m4a" | "flac"))
+                .filter(|_| !strip && matches!(target, "mp3" | "m4a" | "flac"))
             {
                 Some(art) => cmd.arg("-map").arg(format!("0:{art}")).args([
                     "-c:v",
@@ -182,22 +246,25 @@ pub fn convert(ctx: &Ctx, input: &Input, target: &str) -> JobResult<PathBuf> {
                 None => cmd.arg("-vn"),
             };
             // Other containers write file-level tags, so copy Ogg's stream tags there.
-            if p.ogg_stream_tags {
+            if p.ogg_stream_tags && !strip {
                 cmd = cmd.args(["-map_metadata", "0:s:a:0"]);
             }
-            cmd = cmd
-                .args(audio_codec(target))
-                .args(audio_fit(target, p.channels, p.sample_rate));
+            cmd = cmd.args(audio_at(target, o.audio_kbps)).args(audio_fit(
+                target,
+                p.channels,
+                p.sample_rate,
+            ));
         }
         Category::Gif => {
-            cmd = cmd.args([
-                "-an",
-                "-filter_complex",
+            let fps = o.gif_fps.unwrap_or(12);
+            let width = o.gif_max_width.unwrap_or(640);
+            cmd = cmd
+                .args(["-an", "-filter_complex"])
                 // GIF viewers ignore a pixel aspect, so size from the displayed shape.
-                "[0:v:0]fps=12,scale='min(640,iw*sar)':'ow/dar':flags=lanczos,setsar=1,split[a][b];[a]palettegen[p];[b][p]paletteuse",
-                "-loop",
-                "0",
-            ]);
+                .arg(format!(
+                    "[0:v:0]fps={fps},scale='min({width},iw*sar)':'ow/dar':flags=lanczos,setsar=1,split[a][b];[a]palettegen[p];[b][p]paletteuse"
+                ))
+                .args(["-loop", "0"]);
         }
         Category::Video => {
             if !p.has_video {
@@ -206,7 +273,7 @@ pub fn convert(ctx: &Ctx, input: &Input, target: &str) -> JobResult<PathBuf> {
             cmd = cmd.args(["-map", "0:v:0"]);
             if p.has_audio && input.category() != Category::Gif {
                 cmd = cmd.args(["-map", "0:a:0?"]);
-                cmd = cmd.args(audio_codec(target)).args(audio_fit(
+                cmd = cmd.args(audio_at(target, o.audio_kbps)).args(audio_fit(
                     target,
                     p.channels,
                     p.sample_rate,
@@ -214,11 +281,14 @@ pub fn convert(ctx: &Ctx, input: &Input, target: &str) -> JobResult<PathBuf> {
             } else {
                 cmd = cmd.arg("-an");
             }
-            cmd = cmd
-                .args(video_codec(target, None))
-                .args(["-map_metadata", "0"]);
+            let mut codec = video_codec(target, o.crf);
+            limit_height(&mut codec, o.max_height);
+            cmd = cmd.args(codec);
+            if !strip {
+                cmd = cmd.args(["-map_metadata", "0"]);
+            }
             // MP4 and MOV write only a fixed tag list unless asked for the source's own keys.
-            if p.quicktime_keys && matches!(target, "mp4" | "mov") {
+            if !strip && p.quicktime_keys && matches!(target, "mp4" | "mov") {
                 cmd = cmd.args(["-movflags", "+use_metadata_tags"]);
             }
         }
@@ -274,23 +344,24 @@ fn atempo_chain(speed: f64) -> String {
     parts.join(",")
 }
 
+/// Options shared by `compress` and conversions.
+fn check_encoding(o: &crate::options::Options) -> JobResult<()> {
+    if o.audio_kbps.is_some_and(|k| !(8..=512).contains(&k)) {
+        return Err(JobError::invalid_options(
+            "audio_kbps must be between 8 and 512",
+        ));
+    }
+    if o.max_height.is_some_and(|h| !(2..=16384).contains(&h)) {
+        return Err(JobError::invalid_options(
+            "max_height must be between 2 and 16384",
+        ));
+    }
+    Ok(())
+}
+
 fn compress(ctx: &Ctx, input: &Input, p: &Probe) -> JobResult<Produced> {
-    let o = ctx.opts;
-    let target = super::compress_target(o, input)?;
-    if let Some(kbps) = o.audio_kbps {
-        if !(8..=512).contains(&kbps) {
-            return Err(JobError::invalid_options(
-                "audio_kbps must be between 8 and 512",
-            ));
-        }
-    }
-    if let Some(h) = o.max_height {
-        if !(2..=16384).contains(&h) {
-            return Err(JobError::invalid_options(
-                "max_height must be between 2 and 16384",
-            ));
-        }
-    }
+    let target = super::compress_target(ctx.opts, input)?;
+    check_encoding(ctx.opts)?;
     if input.category() == Category::Video {
         compress_video(ctx, input, p, target)
     } else {
@@ -313,10 +384,7 @@ fn compress_video(ctx: &Ctx, input: &Input, p: &Probe, target: Option<u64>) -> J
     let source = || ffmpeg(ctx).map(|c| c.arg("-i").arg_cat("file:", &input.path));
     let fitted = |crf: Option<u32>| -> Vec<String> {
         let mut v = video_codec(&ext, crf);
-        if let Some(h) = o.max_height {
-            let i = v.iter().position(|x| x == "-vf").unwrap();
-            v[i + 1] = format!("scale=-2:'min({h},ih)',{}", v[i + 1]);
-        }
+        limit_height(&mut v, o.max_height);
         v
     };
     let audio_args = |kbps: u32| -> Vec<String> {
@@ -550,6 +618,19 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
             finish(cmd, staged, p.duration, "Removing audio")
         }
         "normalizeAudio" => {
+            let range = |value: Option<f64>, default: f64, low: f64, high: f64, what: &str| {
+                let v = value.unwrap_or(default);
+                if (low..=high).contains(&v) {
+                    Ok(v)
+                } else {
+                    Err(JobError::invalid_options(format!(
+                        "{what} must be between {low} and {high}"
+                    )))
+                }
+            };
+            let lufs = range(o.target_lufs, -16.0, -70.0, -5.0, "target_lufs")?;
+            let lra = range(o.loudness_range, 11.0, 1.0, 50.0, "loudness_range")?;
+            let peak = range(o.true_peak, -1.5, -9.0, 0.0, "true_peak")?;
             let staged = input.stage("-normalized", &ext)?;
             let rate = p.sample_rate.unwrap_or(48000).to_string();
             let cmd = ffin(ffmpeg(ctx)?)
@@ -558,7 +639,7 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
                     "-map",
                     "0:a:0",
                     "-af",
-                    "loudnorm=I=-16:TP=-1.5:LRA=11",
+                    &format!("loudnorm=I={lufs}:TP={peak}:LRA={lra}"),
                     "-ar",
                     &rate,
                 ])
