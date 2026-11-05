@@ -9,10 +9,59 @@ use std::process::{Command, Stdio};
 
 pub const BIN: &str = env!("CARGO_BIN_EXE_nashi-cli");
 
+/// Whether a tool is on PATH. Tools named in `NASHI_DISABLE_TOOLS` count as
+/// missing here too, so `NASHI_DISABLE_TOOLS=soffice cargo test` shows how
+/// the suite behaves on a machine without them.
 pub fn which(name: &str) -> bool {
+    let disabled = std::env::var("NASHI_DISABLE_TOOLS").unwrap_or_default();
+    if disabled.split(',').any(|t| t.trim() == name) {
+        return false;
+    }
     std::env::var_os("PATH")
         .map(|p| std::env::split_paths(&p).any(|d| d.join(name).is_file()))
         .unwrap_or(false)
+}
+
+/// Report a skipped test or part of one. Printed to stderr and, when
+/// `NASHI_SKIP_LOG` names a file, appended there so CI can list every skip.
+pub fn skipped(what: &str) {
+    let test = std::thread::current()
+        .name()
+        .unwrap_or("unknown test")
+        .to_string();
+    let line = format!("{test}: {what}");
+    eprintln!("skipped: {line}");
+    if let Some(log) = std::env::var_os("NASHI_SKIP_LOG") {
+        use std::io::Write;
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(log)
+        {
+            let _ = writeln!(f, "{line}");
+        }
+    }
+}
+
+/// Whether every tool is present; otherwise reports `part` as skipped.
+/// For checks that run only when a tool is installed.
+pub fn have(tools: &[&str], part: &str) -> bool {
+    match tools.iter().find(|t| !which(t)) {
+        None => true,
+        Some(t) => {
+            skipped(&format!("{part} ({t} missing)"));
+            false
+        }
+    }
+}
+
+/// Whether at least one of the tools is present; otherwise reports `part` as skipped.
+pub fn have_any(tools: &[&str], part: &str) -> bool {
+    if tools.iter().any(|t| which(t)) {
+        return true;
+    }
+    skipped(&format!("{part} ({} missing)", tools.join(", ")));
+    false
 }
 
 /// Return early (skip) when any tool is missing.
@@ -21,7 +70,7 @@ macro_rules! need {
     ($($t:expr),+) => {
         $(
             if !$crate::common::which($t) {
-                eprintln!("skipped: {} missing", $t);
+                $crate::common::skipped(&format!("{} missing", $t));
                 return;
             }
         )+

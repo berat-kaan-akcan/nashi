@@ -43,6 +43,7 @@ optdepends=(
   'libheif: HEIC/HEIF input for ImageMagick'
   'librsvg: SVG rendering (rsvg-convert)'
   'libreoffice-fresh: document, spreadsheet and presentation conversions'
+  'libwpg: Apple Pages input (LibreOffice needs it but does not depend on it)'
   'perl-image-exiftool: metadata removal and inspection'
   'qpdf: PDF merge, split, rotate and repair'
   'poppler: PDF to image and text (pdftoppm, pdftotext)'

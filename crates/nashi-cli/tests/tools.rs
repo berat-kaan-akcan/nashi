@@ -92,7 +92,7 @@ fn image_multi_tools() {
     assert_eq!(out, d.path().join("images.pdf"));
     let o = r.events.iter().find(|e| e["event"] == "output").unwrap();
     assert!(o["index"].is_null() && o["input"].is_null());
-    if which("pdfinfo") {
+    if have(&["pdfinfo"], "page count") {
         assert_eq!(pages_of(&out), 3);
     }
     let r = tool_run("createCollage", &[&a, &b], None);
@@ -153,12 +153,10 @@ fn remove_metadata_pdf() {
     let p = pdf(d.path(), "doc.pdf", 2);
     assert!(pdfinfo(&p).contains("Secret Title"));
     let mut variants: Vec<(&str, Vec<(&str, &str)>)> = Vec::new();
-    if which("exiftool") && which("qpdf") {
+    if have(&["exiftool", "qpdf"], "exiftool+qpdf variant") {
         variants.push(("exiftool+qpdf", vec![]));
-    } else {
-        eprintln!("skipped: exiftool/qpdf variant");
     }
-    if which("gs") {
+    if have(&["gs"], "Ghostscript variant") {
         variants.push(("gs", vec![("NASHI_DISABLE_TOOLS", "exiftool")]));
     }
     for (name, env) in variants {
@@ -359,7 +357,7 @@ fn pdf_tools_qpdf() {
     let r = tool_run("organizePDF", &[&b], Some(r#"{"pages":"3,1"}"#));
     r.ok();
     assert_eq!(pages_of(&r.one()), 2);
-    if which("pdftotext") {
+    if have(&["pdftotext"], "text of the PDF") {
         let out = Command::new("pdftotext")
             .arg(r.one())
             .arg("-")
@@ -408,8 +406,7 @@ fn read_qr_code() {
     let blank = png(d.path(), "blank.png");
     let r = tool_run("readQRCode", &[&blank], None);
     assert_eq!(r.error_codes(), ["invalid_input"]);
-    if !which("qrencode") {
-        eprintln!("skipped: qrencode missing (positive QR test)");
+    if !have(&["qrencode"], "reading a real QR code") {
         return;
     }
     let q = d.path().join("code.png");
@@ -433,24 +430,24 @@ fn hostile_file_names() {
     let r = run(&["inspect", s(&p), "--json"]);
     let v: serde_json::Value = serde_json::from_str(r.stdout.trim()).unwrap();
     assert_eq!(v["files"][0]["pages"], 2);
-    if which("gs") {
+    if have(&["gs"], "compress") {
         let r = tool_run("compress", &[&p], None);
         r.ok();
         assert_eq!(r.one(), d.path().join("-x) (r'q:%d\\z-compressed.pdf"));
     }
-    if which("qpdf") || which("pdfseparate") {
+    if have_any(&["qpdf", "pdfseparate"], "splitPDF") {
         let r = tool_run("splitPDF", &[&p], None);
         r.ok();
         assert!(r.one().join("-x) (r'q:%d\\z-2.pdf").exists());
     }
-    if which("magick") {
+    if have(&["magick"], "image conversion and createPDF") {
         let i = png(d.path(), &name("png"));
         let r = convert("jpg", &[&i]);
         r.ok();
         assert_eq!(r.one(), d.path().join(name("jpg")));
         tool_run("createPDF", &[&i], None).ok();
     }
-    if which("ffmpeg") && which("ffprobe") {
+    if have(&["ffmpeg", "ffprobe"], "media tools") {
         let a = mp4(d.path(), &name("mp4"), 1.0, "64x64");
         let b = mp4(d.path(), "plain.mp4", 1.0, "64x64");
         convert("mp3", &[&a]).ok();

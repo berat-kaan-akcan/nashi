@@ -56,10 +56,7 @@ fn rar_bytes(name: &str, data: &[u8]) -> Vec<u8> {
 
 #[test]
 fn the_hand_made_rar_is_a_real_rar() {
-    if !which("unrar") {
-        eprintln!("skipped: unrar");
-        return;
-    }
+    need!("unrar");
     let d = tempfile::tempdir().unwrap();
     let p = d.path().join("a.rar");
     std::fs::write(&p, rar_bytes("hello.txt", b"hello rar\n")).unwrap();
@@ -213,10 +210,32 @@ fn sample(ext: &str, dir: &Path) -> Result<PathBuf, String> {
             std::fs::write(&p, rar_bytes("hello.txt", b"hello rar\n")).map_err(|e| e.to_string())?;
             Ok(p)
         }
-        // Only Apple's Pages writes this, and its contents are not documented.
-        "pages" => Err("no tool here can create a .pages file".to_string()),
+        "pages" => {
+            pages_document(&p, &["Sample text", "Second paragraph"]).map_err(|e| e.to_string())?;
+            Ok(p)
+        }
         other => Err(format!("no sample for .{other}")),
     }
+}
+
+/// A Pages '09 document: a zip holding `index.xml`. Pages 5 and later write
+/// undocumented IWA files instead; LibreOffice reads both through libetonyek.
+fn pages_document(p: &Path, paragraphs: &[&str]) -> std::io::Result<()> {
+    let body: String = paragraphs
+        .iter()
+        .map(|t| format!("<sf:p>{t}</sf:p>"))
+        .collect();
+    let xml = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<sl:document xmlns:sl="http://developer.apple.com/namespaces/sl" xmlns:sf="http://developer.apple.com/namespaces/sf" xmlns:sfa="http://developer.apple.com/namespaces/sfa" sl:version="92008102400">
+<sf:text-storage sf:kind="body"><sf:text-body><sf:section><sf:layout>{body}</sf:layout></sf:section></sf:text-body></sf:text-storage>
+</sl:document>
+"#
+    );
+    nashi_core::engines::zipw::write_zip(
+        std::fs::File::create(p)?,
+        &[("index.xml", xml.as_bytes())],
+    )
 }
 
 /// Whether `p` looks like a file of format `target`.
@@ -302,7 +321,7 @@ fn check_routes(sources: &[&str]) {
         let source = match sample(ext, d.path()) {
             Ok(p) => p,
             Err(why) if why.starts_with("needs ") || why.starts_with("no tool") => {
-                eprintln!("skipped .{ext}: {why}");
+                skipped(&format!(".{ext}: {why}"));
                 continue;
             }
             Err(why) => {
@@ -321,7 +340,7 @@ fn check_routes(sources: &[&str]) {
                 s(&source),
             ]);
             if r.error_codes().iter().any(|c| c == "missing_dependency") {
-                eprintln!("skipped {ext} -> {target}: {:?}", r.errors());
+                skipped(&format!("{ext} -> {target}: {}", r.errors()[0]["message"]));
                 continue;
             }
             done += 1;
@@ -425,6 +444,22 @@ fn video_routes() {
 #[test]
 fn document_routes() {
     check_routes(DOCUMENTS);
+}
+#[test]
+fn pages_text_is_kept() {
+    need!("soffice");
+    let d = tempfile::tempdir().unwrap();
+    let p = d.path().join("letter.pages");
+    pages_document(&p, &["Dear reader", "Ünïcode stays"]).unwrap();
+    let r = run(&["convert", "--json", "txt", s(&p)]);
+    if r.error_codes() == ["missing_dependency"] {
+        skipped(r.errors()[0]["message"].as_str().unwrap());
+        return;
+    }
+    r.ok();
+    let text = std::fs::read_to_string(r.one()).unwrap();
+    assert!(text.contains("Dear reader"), "{text:?}");
+    assert!(text.contains("Ünïcode stays"), "{text:?}");
 }
 #[test]
 fn presentation_routes() {

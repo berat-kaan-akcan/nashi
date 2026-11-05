@@ -100,7 +100,7 @@ fn img_dims(p: &Path) -> (u32, u32) {
 fn inspect_and_tools_respect_orientation() {
     need!("magick");
     let d = tempfile::tempdir().unwrap();
-    let img_name = if which("exiftool") {
+    let img_name = if have(&["exiftool"], "EXIF orientation of a JPEG (TIFF used)") {
         "portrait.jpg"
     } else {
         "portrait.tiff"
@@ -131,7 +131,7 @@ fn inspect_and_tools_respect_orientation() {
     f.ok();
     assert_eq!(img_dims(&f.one()), (80, 120));
 
-    if which("ffmpeg") && which("ffprobe") {
+    if have(&["ffmpeg", "ffprobe"], "rotated video") {
         let vid = rotated_mp4(d.path(), "rot90.mp4");
         let rv = run(&["inspect", s(&vid), "--json"]);
         assert_eq!(rv.code, 0);
@@ -146,7 +146,7 @@ fn inspect_and_tools_respect_orientation() {
 fn preview_frame_image_and_video() {
     need!("magick");
     let d = tempfile::tempdir().unwrap();
-    let img_name = if which("exiftool") {
+    let img_name = if have(&["exiftool"], "EXIF orientation of a JPEG (TIFF used)") {
         "-oriented.jpg"
     } else {
         "-oriented.tiff"
@@ -208,7 +208,7 @@ fn preview_frame_image_and_video() {
     assert_eq!(h.code, 0);
     assert!(h.stdout.contains("frame (60x100)"));
 
-    if which("ffmpeg") && which("ffprobe") {
+    if have(&["ffmpeg", "ffprobe"], "video frame preview") {
         let vid = rotated_mp4(d.path(), "rot90.mp4");
         let out_vid = d.path().join("prev-vid");
         // Test clamping past EOF (--at 999) and negative (--at -2).
@@ -240,7 +240,7 @@ fn preview_frame_image_and_video() {
 fn preview_waveform_and_pages_and_errors() {
     let d = tempfile::tempdir().unwrap();
 
-    if which("ffmpeg") && which("ffprobe") {
+    if have(&["ffmpeg", "ffprobe"], "waveform preview") {
         let w = wav(d.path(), "tone.wav", 1.0);
         let out_w = d.path().join("prev-wave");
         let r = run(&[
@@ -310,7 +310,7 @@ fn preview_waveform_and_pages_and_errors() {
         assert_eq!(vmiss["error"]["code"], "missing_dependency");
     }
 
-    if which("pdftoppm") {
+    if have(&["pdftoppm"], "page previews") {
         let p = pdf(d.path(), "doc.pdf", 3);
         let out_p = d.path().join("prev-pages");
         let r = run(&[
@@ -524,7 +524,7 @@ fn organize_pdf_with_rotations() {
         .collect();
     assert_eq!(rots, vec![0, 90, 270], "pdfinfo:\n{txt}");
 
-    if which("pdftotext") {
+    if have(&["pdftotext"], "text of the organized PDF") {
         let pt = Command::new("pdftotext")
             .arg(&out)
             .arg("-")
@@ -571,7 +571,7 @@ fn organize_pdf_with_rotations() {
 fn redact_image_and_video_styles() {
     let d = tempfile::tempdir().unwrap();
 
-    if which("magick") {
+    if have(&["magick"], "image redaction styles") {
         let chk = d.path().join("check.png");
         tool(
             "magick",
@@ -612,7 +612,7 @@ fn redact_image_and_video_styles() {
         );
     }
 
-    if which("ffmpeg") && which("ffprobe") {
+    if have(&["ffmpeg", "ffprobe"], "video redaction styles") {
         let vid = mp4(d.path(), "clip.mp4", 1.0, "160x120");
         let r = tool_run(
             "redactVideo",
@@ -695,8 +695,7 @@ fn download_validation_missing_deps_and_local_http() {
     assert_eq!(ry.code, 3);
     assert_eq!(ry.error_codes(), ["missing_dependency"]);
 
-    if !which("curl") || !which("magick") {
-        eprintln!("skipped: curl/magick missing for local HTTP download test");
+    if !have(&["curl", "magick"], "local HTTP download") {
         return;
     }
 
@@ -806,7 +805,7 @@ fn download_ytdlp_local_and_cancellation() {
     let d = tempfile::tempdir().unwrap();
     let out_dir = d.path().join("ytdl");
 
-    if which("yt-dlp") && which("ffmpeg") {
+    if have(&["yt-dlp", "ffmpeg"], "yt-dlp download") {
         let clip = mp4(d.path(), "src.mp4", 0.6, "120x90");
         let clip_bytes = std::fs::read(&clip).unwrap();
 
@@ -870,7 +869,7 @@ fn download_ytdlp_local_and_cancellation() {
         let _ = handle.join();
     }
 
-    if which("curl") {
+    if have(&["curl"], "cancelled download") {
         let cancel_dir = d.path().join("cancel-dl");
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();

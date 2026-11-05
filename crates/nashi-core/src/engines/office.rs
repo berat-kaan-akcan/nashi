@@ -130,9 +130,37 @@ pub fn soffice(
                         out.status.code()
                     )
                 });
+            if is_pages(src) && msg.contains("could not be loaded") && !pages_import_available() {
+                return Err(JobError::missing("LibreOffice's Pages import", "libwpg"));
+            }
             Err(JobError::tool_failed(format!("soffice: {msg}")))
         }
     }
+}
+
+fn is_pages(p: &Path) -> bool {
+    p.extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("pages"))
+}
+
+/// LibreOffice opens Pages files in a library that needs libwpg. Arch's
+/// libreoffice packages do not depend on it, so without it every Pages file
+/// fails to load with the same message as a damaged one.
+fn pages_import_available() -> bool {
+    let lib = "libwpg-0.3.so.3";
+    let extra = std::env::var_os("LD_LIBRARY_PATH").unwrap_or_default();
+    std::env::split_paths(&extra)
+        .chain(
+            [
+                "/usr/lib",
+                "/usr/lib64",
+                "/usr/local/lib",
+                "/usr/lib/x86_64-linux-gnu",
+                "/usr/lib/aarch64-linux-gnu",
+            ]
+            .map(PathBuf::from),
+        )
+        .any(|d| d.join(lib).exists())
 }
 
 /// soffice conversion straight into `stem.<out_ext>` next to the input.

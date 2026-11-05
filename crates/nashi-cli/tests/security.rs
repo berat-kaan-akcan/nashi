@@ -216,12 +216,12 @@ fn percent_in_output_directory() {
     let d = tempfile::tempdir().unwrap();
     let out = d.path().join("out%d%s");
     let p = pdf(d.path(), "doc.pdf", 2);
-    if which("gs") {
+    if have(&["gs"], "compress into an odd folder") {
         let r = run(&["tool", "compress", s(&p), "--out-dir", s(&out), "--json"]);
         r.ok();
         assert_eq!(r.one(), out.join("doc-compressed.pdf"));
     }
-    if which("pdfseparate") {
+    if have(&["pdfseparate"], "splitPDF with pdfseparate") {
         let r = run_env(
             &["tool", "splitPDF", s(&p), "--out-dir", s(&out), "--json"],
             &[("NASHI_DISABLE_TOOLS", "qpdf")],
@@ -229,14 +229,14 @@ fn percent_in_output_directory() {
         r.ok();
         assert!(r.one().join("doc-2.pdf").exists());
     }
-    if which("gs") {
+    if have(&["gs"], "splitPDF with Ghostscript") {
         let r = run_env(
             &["tool", "splitPDF", s(&p), "--out-dir", s(&out), "--json"],
             &[("NASHI_DISABLE_TOOLS", "qpdf,pdfseparate")],
         );
         r.ok();
     }
-    if which("magick") {
+    if have(&["magick"], "image conversion into an odd folder") {
         let i = png(d.path(), "pic.png");
         for t in ["jpg", "pdf"] {
             let r = run(&["convert", t, s(&i), "--out-dir", s(&out), "--json"]);
@@ -309,8 +309,7 @@ fn imagemagick_policy_is_active() {
 
 #[test]
 fn archive_entries_with_special_names() {
-    if !which("7z") && !which("bsdtar") {
-        eprintln!("skipped: 7z/bsdtar missing");
+    if !have_any(&["7z", "bsdtar"], "archive entries") {
         return;
     }
     let d = tempfile::tempdir().unwrap();
@@ -336,7 +335,9 @@ fn archive_entries_with_special_names() {
         ],
     );
     for env in [vec![], vec![("NASHI_DISABLE_TOOLS", "bsdtar")]] {
-        if env.is_empty() && !which("bsdtar") || !env.is_empty() && !which("7z") {
+        if env.is_empty() && !have(&["bsdtar"], "tar -> zip with bsdtar")
+            || !env.is_empty() && !have(&["7z"], "tar -> zip with 7z")
+        {
             continue;
         }
         let r = run_env(&["convert", "zip", s(&tar), "--json"], &env);

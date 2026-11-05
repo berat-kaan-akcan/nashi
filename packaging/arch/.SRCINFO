@@ -27,6 +27,7 @@ pkgbase = nashi-git
 	optdepends = libheif: HEIC/HEIF input for ImageMagick
 	optdepends = librsvg: SVG rendering (rsvg-convert)
 	optdepends = libreoffice-fresh: document, spreadsheet and presentation conversions
+	optdepends = libwpg: Apple Pages input (LibreOffice needs it but does not depend on it)
 	optdepends = perl-image-exiftool: metadata removal and inspection
 	optdepends = qpdf: PDF merge, split, rotate and repair
 	optdepends = poppler: PDF to image and text (pdftoppm, pdftotext)

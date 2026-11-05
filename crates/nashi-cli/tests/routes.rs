@@ -65,7 +65,7 @@ fn image_heic_reports_missing_or_works() {
     if r.code == 0 {
         sniff_is(&r.one(), b"ftyp", 4);
     } else {
-        eprintln!("skipped: HEIC support (libheif) missing");
+        skipped("HEIC output (libheif missing)");
         assert_eq!(r.code, 3);
         assert_eq!(r.error_codes(), ["missing_dependency"]);
     }
@@ -200,7 +200,7 @@ fn pdf_to_office() {
     let r = convert("pdf", &[&pptx]);
     r.ok();
     assert_eq!(r.one(), d.path().join("doc (1).pdf"));
-    if which("pdftoppm") {
+    if have(&["pdftoppm"], "pptx -> png") {
         let r = convert("png", &[&pptx]);
         r.ok();
         sniff_is(&r.one(), b"\x89PNG", 0);
@@ -229,7 +229,7 @@ fn text_and_markdown_routes() {
     }
     let txt = std::fs::read_to_string(d.path().join("readme.txt")).unwrap();
     assert!(txt.contains("Hello world") && !txt.contains("**"));
-    if which("pdftoppm") {
+    if have(&["pdftoppm"], "md -> png") {
         let r = convert("png", &[&m]);
         r.ok();
         sniff_is(&r.one(), b"\x89PNG", 0);
@@ -251,7 +251,7 @@ fn pandoc_does_not_embed_outside_files() {
     );
     let r = convert("epub", &[&m]);
     if r.error_codes() == ["missing_dependency"] {
-        eprintln!("skipped: pandoc unusable without bubblewrap");
+        skipped("pandoc unusable without bubblewrap");
         return;
     }
     r.ok();
@@ -279,7 +279,7 @@ fn docx_and_rtf_routes() {
         r.ok();
         r.one();
     }
-    if which("pdftoppm") {
+    if have(&["pdftoppm"], "docx -> jpg") {
         let r = convert("jpg", &[&docx]);
         r.ok();
         sniff_is(&r.one(), b"\xFF\xD8\xFF", 0);
@@ -333,8 +333,7 @@ fn spreadsheet_routes() {
 #[test]
 fn epub_source_routes() {
     need!("soffice");
-    if !which("7z") && !which("bsdtar") && !which("pandoc") {
-        eprintln!("skipped: no epub reader (7z/bsdtar/pandoc)");
+    if !have_any(&["7z", "bsdtar", "pandoc"], "epub reader") {
         return;
     }
     let d = tempfile::tempdir().unwrap();
@@ -392,11 +391,9 @@ fn textclipping_native_routes() {
         std::fs::read_to_string(d.path().join("snip.txt")).unwrap(),
         "Clipped words"
     );
-    if which("soffice") {
+    if have(&["soffice"], "textclipping -> docx") {
         let r = convert("docx", &[&c]);
         r.ok();
-    } else {
-        eprintln!("skipped: soffice missing (textclipping -> docx)");
     }
     // Garbage clipping -> invalid_input.
     let bad = text(d.path(), "bad.textclipping", "nothing here");
@@ -438,7 +435,7 @@ fn archive_routes_with(env: &[(&str, &str)]) {
     let d = tempfile::tempdir().unwrap();
     let src = make_tree(d.path());
     let zip = d.path().join("pack.zip");
-    if which("7z") {
+    if have(&["7z"], "zip made by 7z") {
         let st = std::process::Command::new("7z")
             .args(["a", "-tzip", "-bso0", s(&zip), "a.txt", "sub"])
             .current_dir(&src)
@@ -492,7 +489,7 @@ fn archive_routes_with(env: &[(&str, &str)]) {
     }
     // Single-file .gz (not a tarball).
     let gz = d.path().join("note.txt.gz");
-    if which("gzip") {
+    if have(&["gzip"], "single-file .gz") {
         let f = std::fs::File::create(&gz).unwrap();
         let st = std::process::Command::new("gzip")
             .args(["-c", s(&src.join("a.txt"))])
@@ -537,7 +534,7 @@ fn html_to_pdf() {
     r.ok();
     let pdf = r.one();
     sniff_is(&pdf, b"%PDF", 0);
-    if which("pdftotext") {
+    if have(&["pdftotext"], "text of the PDF") {
         let out = std::process::Command::new("pdftotext")
             .arg(&pdf)
             .arg("-")
