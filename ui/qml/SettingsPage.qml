@@ -386,6 +386,20 @@ Page {
                     }
                 }
                 FormatRow {
+                    objectName: "formatPdfLayout"
+                    visible: formatSection.kinds.includes("pdfLayout")
+                    label: qsTr("From a PDF")
+                    FormatChoice {
+                        objectName: "formatPdfLayoutChoice"
+                        kind: "pdfLayout"
+                        accessibleName: qsTr("Layout when converting from a PDF")
+                        options: [
+                            { value: "", text: qsTr("Editable text") },
+                            { value: "pages", text: qsTr("Keep the pages as pictures") }
+                        ]
+                    }
+                }
+                FormatRow {
                     objectName: "formatGifFps"
                     visible: formatSection.kinds.includes("gifFps")
                     label: qsTr("Frame rate")
@@ -406,6 +420,10 @@ Page {
                         accessibleName: qsTr("Largest GIF width")
                         options: [320, 480, 640, 960, 1280].map(w => ({ value: w, text: w + " px" }))
                     }
+                }
+                Hint {
+                    visible: formatSection.kinds.includes("pdfLayout")
+                    text: qsTr("Pictures keep the layout and also work for scanned PDFs, but the text cannot be edited.")
                 }
                 Switch {
                     objectName: "formatKeepMetadata"

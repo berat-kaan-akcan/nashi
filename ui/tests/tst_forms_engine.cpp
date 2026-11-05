@@ -490,6 +490,23 @@ private Q_SLOTS:
         QVERIFY(qAbs(pageWidths(out.first()).first() - 200.0) < 1.0);
     }
 
+    void pdfPageLayoutReachesTheEngine()
+    {
+        NEED("magick");
+        NEED("pdftoppm");
+        NEED("pdfinfo");
+        NEED("unzip");
+        for (const char *format : {"epub", "docx"}) {
+            const QString f = QString::fromLatin1(format);
+            app->settings()->setFormatDefault(f, QStringLiteral("pdfLayout"), QStringLiteral("pages"));
+            QStringList out;
+            QVERIFY(convert(f, at("book.pdf"), &out));
+            const QStringList names = output(QStringLiteral("unzip"), {QStringLiteral("-Z1"), out.first()}).split(QLatin1Char('\n'));
+            QCOMPARE(names.filter(QStringLiteral(".jpg")).size(), 5);
+            app->settings()->restoreFormatDefaults(f);
+        }
+    }
+
     void mergeAndJoinFollowTheChosenOrder()
     {
         NEED("magick");

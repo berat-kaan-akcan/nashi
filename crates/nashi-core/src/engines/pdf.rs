@@ -69,8 +69,65 @@ fn pdftotext(ctx: &Ctx, pdf: &Path, out: &Path) -> JobResult<()> {
     Ok(())
 }
 
+/// Render each page as a JPEG, with the size it is shown at.
+fn rendered_pages(ctx: &Ctx, pdf: &Path, work: &WorkDir) -> JobResult<Vec<super::pagedoc::Page>> {
+    ctx.progress(None, "Rendering pages");
+    let ppm = require(ctx.deps, "pdftoppm")?;
+    let sizes = shown_page_sizes(ctx, pdf)?;
+    let dpi = ctx.opts.dpi.unwrap_or(150);
+    if !(36..=1200).contains(&dpi) {
+        return Err(JobError::invalid_options("dpi must be between 36 and 1200"));
+    }
+    Cmd::new(ppm)
+        .args(["-jpeg", "-jpegopt", "quality=90", "-r"])
+        .arg(dpi.to_string())
+        .arg(pdf)
+        .arg(work.join("page"))
+        .run_ok()?;
+    let number = |p: &PathBuf| -> Option<u32> {
+        p.file_stem()?.to_str()?.strip_prefix("page-")?.parse().ok()
+    };
+    let mut files: Vec<PathBuf> = files_in(work.path())?
+        .into_iter()
+        .filter(|p| number(p).is_some())
+        .collect();
+    files.sort_by_key(|p| number(p));
+    if files.len() != sizes.len() {
+        return Err(JobError::tool_failed("pdftoppm did not render every page"));
+    }
+    files
+        .iter()
+        .zip(sizes)
+        .map(|(file, (width_pt, height_pt))| {
+            crate::process::check_cancel()?;
+            Ok(super::pagedoc::Page {
+                jpeg: std::fs::read(file)?,
+                width_pt,
+                height_pt,
+            })
+        })
+        .collect()
+}
+
 /// Convert a PDF.
 pub fn convert(ctx: &Ctx, input: &Input, target: &str) -> JobResult<Produced> {
+    let layout = ctx.opts.pdf_layout.as_deref();
+    if layout.is_some_and(|l| l != "editable" && l != "pages") {
+        return Err(JobError::invalid_options(
+            "pdf_layout must be editable or pages",
+        ));
+    }
+    if layout == Some("pages") && matches!(target, "epub" | "docx") {
+        let staged = input.stage("", target)?;
+        let work = WorkDir::new_in(&input.out_dir)?;
+        let pages = rendered_pages(ctx, &input.path, &work)?;
+        if target == "epub" {
+            super::pagedoc::write_epub(staged.path(), input.stem(), &pages)?;
+        } else {
+            super::pagedoc::write_docx(staged.path(), &pages)?;
+        }
+        return Ok(staged.commit()?.into());
+    }
     match target {
         "jpg" | "png" => to_images(ctx, &input.path, input.stem(), &input.out_dir, target),
         "txt" => {

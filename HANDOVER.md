@@ -116,7 +116,7 @@ Kurulumdan sonra çalışan `nashi --background` işlemi de yeniden başlatılma
 * **Bizden kaynaklanmayan günlük satırları:** Purpose'un `missing mandatory argument "device"`, `JobView.qml: non-existent property` ve `bluetoothplugin_config.qml` binding loop satırları. `installEventFilter ... different thread` uyarısının kaynağı bulunmadı, paylaşımı etkilemedi.
 
 ### 3.2. Upstream'de Bulunup Henüz Port Edilmeyen İkincil Özellikler
-* **Format tercihlerinin kalanı:** PDF kaynağı için EPUB ve DOCX'te sayfaları koruyan düzen; GIF sıkıştırma ön ayarı.
+* **Format tercihlerinin kalanı:** GIF sıkıştırma ön ayarı ve `pages` için PDF'ten Pages çıktısı (Pages yazımı yok). Sayfa düzenli EPUB ve DOCX gerçek bir okuyucuda ve Word'de denenmedi; DOCX yalnızca LibreOffice ile açıldı.
 * **Ses yüksekliği:** Linux `loudnorm`'u tek geçişte çalıştırır, upstream iki geçişli. Testte hedefin ±1,5 LU içinde kaldı.
 * **Çeviri:** Fransızca (`fr`) yok. `ui/src/language.cpp` ve Ayarlar yalnızca `en`/`tr` tanıyor; 735 metin ve motor mesajları çevrilmeli.
 * **Gerçek oturumda denenmeyenler:** Pick aşamasında klavye, çarktan Paylaş ve çark seçim sesi (`QtMultimedia` `SoundEffect`; offscreen'de çalınmaz).

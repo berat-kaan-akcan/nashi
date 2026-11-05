@@ -260,7 +260,8 @@ QString formatKey(const QString &format, const QString &kind)
 
 QStringList Settings::formatDefaultFormats() const
 {
-    return qualityImages() + otherImages() + lossyAudio() + losslessAudio() + videos() + QStringList{QStringLiteral("gif")};
+    return qualityImages() + otherImages() + lossyAudio() + losslessAudio() + videos()
+           + QStringList{QStringLiteral("gif"), QStringLiteral("docx"), QStringLiteral("epub")};
 }
 
 QStringList Settings::formatDefaultKinds(const QString &format) const
@@ -282,6 +283,8 @@ QStringList Settings::formatDefaultKinds(const QString &format) const
         return {quality, QStringLiteral("videoHeight"), kbps, keep};
     if (format == QLatin1String("gif"))
         return {QStringLiteral("gifFps"), QStringLiteral("gifWidth")};
+    if (format == QLatin1String("docx") || format == QLatin1String("epub"))
+        return {QStringLiteral("pdfLayout")};
     return {};
 }
 
@@ -301,6 +304,7 @@ QVariantMap Settings::formatDefaults(const QString &format) const
     };
     return {
         // Empty: leave the choice to the engine.
+        {QStringLiteral("pdfLayout"), oneOf("pdfLayout", {QStringLiteral("pages")})},
         {QStringLiteral("sampleDepth"), oneOf("sampleDepth", {QStringLiteral("16"), QStringLiteral("24"), QStringLiteral("32"), QStringLiteral("float32")})},
         {QStringLiteral("audioCompression"), oneOf("audioCompression", {QStringLiteral("fast"), QStringLiteral("balanced"), QStringLiteral("maximum")})},
         {QStringLiteral("quality"), quality},
@@ -351,6 +355,7 @@ QJsonObject Settings::conversionOptions(const QString &target) const
         if (kinds.contains(QString::fromLatin1(kind)) && !v.isEmpty())
             options.insert(QString::fromLatin1(key), v);
     };
+    text("pdfLayout", "pdf_layout");
     text("sampleDepth", "sample_depth");
     text("audioCompression", "audio_compression");
     const auto number = [&](const char *kind, const char *key, int neutral) {

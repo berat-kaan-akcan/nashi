@@ -89,7 +89,7 @@ public:
 
     // Conversion defaults per output format (upstream's format preferences).
     // Kinds: quality, keepMetadata, audioKbps, videoHeight, gifFps, gifWidth, sampleDepth,
-    // audioCompression.
+    // audioCompression, pdfLayout.
     Q_INVOKABLE QStringList formatDefaultFormats() const;
     Q_INVOKABLE QStringList formatDefaultKinds(const QString &format) const;
     Q_INVOKABLE QVariantMap formatDefaults(const QString &format) const;

@@ -358,7 +358,11 @@ private Q_SLOTS:
         choose("flac");
         QVERIFY(!shown("formatAudioKbps"));
         QVERIFY(shown("formatKeepMetadata"));
+        choose("docx");
+        QVERIFY(shown("formatPdfLayout"));
+        QVERIFY(!shown("formatKeepMetadata"));
         choose("mp4");
+        QVERIFY(!shown("formatPdfLayout"));
         QVERIFY(shown("formatQuality"));
         QVERIFY(shown("formatAudioKbps"));
         QVERIFY(shown("formatVideoHeight"));

@@ -2530,6 +2530,22 @@
         <translation>En küçük dosya</translation>
     </message>
     <message>
+        <source>From a PDF</source>
+        <translation>PDF&apos;ten</translation>
+    </message>
+    <message>
+        <source>Layout when converting from a PDF</source>
+        <translation>PDF&apos;ten dönüştürürken düzen</translation>
+    </message>
+    <message>
+        <source>Editable text</source>
+        <translation>Düzenlenebilir metin</translation>
+    </message>
+    <message>
+        <source>Keep the pages as pictures</source>
+        <translation>Sayfaları görsel olarak koru</translation>
+    </message>
+    <message>
         <source>Frame rate</source>
         <translation>Kare hızı</translation>
     </message>
@@ -2548,6 +2564,10 @@
     <message>
         <source>Largest GIF width</source>
         <translation>En fazla GIF genişliği</translation>
+    </message>
+    <message>
+        <source>Pictures keep the layout and also work for scanned PDFs, but the text cannot be edited.</source>
+        <translation>Görseller düzeni korur ve taranmış PDF&apos;lerde de çalışır, ama metin düzenlenemez.</translation>
     </message>
     <message>
         <source>Keep metadata</source>

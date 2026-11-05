@@ -240,6 +240,9 @@ pub struct Options {
     pub loudness_range: Option<f64>,
     /// `normalizeAudio`: true peak limit in dBTP, -9..=0 (default -1.5).
     pub true_peak: Option<f64>,
+    /// PDF to `epub` or `docx`: `editable` (default) or `pages`, which keeps each
+    /// page as a picture.
+    pub pdf_layout: Option<String>,
     /// PDF → image resolution, 36..=1200 (default 150).
     pub dpi: Option<u32>,
     pub quality: Option<u32>,

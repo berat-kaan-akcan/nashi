@@ -239,6 +239,21 @@ private Q_SLOTS:
         QVERIFY(!s.conversionOptions(QStringLiteral("wav")).contains(QStringLiteral("sample_depth")));
     }
 
+    void pdfLayoutBecomesAnEngineOption()
+    {
+        QTemporaryDir dir;
+        Settings s(dir.filePath(QStringLiteral("nashi.conf")), nullptr);
+        for (const char *format : {"docx", "epub"}) {
+            const QString f = QString::fromLatin1(format);
+            QVERIFY(s.formatDefaultFormats().contains(f));
+            QCOMPARE(s.formatDefaultKinds(f), QStringList{QStringLiteral("pdfLayout")});
+            QVERIFY(s.conversionOptions(f).isEmpty());
+            s.setFormatDefault(f, QStringLiteral("pdfLayout"), QStringLiteral("pages"));
+            QCOMPARE(s.conversionOptions(f).value(QStringLiteral("pdf_layout")).toString(), QStringLiteral("pages"));
+        }
+        QVERIFY(s.conversionOptions(QStringLiteral("pptx")).isEmpty());
+    }
+
     void compressDefaults()
     {
         QTemporaryDir dir;

@@ -7,6 +7,7 @@ pub mod image;
 pub mod media;
 pub mod metadata;
 pub mod office;
+pub mod pagedoc;
 pub mod pdf;
 pub mod subtitle;
 pub mod textclip;
