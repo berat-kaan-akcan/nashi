@@ -118,9 +118,9 @@ qt_add_qml_module(nashi_ui
 qt_add_executable(nashi src/main.cpp)
 target_link_libraries(nashi PRIVATE nashi_ui nashi_uiplugin)
 
-# Translations are embedded in nashi_ui (:/i18n/nashi_tr.qm) so the tests see them too.
+# Translations are embedded in nashi_ui (:/i18n/nashi_*.qm) so the tests see them too.
 qt_add_translations(nashi_ui
-    TS_FILES i18n/nashi_tr.ts
+    TS_FILES i18n/nashi_tr.ts i18n/nashi_fr.ts
     SOURCE_TARGETS nashi_ui nashi
     RESOURCE_PREFIX /i18n
     LUPDATE_OPTIONS -no-obsolete -locations none

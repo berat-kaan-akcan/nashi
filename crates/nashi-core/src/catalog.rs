@@ -138,11 +138,12 @@ pub fn target_category(ext: &str) -> Category {
     }
 }
 
-/// Bilingual title.
+/// Title in each UI language.
 #[derive(Debug, Clone, Copy, Serialize)]
 pub struct Title {
     pub en: &'static str,
     pub tr: &'static str,
+    pub fr: &'static str,
 }
 
 /// Static description of a tool.
@@ -159,13 +160,14 @@ const fn t(
     id: &'static str,
     en: &'static str,
     tr: &'static str,
+    fr: &'static str,
     icon: &'static str,
     needs_editor: bool,
     multi_input: bool,
 ) -> ToolDef {
     ToolDef {
         id,
-        title: Title { en, tr },
+        title: Title { en, tr, fr },
         icon,
         needs_editor,
         multi_input,
@@ -179,6 +181,7 @@ pub const TOOLS: &[ToolDef] = &[
         "compress",
         "Compress",
         "Sıkıştır",
+        "Compresser",
         "package-x-generic",
         false,
         false,
@@ -187,6 +190,7 @@ pub const TOOLS: &[ToolDef] = &[
         "removeMetadata",
         "Metadata",
         "Meta Verileri Sil",
+        "Métadonnées",
         "edit-clear-all",
         false,
         false,
@@ -195,6 +199,7 @@ pub const TOOLS: &[ToolDef] = &[
         "editImage",
         "Edit Photo",
         "Fotoğrafı Düzenle",
+        "Modifier la photo",
         "document-edit",
         true,
         false,
@@ -203,6 +208,7 @@ pub const TOOLS: &[ToolDef] = &[
         "annotateImage",
         "Annotate Photo",
         "Fotoğrafa Not Ekle",
+        "Annoter la photo",
         "draw-freehand",
         true,
         false,
@@ -211,6 +217,7 @@ pub const TOOLS: &[ToolDef] = &[
         "frameImage",
         "Add BG",
         "Arka Plan Ekle",
+        "Ajouter un fond",
         "draw-rectangle",
         true,
         false,
@@ -219,6 +226,7 @@ pub const TOOLS: &[ToolDef] = &[
         "cropImage",
         "Crop Image",
         "Görseli Kırp",
+        "Recadrer l’image",
         "transform-crop",
         true,
         false,
@@ -227,6 +235,7 @@ pub const TOOLS: &[ToolDef] = &[
         "normalizeAudio",
         "Normalize Volume",
         "Ses Seviyesini Eşitle",
+        "Normaliser le volume",
         "audio-volume-high",
         false,
         false,
@@ -235,6 +244,7 @@ pub const TOOLS: &[ToolDef] = &[
         "muteVideo",
         "Remove Audio",
         "Sesi Kaldır",
+        "Supprimer l’audio",
         "audio-volume-muted",
         false,
         false,
@@ -243,6 +253,7 @@ pub const TOOLS: &[ToolDef] = &[
         "trimVideo",
         "Trim Video",
         "Videoyu Kes",
+        "Élaguer la vidéo",
         "edit-cut",
         true,
         false,
@@ -251,6 +262,7 @@ pub const TOOLS: &[ToolDef] = &[
         "splitPDF",
         "Split PDF",
         "PDF'yi Böl",
+        "Diviser un PDF",
         "view-split-left-right",
         false,
         false,
@@ -259,6 +271,7 @@ pub const TOOLS: &[ToolDef] = &[
         "organizePDF",
         "Organize PDF",
         "PDF'yi Düzenle",
+        "Organiser un PDF",
         "view-sort",
         true,
         false,
@@ -267,6 +280,7 @@ pub const TOOLS: &[ToolDef] = &[
         "extractArchive",
         "Extract Archive",
         "Arşivi Çıkar",
+        "Extraire l’archive",
         "archive-extract",
         false,
         false,
@@ -275,6 +289,7 @@ pub const TOOLS: &[ToolDef] = &[
         "createPDF",
         "Create PDF",
         "PDF Oluştur",
+        "Créer un PDF",
         "application-pdf",
         false,
         true,
@@ -283,6 +298,7 @@ pub const TOOLS: &[ToolDef] = &[
         "mergePDF",
         "Merge PDFs",
         "PDF'leri Birleştir",
+        "Fusionner des PDF",
         "merge",
         false,
         true,
@@ -291,6 +307,7 @@ pub const TOOLS: &[ToolDef] = &[
         "cropVideo",
         "Crop Video",
         "Videoyu Kırp",
+        "Recadrer la vidéo",
         "transform-crop",
         true,
         false,
@@ -299,6 +316,7 @@ pub const TOOLS: &[ToolDef] = &[
         "changeVideoSpeed",
         "Change Video Speed",
         "Video Hızını Değiştir",
+        "Vitesse de la vidéo",
         "media-seek-forward",
         true,
         false,
@@ -307,6 +325,7 @@ pub const TOOLS: &[ToolDef] = &[
         "joinVideos",
         "Join Videos",
         "Videoları Birleştir",
+        "Assembler des vidéos",
         "media-playlist-append",
         false,
         true,
@@ -315,6 +334,7 @@ pub const TOOLS: &[ToolDef] = &[
         "videoSnapshots",
         "Video Snapshots",
         "Video Kareleri",
+        "Captures de la vidéo",
         "camera-photo",
         false,
         false,
@@ -323,6 +343,7 @@ pub const TOOLS: &[ToolDef] = &[
         "splitVideo",
         "Split Video",
         "Videoyu Böl",
+        "Diviser la vidéo",
         "view-split-left-right",
         false,
         false,
@@ -331,6 +352,7 @@ pub const TOOLS: &[ToolDef] = &[
         "audioToVideo",
         "Audio Visualizer",
         "Ses Görselleştirici",
+        "Visualiseur audio",
         "view-media-visualization",
         false,
         false,
@@ -339,6 +361,7 @@ pub const TOOLS: &[ToolDef] = &[
         "trimAudio",
         "Trim Audio",
         "Sesi Kes",
+        "Élaguer l’audio",
         "edit-cut",
         true,
         false,
@@ -347,6 +370,7 @@ pub const TOOLS: &[ToolDef] = &[
         "audioChannels",
         "Convert Audio Channels",
         "Ses Kanallarını Dönüştür",
+        "Convertir les canaux audio",
         "audio-card",
         false,
         false,
@@ -355,6 +379,7 @@ pub const TOOLS: &[ToolDef] = &[
         "createCollage",
         "Create Collage",
         "Kolaj Oluştur",
+        "Créer un collage",
         "view-grid",
         false,
         true,
@@ -363,6 +388,7 @@ pub const TOOLS: &[ToolDef] = &[
         "redactImage",
         "Redact Photo",
         "Fotoğrafı Karart",
+        "Caviarder la photo",
         "redact",
         true,
         false,
@@ -371,6 +397,7 @@ pub const TOOLS: &[ToolDef] = &[
         "redactVideo",
         "Redact Video",
         "Videoyu Karart",
+        "Caviarder la vidéo",
         "redact",
         true,
         false,
@@ -379,6 +406,7 @@ pub const TOOLS: &[ToolDef] = &[
         "redactAudio",
         "Bleep Audio",
         "Sesi Sansürle",
+        "Masquer l’audio par un bip",
         "audio-volume-muted",
         true,
         false,
@@ -387,6 +415,7 @@ pub const TOOLS: &[ToolDef] = &[
         "readQRCode",
         "Read QR Codes",
         "QR Kodlarını Oku",
+        "Lire les codes QR",
         "view-barcode-qr",
         false,
         false,
@@ -411,6 +440,7 @@ pub const ACTIONS: &[ActionDef] = &[
         title: Title {
             en: "Share",
             tr: "Paylaş",
+            fr: "Partager",
         },
         icon: "document-share",
     },
@@ -419,6 +449,7 @@ pub const ACTIONS: &[ActionDef] = &[
         title: Title {
             en: "Add to Float",
             tr: "Float'a Ekle",
+            fr: "Ajouter au Float",
         },
         icon: "window-pin",
     },
@@ -427,6 +458,7 @@ pub const ACTIONS: &[ActionDef] = &[
         title: Title {
             en: "Copy",
             tr: "Kopyala",
+            fr: "Copier",
         },
         icon: "edit-copy",
     },
@@ -435,6 +467,7 @@ pub const ACTIONS: &[ActionDef] = &[
         title: Title {
             en: "Copy Path",
             tr: "Yolu Kopyala",
+            fr: "Copier le chemin",
         },
         icon: "edit-copy-path",
     },
@@ -443,6 +476,7 @@ pub const ACTIONS: &[ActionDef] = &[
         title: Title {
             en: "Open Terminal Here",
             tr: "Burada Terminal Aç",
+            fr: "Ouvrir un terminal ici",
         },
         icon: "utilities-terminal",
     },
@@ -451,6 +485,7 @@ pub const ACTIONS: &[ActionDef] = &[
         title: Title {
             en: "Open Folder",
             tr: "Klasörü Aç",
+            fr: "Ouvrir le dossier",
         },
         icon: "folder-open",
     },
@@ -458,7 +493,8 @@ pub const ACTIONS: &[ActionDef] = &[
         id: "reveal",
         title: Title {
             en: "Show in File Manager",
-            tr: "Dosya Yöneticisinde Göster",
+            tr: "Dosya Yöneticisinde Aç",
+            fr: "Afficher dans les fichiers",
         },
         icon: "system-file-manager",
     },
@@ -929,6 +965,7 @@ mod tests {
             let d = tool_def(id).unwrap_or_else(|| panic!("tool {id} missing from TOOLS"));
             assert_eq!(d.title.en, name, "en title of {id} must match upstream");
             assert!(!d.title.tr.is_empty());
+            assert!(!d.title.fr.is_empty());
             assert!(!d.icon.is_empty());
         }
         assert_eq!(TOOLS.len(), u.tool_names.len());

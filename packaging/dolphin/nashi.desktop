@@ -11,17 +11,20 @@ X-KDE-Priority=TopLevel
 [Desktop Action convert]
 Name=Convert…
 Name[tr]=Dönüştür…
+Name[fr]=Convertir…
 Icon=document-export
 Exec=nashi --wheel --mode convert %F
 
 [Desktop Action tools]
 Name=Tools…
 Name[tr]=Araçlar…
+Name[fr]=Outils…
 Icon=applications-utilities
 Exec=nashi --wheel --mode tools %F
 
 [Desktop Action open]
 Name=Open in Nashi
 Name[tr]=Nashi'de Aç
+Name[fr]=Ouvrir dans Nashi
 Icon=io.github.beratkaanakcan.Nashi
 Exec=nashi %F

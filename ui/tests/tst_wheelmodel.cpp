@@ -15,7 +15,7 @@ QJsonObject sampleWheel()
       "convert": [{"id": "mp3", "title": "MP3", "available": true},
                   {"id": "webm", "title": "WEBM", "available": false, "missing": ["ffmpeg"]},
                   {"title": "no id"}],
-      "tools": [{"id": "compress", "title": {"en": "Compress", "tr": "Sıkıştır"}, "icon": "compress", "available": true, "needs_editor": false},
+      "tools": [{"id": "compress", "title": {"en": "Compress", "tr": "Sıkıştır", "fr": "Compresser"}, "icon": "compress", "available": true, "needs_editor": false},
                 {"id": "trim", "title": {"en": "Trim", "tr": "Kırp"}, "available": true, "needs_editor": true},
                 {"id": "removeMetadata", "title": {"en": "Remove Metadata"}, "available": false, "missing": ["exiftool", "qpdf"]}],
       "actions": [{"id": "copyPath", "title": {"en": "Copy Path", "tr": "Yolu Kopyala"}, "icon": "edit-copy"}]

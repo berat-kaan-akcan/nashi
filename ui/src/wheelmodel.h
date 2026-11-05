@@ -38,7 +38,7 @@ public:
     // Pure builder (unit-tested): picks the list for `mode` ("convert",
     // "tools", "actions"), drops tools with needs_editor, localises titles.
     static QList<WheelItem> buildItems(const QJsonObject &wheel, const QString &mode, const QString &language);
-    // Localised title from either a plain string or an {"en","tr"} object.
+    // Localised title from either a plain string or an {"en","tr","fr"} object.
     static QString localizedTitle(const QJsonValue &title, const QString &language);
     static QString normalizeMode(const QString &mode);
     // Editor tools (`needs_editor`) that OptionsWindow.qml has a form for.

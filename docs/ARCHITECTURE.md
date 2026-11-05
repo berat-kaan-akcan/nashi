@@ -48,7 +48,7 @@ reference/        upstream Nashi FeatureCatalog.json (MIT) used as the source of
 - **No shell.** Every external tool is invoked with an argv array. File names starting with `-` are passed as `./-name` or after `--` where supported.
 - **Local only.** No network except the explicit web-download tool (yt-dlp, later phase).
 - **Graceful degradation.** Missing tools never crash; routes needing them are reported as unavailable with the package name to install (`nashi-cli deps`).
-- **i18n.** UI strings are English source with Turkish translation (Qt `.ts`). Catalog titles have `en` and `tr`.
+- **i18n.** UI strings are English source with Turkish and French translations (Qt `.ts`). Catalog titles have `en`, `tr` and `fr`.
 - **Security of inputd.** It reads raw input devices but emits only chord state (mode, drag started/ended). It never logs or exports key codes beyond modifiers + primary button.
 
 ## Integration points (fixed names shared by all components)

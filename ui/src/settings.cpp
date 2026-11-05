@@ -31,7 +31,7 @@ Settings::~Settings() = default;
 QString Settings::language() const
 {
     const QString v = m_store.value(QStringLiteral("ui/language"), QStringLiteral("auto")).toString();
-    return (v == QLatin1String("en") || v == QLatin1String("tr")) ? v : QStringLiteral("auto");
+    return (v == QLatin1String("en") || v == QLatin1String("tr") || v == QLatin1String("fr")) ? v : QStringLiteral("auto");
 }
 
 void Settings::setLanguage(const QString &lang)

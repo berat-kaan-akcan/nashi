@@ -12,9 +12,16 @@ Language::Language(QObject *parent)
 
 QString Language::resolve(const QString &setting, const QLocale &system)
 {
-    if (setting == QLatin1String("en") || setting == QLatin1String("tr"))
+    if (setting == QLatin1String("en") || setting == QLatin1String("tr") || setting == QLatin1String("fr"))
         return setting;
-    return system.language() == QLocale::Turkish ? QStringLiteral("tr") : QStringLiteral("en");
+    switch (system.language()) {
+    case QLocale::Turkish:
+        return QStringLiteral("tr");
+    case QLocale::French:
+        return QStringLiteral("fr");
+    default:
+        return QStringLiteral("en");
+    }
 }
 
 void Language::apply(const QString &setting)
@@ -33,7 +40,7 @@ void Language::apply(const QString &setting)
             QCoreApplication::installTranslator(&m_qt);
         m_installed = true;
     }
-    QLocale::setDefault(QLocale(code == QLatin1String("tr") ? QLocale::Turkish : QLocale::English));
+    QLocale::setDefault(QLocale(code));
     const bool changed = code != m_code;
     m_code = code;
     for (QQmlEngine *e : std::as_const(m_engines))

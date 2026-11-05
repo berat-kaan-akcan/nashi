@@ -5,14 +5,17 @@
 #include "recentmodel.h"
 #include "settings.h"
 
+#include <QFile>
 #include <QJsonDocument>
 #include <QMimeData>
+#include <QRegularExpression>
 #include <QSettings>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTranslator>
 #include <QUrl>
+#include <QXmlStreamReader>
 
 class TestMisc : public QObject
 {
@@ -168,6 +171,8 @@ private Q_SLOTS:
         s.setUseCustomOutputDir(true);
         QCOMPARE(s.effectiveOutputDir(), QStringLiteral("/out"));
         QCOMPARE(out.count(), 2);
+        s.setLanguage(QStringLiteral("fr"));
+        QCOMPARE(s.language(), QStringLiteral("fr"));
         s.store().setValue(QStringLiteral("ui/language"), QStringLiteral("klingon"));
         QCOMPARE(s.language(), QStringLiteral("auto"));
     }
@@ -178,6 +183,8 @@ private Q_SLOTS:
         QCOMPARE(Language::resolve(QStringLiteral("auto"), QLocale(QLocale::German)), QStringLiteral("en"));
         QCOMPARE(Language::resolve(QStringLiteral("en"), QLocale(QLocale::Turkish)), QStringLiteral("en"));
         QCOMPARE(Language::resolve(QStringLiteral("tr"), QLocale(QLocale::English)), QStringLiteral("tr"));
+        QCOMPARE(Language::resolve(QStringLiteral("auto"), QLocale(QLocale::French, QLocale::France)), QStringLiteral("fr"));
+        QCOMPARE(Language::resolve(QStringLiteral("fr"), QLocale(QLocale::Turkish)), QStringLiteral("fr"));
     }
 
     void turkishTranslationLoads()
@@ -189,6 +196,61 @@ private Q_SLOTS:
         QCOMPARE(QCoreApplication::translate("Selection", "%n file(s)", nullptr, 3), QStringLiteral("3 dosya"));
         lang.apply(QStringLiteral("en"));
         QCOMPARE(QCoreApplication::translate("JobCard", "Show in folder"), QStringLiteral("Show in folder"));
+    }
+
+    void frenchTranslationLoads()
+    {
+        Language lang;
+        lang.apply(QStringLiteral("fr"));
+        QCOMPARE(lang.code(), QStringLiteral("fr"));
+        QCOMPARE(QCoreApplication::translate("JobCard", "Show in folder"), QStringLiteral("Afficher dans le dossier"));
+        // French counts 0 and 1 as singular.
+        QCOMPARE(QCoreApplication::translate("Selection", "%n file(s)", nullptr, 1), QStringLiteral("1 fichier"));
+        QCOMPARE(QCoreApplication::translate("Selection", "%n file(s)", nullptr, 3), QStringLiteral("3 fichiers"));
+        lang.apply(QStringLiteral("en"));
+    }
+
+    // A translation that drops a placeholder would show the raw text or lose a value.
+    void translationsKeepEveryPlaceholder_data()
+    {
+        QTest::addColumn<QString>("language");
+        QTest::newRow("tr") << QStringLiteral("tr");
+        QTest::newRow("fr") << QStringLiteral("fr");
+    }
+
+    void translationsKeepEveryPlaceholder()
+    {
+        QFETCH(QString, language);
+        QFile file(QStringLiteral(NASHI_I18N_DIR "/nashi_%1.ts").arg(language));
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        const QRegularExpression placeholder(QStringLiteral("%(\\d|n)"));
+        const auto found = [&](const QString &text) {
+            QStringList list;
+            for (const auto &m : placeholder.globalMatch(text))
+                list << m.captured(0);
+            list.sort();
+            return list;
+        };
+        QXmlStreamReader xml(&file);
+        QString source;
+        int checked = 0;
+        while (!xml.atEnd()) {
+            if (xml.readNext() != QXmlStreamReader::StartElement)
+                continue;
+            const auto name = xml.name();
+            if (name == QLatin1String("source")) {
+                source = xml.readElementText();
+            } else if (name == QLatin1String("numerusform")
+                       || (name == QLatin1String("translation")
+                           && xml.attributes().value(QStringLiteral("type")).isEmpty()
+                           && !source.contains(QLatin1String("%n")))) {
+                const QString text = xml.readElementText();
+                QVERIFY2(found(text) == found(source), qPrintable(source + QStringLiteral(" => ") + text));
+                ++checked;
+            }
+        }
+        QVERIFY(!xml.hasError());
+        QVERIFY(checked > 500);
     }
 };
 

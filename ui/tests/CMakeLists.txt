@@ -11,7 +11,8 @@ function(nashi_add_test name)
     qt_add_executable(${name} ${name}.cpp)
     target_link_libraries(${name} PRIVATE nashi_ui nashi_uiplugin Qt6::Test)
     target_compile_definitions(${name} PRIVATE FAKE_CLI="${FAKE_CLI}"
-                               NASHI_QML_SRC_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../qml")
+                               NASHI_QML_SRC_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../qml"
+                               NASHI_I18N_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../i18n")
     add_test(NAME ${name} COMMAND ${name})
     set(env
         "QT_QPA_PLATFORM=offscreen"
@@ -44,9 +45,11 @@ nashi_add_test(tst_editors)
 nashi_add_test(tst_desktop)
 
 # The Turkish translation must stay complete.
-add_test(NAME tst_translations_complete
-         COMMAND ${CMAKE_COMMAND} -DTS_FILE=${CMAKE_CURRENT_SOURCE_DIR}/../i18n/nashi_tr.ts
-                 -P ${CMAKE_CURRENT_SOURCE_DIR}/check_translations.cmake)
+foreach(lang tr fr)
+    add_test(NAME tst_translations_complete_${lang}
+             COMMAND ${CMAKE_COMMAND} -DTS_FILE=${CMAKE_CURRENT_SOURCE_DIR}/../i18n/nashi_${lang}.ts
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/check_translations.cmake)
+endforeach()
 
 # Forms against the real engine; skipped until `cargo build` has made nashi-cli.
 set(NASHI_REAL_CLI "${CMAKE_CURRENT_SOURCE_DIR}/../../target/debug/nashi-cli" CACHE FILEPATH "nashi-cli for tst_forms_engine")

@@ -81,7 +81,7 @@ def wheel(files):
             {"id": "copyPath", "title": {"en": "Copy Path", "tr": "Yolu Kopyala"}, "icon": "edit-copy"},
             {"id": "terminal", "title": {"en": "Open Terminal", "tr": "Terminal Aç"}, "icon": "utilities-terminal"},
             {"id": "openFolder", "title": {"en": "Open Folder", "tr": "Klasörü Aç"}, "icon": "folder-open"},
-            {"id": "reveal", "title": {"en": "Show in File Manager", "tr": "Dosya Yöneticisinde Göster"},
+            {"id": "reveal", "title": {"en": "Show in File Manager", "tr": "Dosya Yöneticisinde Aç"},
              "icon": "system-file-manager"},
         ],
     }

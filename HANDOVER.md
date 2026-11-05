@@ -55,14 +55,14 @@ Nashi ([`orkunisitmak/nashi-app`](https://github.com/orkunisitmak/nashi-app), MI
   * [`ShareSheet.qml`](ui/qml/ShareSheet.qml): Dinamik KDE Purpose (`org.kde.purpose`) paylaşım menüsü.
 
 ### 2.5. Çeviri, Paketleme ve Test Durumu
-* **Türkçe çeviri ([`ui/i18n/nashi_tr.ts`](ui/i18n/nashi_tr.ts)):** **735/735** metin eksiksiz çevrildi (`0 unfinished`).
+* **Çeviriler ([`nashi_tr.ts`](ui/i18n/nashi_tr.ts), [`nashi_fr.ts`](ui/i18n/nashi_fr.ts)):** ikisinde de **760/760** metin çevrili (`0 unfinished`).
 * **İkon kontrolü:** QML içindeki 60 ikon referansının tamamı sistem ikon temalarında doğrulandı.
 * **Paketleme ([`packaging/arch/PKGBUILD`](packaging/arch/PKGBUILD)):** `optdepends` listesine `curl`, `qt6-multimedia` ve `purpose` eklendi.
 * **Son test koşusu (2026-11-05):**
   * `cargo fmt --all -- --check` → **PASS**
   * `cargo clippy --workspace --all-targets -- -D warnings` → **PASS (0 uyarı)**
-  * `cargo test --workspace` → **258 test PASS, 0 FAIL** (bu makinede tüm araçlar kurulu olduğu için skip yok)
-  * `QT_QPA_PLATFORM=offscreen ctest --test-dir build/ui --output-on-failure` → **15/15 test paketi PASS, 0 QML uyarısı** (`tst_editors`, `tst_desktop`, `tst_qmlsmoke`, `tst_translations_complete` dahil)
+  * `cargo test --workspace` → **282 test PASS, 0 FAIL** (bu makinede tüm araçlar kurulu olduğu için skip yok)
+  * `QT_QPA_PLATFORM=offscreen ctest --test-dir build/ui --output-on-failure` → **17/17 test paketi PASS, 0 QML uyarısı** (`tst_editors`, `tst_desktop`, `tst_qmlsmoke`, `tst_translations_complete_tr` ve `_fr` dahil)
 
 ### 2.5.1. Upstream Eşitlemesi (`be59b13`, 2026-11-04)
 Upstream'in `b3c60f2..be59b13` aralığı incelendi; Linux'u etkileyen hatalar örnek dosyalarla doğrulanıp testle kapatıldı:
@@ -117,7 +117,7 @@ Kurulumdan sonra çalışan `nashi --background` işlemi de yeniden başlatılma
 
 ### 3.2. Upstream'de Bulunup Henüz Port Edilmeyen İkincil Özellikler
 * **Format tercihlerinin kalanı:** GIF sıkıştırma ön ayarı ve `pages` için PDF'ten Pages çıktısı (Pages yazımı yok). Sayfa düzenli EPUB ve DOCX gerçek bir okuyucuda ve Word'de denenmedi; DOCX yalnızca LibreOffice ile açıldı.
-* **Çeviri:** Fransızca (`fr`) yok. `ui/src/language.cpp` ve Ayarlar yalnızca `en`/`tr` tanıyor; 735 metin ve motor mesajları çevrilmeli.
+* **Çeviri:** Fransızca eklendi (`ui/i18n/nashi_fr.ts`, Ayarlar → Dil, katalog başlıkları, `.desktop` dosyaları): 760 metnin 219'u upstream'in `fr.lproj` çevirisinden, kalanı elle çevrildi. Anadili Fransızca olan biri okumadı. Paylaş eklentilerindeki KDE metinleri uygulama dilini değil sistem dilini izler.
 * **Gerçek oturumda denenmeyenler:** Pick aşamasında klavye, çarktan Paylaş ve çark seçim sesi (`QtMultimedia` `SoundEffect`; offscreen'de çalınmaz).
 * **İşlem bitiş sesi:** Upstream'de yok, yalnızca çark seçim sesi var; o taşındı. Bitiş sesi istenirse ayrı karar gerekir.
 

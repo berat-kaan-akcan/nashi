@@ -23,8 +23,8 @@ Without `--json` the CLI prints human-readable text. Exit codes: `0` all succeed
 {
   "files": [{"path": "/home/u/a.mp4", "ext": "mp4", "category": "video"}],
   "convert": [{"id": "mp3", "title": "MP3", "available": true}],
-  "tools":   [{"id": "compress", "title": {"en": "Compress", "tr": "Sıkıştır"}, "icon": "compress", "available": true, "needs_editor": false}],
-  "actions": [{"id": "copyPath", "title": {"en": "Copy Path", "tr": "Yolu Kopyala"}, "icon": "copy"}]
+  "tools":   [{"id": "compress", "title": {"en": "Compress", "tr": "Sıkıştır", "fr": "Compresser"}, "icon": "compress", "available": true, "needs_editor": false}],
+  "actions": [{"id": "copyPath", "title": {"en": "Copy Path", "tr": "Yolu Kopyala", "fr": "Copier le chemin"}, "icon": "copy"}]
 }
 ```
 
@@ -63,9 +63,9 @@ Categories: `image`, `audio`, `video`, `gif`, `pdf`, `document`, `presentation`,
 ```json
 {"formats": [{"ext": "jpg", "category": "image", "title": "JPG", "targets": ["png", "..."],
               "single_tools": ["compress", "..."], "multiple_tools": ["compress", "..."]}],
- "tools": [{"id": "compress", "title": {"en": "Compress", "tr": "Sıkıştır"}, "icon": "...",
+ "tools": [{"id": "compress", "title": {"en": "Compress", "tr": "Sıkıştır", "fr": "Compresser"}, "icon": "...",
             "needs_editor": false, "multi_input": false, "available": true, "missing": []}],
- "actions": [{"id": "copyPath", "title": {"en": "Copy Path", "tr": "Yolu Kopyala"}, "icon": "edit-copy"}]}
+ "actions": [{"id": "copyPath", "title": {"en": "Copy Path", "tr": "Yolu Kopyala", "fr": "Copier le chemin"}, "icon": "edit-copy"}]}
 ```
 
 Non-`--json` errors and usage errors: a JSON-mode usage error still prints one `{"event":"error","code":"invalid_options",...}` line plus `done` when it happens after `start`; before `start` it prints only to stderr and exits 2.

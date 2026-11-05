@@ -171,7 +171,8 @@ Page {
                     model: [
                         { value: "auto", text: qsTr("System default") },
                         { value: "en", text: "English" },
-                        { value: "tr", text: "Türkçe" }
+                        { value: "tr", text: "Türkçe" },
+                        { value: "fr", text: "Français" }
                     ]
                     currentIndex: Math.max(0, indexOfValue(page.settings.language))
                     onActivated: page.settings.language = currentValue

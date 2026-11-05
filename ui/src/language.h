@@ -6,7 +6,7 @@
 
 class QQmlEngine;
 
-// Installs the UI translation for "auto" (system locale), "en" or "tr" and
+// Installs the UI translation for "auto" (system locale), "en", "tr" or "fr" and
 // tells QML engines to re-evaluate qsTr() bindings.
 class Language : public QObject
 {
@@ -14,7 +14,7 @@ class Language : public QObject
     QML_ELEMENT
     QML_UNCREATABLE("Provided by the application")
 
-    Q_PROPERTY(QString code READ code NOTIFY codeChanged) // effective: "en" | "tr"
+    Q_PROPERTY(QString code READ code NOTIFY codeChanged) // effective: "en" | "tr" | "fr"
 
 public:
     explicit Language(QObject *parent = nullptr);
