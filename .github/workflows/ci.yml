@@ -69,6 +69,42 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: ctest --test-dir build/ui --output-on-failure
 
+  forms:
+    name: Forms on the real engine
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install Qt, Rust and the external tools
+        run: |
+          pacman -Syu --noconfirm --needed \
+            base-devel git rust cmake ninja python \
+            qt6-base qt6-declarative qt6-tools qt6-svg layer-shell-qt \
+            ffmpeg imagemagick libheif librsvg poppler ghostscript qpdf \
+            perl-image-exiftool 7zip zbar
+
+      - name: Add vendor_perl to PATH
+        run: echo /usr/bin/vendor_perl >> "$GITHUB_PATH"
+
+      - uses: actions/checkout@v4
+
+      - uses: Swatinem/rust-cache@v2
+
+      - run: cargo build -p nashi-cli
+
+      # tst_forms_engine skips itself without this binary, which would pass unnoticed.
+      - run: test -x target/debug/nashi-cli
+
+      - name: Configure
+        run: cmake -S ui -B build/ui -G Ninja -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build
+        run: cmake --build build/ui --target tst_forms_engine
+
+      - name: Test
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: ctest --test-dir build/ui -R tst_forms_engine --output-on-failure
+
   lint:
     name: Packaging lint
     runs-on: ubuntu-latest

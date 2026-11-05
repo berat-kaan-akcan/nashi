@@ -147,7 +147,7 @@ git push
 `PKGBUILD` değişirse `makepkg --printsrcinfo > .SRCINFO` ile yenileyin. `NASHI_LOCAL_SRC` ayarlıyken üretilen `.SRCINFO` yüklenmemelidir: kaynak listesi boş çıkar.
 
 ### 3.6. Testlerde Kalan Açıklar
-* Qt testlerinin tamamı `fake-nashi-cli` kullanıyor; arayüz gerçek motorla ve editör JSON'ları gerçek motora karşı test edilmiyor.
+* `tst_forms_engine` tüm seçenek formlarını ve format varsayılanlarını gerçek `nashi-cli` ile çalıştırır ve etkisini ölçer (`cargo build` yapılmamışsa kendini atlar). Formların yalnızca bir kısmı sınanır: kırpma stilleri, bip, sessizlik silme, hedef dosya boyutu ve kolaj düzenlerinin tamamı yalnızca `fake-nashi-cli` ile denetlenir. Diğer Qt testleri sahte CLI kullanır.
 * Editörlerin fare etkileşimleri (kırpma, PDF sürükleme, zaman çizelgesi tutamakları) ve raftan dışarı sürükleme test edilmiyor.
 * `ppt`, `xls`, `rar` ve `.pages` kaynaklı rotaların testi yok (proje kuralı her rota için test ister).
 * `routes.rs` video ve belge rotalarının çoğunda çıktı formatını doğrulamıyor.

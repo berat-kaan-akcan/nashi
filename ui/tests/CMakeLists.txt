@@ -47,3 +47,9 @@ nashi_add_test(tst_desktop)
 add_test(NAME tst_translations_complete
          COMMAND ${CMAKE_COMMAND} -DTS_FILE=${CMAKE_CURRENT_SOURCE_DIR}/../i18n/nashi_tr.ts
                  -P ${CMAKE_CURRENT_SOURCE_DIR}/check_translations.cmake)
+
+# Forms against the real engine; skipped until `cargo build` has made nashi-cli.
+set(NASHI_REAL_CLI "${CMAKE_CURRENT_SOURCE_DIR}/../../target/debug/nashi-cli" CACHE FILEPATH "nashi-cli for tst_forms_engine")
+nashi_add_test(tst_forms_engine)
+set_tests_properties(tst_forms_engine PROPERTIES TIMEOUT 300)
+set_property(TEST tst_forms_engine APPEND PROPERTY ENVIRONMENT "NASHI_CLI=${NASHI_REAL_CLI}")

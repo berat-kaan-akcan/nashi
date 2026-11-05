@@ -433,6 +433,38 @@ private Q_SLOTS:
         QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
     }
 
+    void pdfAndLoudnessChoicesDoNotCarryOverToTheNextFile()
+    {
+        g_messages.clear();
+        QQuickWindow *w = openEditor(QStringLiteral("normalizeAudio"), QStringLiteral("Normalize"), audioPath);
+        QVERIFY(w);
+        w->setProperty("targetLufs", -30);
+        w->setProperty("loudnessRange", 5);
+        w->setProperty("truePeak", -3.0);
+        w->hide();
+        w = openEditor(QStringLiteral("normalizeAudio"), QStringLiteral("Normalize"), audioPath);
+        QCOMPARE(w->property("result").toMap().value(QStringLiteral("target_lufs")).toDouble(), -16.0);
+        QCOMPARE(w->property("result").toMap().value(QStringLiteral("loudness_range")).toDouble(), 11.0);
+        QCOMPARE(w->property("result").toMap().value(QStringLiteral("true_peak")).toDouble(), -1.5);
+        w->hide();
+
+        w = openEditor(QStringLiteral("splitPDF"), QStringLiteral("Split"), pdfPath);
+        w->setProperty("pagesPerFile", 4);
+        w->findChild<QObject *>(QStringLiteral("splitPdfPages"))->setProperty("text", QStringLiteral("1"));
+        w->hide();
+        w = openEditor(QStringLiteral("splitPDF"), QStringLiteral("Split"), pdfPath);
+        QVERIFY(w->property("result").toMap().isEmpty());
+        w->hide();
+
+        w = openEditor(QStringLiteral("mergePDF"), QStringLiteral("Merge"), pdfPath);
+        w->setProperty("uniformWidth", true);
+        w->hide();
+        w = openEditor(QStringLiteral("mergePDF"), QStringLiteral("Merge"), pdfPath);
+        QVERIFY(w->property("result").toMap().isEmpty());
+        w->hide();
+        QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
+    }
+
     void compressFormBuildsOptionsForEachKindOfFile()
     {
         g_messages.clear();

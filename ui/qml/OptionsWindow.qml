@@ -206,6 +206,12 @@ ApplicationWindow {
 
     function reset() {
         speed = 2
+        targetLufs = -16
+        loudnessRange = 11
+        truePeak = -1.5
+        pagesPerFile = 1
+        uniformWidth = false
+        splitPdfPages.text = ""
         rotate = 0
         flip = ""
         borderColor = "#ffffff"
