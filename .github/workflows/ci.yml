@@ -34,7 +34,7 @@ jobs:
             base-devel git rust \
             ffmpeg imagemagick libheif librsvg poppler ghostscript qpdf \
             perl-image-exiftool 7zip zbar \
-            libreoffice-fresh libwpg pandoc-cli bubblewrap yt-dlp unrar qrencode
+            libreoffice-fresh libwpg pandoc-cli bubblewrap yt-dlp unrar unzip qrencode
 
       # exiftool lives in /usr/bin/vendor_perl, normally added via /etc/profile.d.
       - name: Add vendor_perl to PATH
