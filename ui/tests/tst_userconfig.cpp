@@ -172,6 +172,23 @@ private Q_SLOTS:
         QVERIFY(!again.wheelSound());
     }
 
+    void doneSound()
+    {
+        QTemporaryDir dir;
+        const QString file = dir.filePath(QStringLiteral("nashi.conf"));
+        {
+            Settings s(file, nullptr);
+            QSignalSpy spy(&s, &Settings::doneSoundChanged);
+            QVERIFY(!s.doneSound());
+            s.setDoneSound(true);
+            QCOMPARE(spy.count(), 1);
+            s.setDoneSound(true);
+            QCOMPARE(spy.count(), 1);
+        }
+        Settings again(file, nullptr);
+        QVERIFY(again.doneSound());
+    }
+
     void formatDefaultsSendNothingUntilChanged()
     {
         QTemporaryDir dir;

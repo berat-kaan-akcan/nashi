@@ -36,6 +36,8 @@ class Settings : public QObject
     Q_PROPERTY(QString compressImageSize READ compressImageSize WRITE setCompressImageSize NOTIFY compressDefaultsChanged)
     // Short sound when the pointer reaches a wheel slice.
     Q_PROPERTY(bool wheelSound READ wheelSound WRITE setWheelSound NOTIFY wheelSoundChanged)
+    // Short chime when a job finishes successfully. Off by default.
+    Q_PROPERTY(bool doneSound READ doneSound WRITE setDoneSound NOTIFY doneSoundChanged)
     // Resolution of PDF and document pages converted to JPG or PNG.
     Q_PROPERTY(int pdfImageDpi READ pdfImageDpi WRITE setPdfImageDpi NOTIFY pdfImageDpiChanged)
     Q_PROPERTY(double maxWheelScale READ maxWheelScale CONSTANT)
@@ -81,6 +83,8 @@ public:
     void setCompressImageSize(const QString &size);
     bool wheelSound() const;
     void setWheelSound(bool on);
+    bool doneSound() const;
+    void setDoneSound(bool on);
     int pdfImageDpi() const;
     void setPdfImageDpi(int dpi);
     double maxWheelScale() const { return kMaxWheelScale; }
@@ -109,6 +113,7 @@ Q_SIGNALS:
     void startAtLoginChanged();
     void wheelScaleChanged();
     void wheelSoundChanged();
+    void doneSoundChanged();
     void pdfImageDpiChanged();
     void showShelfOnStartupChanged();
     void formatDefaultsChanged();

@@ -2534,6 +2534,10 @@
         <translation>Jouer un son en atteignant une part</translation>
     </message>
     <message>
+        <source>Play a sound when a job finishes</source>
+        <translation>Jouer un son à la fin d’une tâche</translation>
+    </message>
+    <message>
         <source>PDF to image</source>
         <translation>PDF vers image</translation>
     </message>

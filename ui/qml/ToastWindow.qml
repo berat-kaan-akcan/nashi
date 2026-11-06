@@ -18,6 +18,33 @@ Window {
     title: qsTr("Nashi progress")
     onHeightChanged: App.toast.contentResized()
 
+    // QtMultimedia is optional at runtime, so the effect is created on first use.
+    property var doneEffect: null
+    property bool doneSoundBroken: false
+    function playDoneSound() {
+        const platform = Qt.platform.pluginName
+        if (doneSoundBroken || platform === "offscreen" || platform === "minimal" || platform === "minimalegl")
+            return
+        if (!doneEffect) {
+            try {
+                doneEffect = Qt.createQmlObject(
+                    'import QtMultimedia\nSoundEffect { source: "qrc:/qt/qml/NashiApp/resources/job-done.wav" }',
+                    root, "doneSound")
+            } catch (e) {
+                doneSoundBroken = true
+                return
+            }
+        }
+        doneEffect.play()
+    }
+    Connections {
+        target: App.jobs
+        function onJobFinished(job) {
+            if (App.settings.doneSound && job.state === JobRunner.Succeeded)
+                root.playDoneSound()
+        }
+    }
+
     Rectangle {
         anchors.fill: parent
         radius: 18

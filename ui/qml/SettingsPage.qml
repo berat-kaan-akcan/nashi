@@ -258,6 +258,11 @@ Page {
                     checked: page.settings.wheelSound
                     onToggled: page.settings.wheelSound = checked
                 }
+                Switch {
+                    text: qsTr("Play a sound when a job finishes")
+                    checked: page.settings.doneSound
+                    onToggled: page.settings.doneSound = checked
+                }
             }
 
             SectionBox {

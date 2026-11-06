@@ -202,6 +202,19 @@ void Settings::setWheelSound(bool on)
     Q_EMIT wheelSoundChanged();
 }
 
+bool Settings::doneSound() const
+{
+    return m_store.value(QStringLiteral("jobs/doneSound"), false).toBool();
+}
+
+void Settings::setDoneSound(bool on)
+{
+    if (on == doneSound())
+        return;
+    m_store.setValue(QStringLiteral("jobs/doneSound"), on);
+    Q_EMIT doneSoundChanged();
+}
+
 int Settings::pdfImageDpi() const
 {
     bool ok = false;

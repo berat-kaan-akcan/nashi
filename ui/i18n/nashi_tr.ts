@@ -2523,6 +2523,10 @@
         <translation>Bir dilime gelince ses çal</translation>
     </message>
     <message>
+        <source>Play a sound when a job finishes</source>
+        <translation>Bir iş bitince ses çal</translation>
+    </message>
+    <message>
         <source>PDF to image</source>
         <translation>PDF&apos;ten görsele</translation>
     </message>
