@@ -65,7 +65,7 @@ Nashi ([`orkunisitmak/nashi-app`](https://github.com/orkunisitmak/nashi-app), MI
   * `cargo test --workspace` → **282 test PASS, 0 FAIL** (bu makinede tüm araçlar kurulu olduğu için skip yok)
   * `QT_QPA_PLATFORM=offscreen ctest --test-dir build/ui --output-on-failure` → **17/17 test paketi PASS, 0 QML uyarısı** (`tst_editors`, `tst_desktop`, `tst_qmlsmoke`, `tst_translations_complete_tr` ve `_fr` dahil)
 
-### 2.5.1. Upstream Eşitlemesi (`be59b13`, 2026-11-04)
+### 2.5.1. Upstream Eşitlemesi (`be59b13`, 2026-11-04; sonrası için 2.5.6)
 Upstream'in `b3c60f2..be59b13` aralığı incelendi; Linux'u etkileyen hatalar örnek dosyalarla doğrulanıp testle kapatıldı:
 * **Gizlilik:** video karartmada tek sayılı x/y'de açık kalan kenar ve şeffaf videoda sızan renk bilgisi; PDF metadata temizliğinde kalan not yazarı/tarihi (`qpdf` yoksa çıktı uyarı taşır).
 * **Başarısız işler ve bozuk çıktı:** uzun dosya adları, surround/yüksek hızlı ses → opus/wma/wmv, altyazı sırası ve boş satırsız cue'lar, küçük PDF'in sıkıştırmada büyümesi, stdout yazılamayınca panik.
@@ -104,6 +104,12 @@ Upstream'in `b3c60f2..be59b13` aralığı incelendi; Linux'u etkileyen hatalar �
 * **Doğrulama:** Betik metni gerçek KWin'de yalnızca kendi açtığım `kcalc` penceresiyle denendi (sağ yarı, sol alt, tam ekran doğru geometri verdi). Birim testleri (`tst_windowplacer`) betiği sahte `workspace` nesneleriyle çalıştırıp hangi pencerenin seçildiğini sınar.
 * **Denenmedi:** seçicideki düğmeye gerçek oturumda tıklayıp kullanmak; birden çok ekran; çok masaüstü; Plasma dışı masaüstleri (çalışmaz, seçici bunu söyler).
 
+### 2.5.6. Upstream Eşitlemesi (`be59b13..f7bddb3`, v0.7.16 build 47, 2026-11-06, commit edilmedi)
+Aralıktaki 30 commit incelendi. Linux'u etkileyen tek değişiklik QR okuma:
+* **Şeffaf zeminli QR:** `zbarimg` yalnızca koyu-açık zeminli kodu okur; şeffaf veya koyu zeminde açık renkli kod "bulunamadı" veriyordu. `readQRCode` doğrudan okuma başarısız olursa görseli siyaha düzleştirip negatifini alarak ikinci kez dener. Test `read_qr_code`'a eklendi (`qrencode` yoksa atlanır).
+* **Kontrol edilip değişiklik gerekmeyenler:** Kontrast/Dehaze orta gri kayması ve gama yönü (macOS Core Image hataları; ImageMagick'te doğru: kontrast 50'de gri 128→129, gama 1,6'da 128→166), Annotate'in biçimi koruması (Linux zaten koruyor), iptalde yarım çıktı silme (geçici dosya + `commit()`), GIF sıkıştırma ön ayarı (Linux'ta zaten var).
+* **Geçerli değil:** Windows (PDF görselleri, çark/Ayarlar sürüklemesi, WPF), sürüm numarası.
+
 ### 2.6. Test Denetimi (2026-11-04)
 * **Mutasyon testi:** Motor kasıtlı bozularak testlerin hatayı yakalayıp yakalamadığı ölçüldü. İlk ölçümde 9 mutasyonun 8'i yakalanmıyordu. [`crates/nashi-cli/tests/behavior.rs`](crates/nashi-cli/tests/behavior.rs) (piksel, ses seviyesi, LUFS ve dosya boyutu ölçümleri) ve `v02.rs` düzeltmeleriyle işlevsel açıkların tamamı kapandı. Yalnızca `--proto-redir` kaldırılınca test geçiyor, çünkü `--proto` aynı yönlendirmeyi tek başına engelliyor; ikisi birden kaldırılınca test düşüyor.
 * **Düzeltilen hata:** Metinsiz (taranmış) PDF'ten `txt`/`md`/`epub` üretimi başarılı görünüp boş çıktı veriyordu; artık `invalid_input` hatası veriyor.
@@ -130,7 +136,7 @@ Kurulumdan sonra çalışan `nashi --background` işlemi de yeniden başlatılma
 * **Sorunsuz:** Shift/Ctrl/Alt ile sürükleme + çark + bırakma (kaynak dosya silinmeden), iptal, format varsayılanları, Normalleştir, PDF Böl, PDF Birleştir, çark sesi, Float rafı ve dışarı sürükleme, KDE Paylaş, `Ctrl+Shift+D`.
 * **Klavye:** `nashi --wheel` ile açılan çarkta ok tuşları + Enter ile dönüştürme çalışıyor (`foto.png` → `foto.pdf`). Sürükleme sürerken klavye çarka gelmez, bu bekleneni.
 * **Kitaplık önizlemesi:** kullanıcı denedi, sorun yok.
-* **Denenmedi:** bırakma öncesi türü okunamayan kaynaklarda iki aşamalı çark yedeği.
+* **Denenmedi:** bırakma öncesi türü okunamayan kaynaklarda iki aşamalı çark yedeği (Pick). Gerçek oturumda üretilemedi: Dolphin ve Chrome'un yerel dosya sürüklemesi adresi baştan veriyor (çark doğrudan dilimlerle açılıyor, 2026-11-06'da Chrome'dan görsel sürükleyerek görüldü), web görseli `https://` adresi verdiği için bırakınca sessizce iptal ediliyor (`OverlayController::dropped`). Durum geçişi `tst_overlay` ile kapsanıyor.
 * **Düzeltildi ve gerçek oturumda doğrulandı (`r25.gaa26cf8`):** Paylaş eklentilerinde boş kalan KDE metinleri artık Türkçe görünüyor (`KdeTranslations`); kapanıştaki `ShareSheet.qml` `width` hatası kalktı.
 * **Bizden kaynaklanmayan günlük satırları:** Purpose'un `missing mandatory argument "device"`, `JobView.qml: non-existent property` ve `bluetoothplugin_config.qml` binding loop satırları. `installEventFilter ... different thread` uyarısının kaynağı bulunmadı, paylaşımı etkilemedi.
 
@@ -138,7 +144,7 @@ Kurulumdan sonra çalışan `nashi --background` işlemi de yeniden başlatılma
 * **Format tercihlerinin kalanı:** `pages` için PDF'ten Pages çıktısı (Pages yazımı yok). GIF sıkıştırma ön ayarı 2026-11-06'da eklendi (aşağıda). Sayfa düzenli EPUB ve DOCX gerçek bir okuyucuda ve Word'de denenmedi; DOCX yalnızca LibreOffice ile açıldı.
 * **Çeviri:** Fransızca eklendi (`ui/i18n/nashi_fr.ts`, Ayarlar → Dil, katalog başlıkları, `.desktop` dosyaları): 760 metnin 219'u upstream'in `fr.lproj` çevirisinden, kalanı elle çevrildi. Anadili Fransızca olan biri okumadı (2026-11-06: yer tutucular ve Fransız noktalaması, `:` öncesi bölünmez boşluk dahil, otomatik denetlendi; bir satır düzeltildi. Dil ve üslup okuması hâlâ gerekli). Paylaş eklentilerindeki KDE metinleri uygulama dilini değil sistem dilini izler.
 * **Gerçek oturumda denenmeyenler:** Pick aşamasında klavye, çarktan Paylaş ve çark seçim sesi (`QtMultimedia` `SoundEffect`; offscreen'de çalınmaz).
-* **İşlem bitiş sesi:** Upstream'de yok, yalnızca çark seçim sesi var; o taşındı. Bitiş sesi istenirse ayrı karar gerekir.
+* **İşlem bitiş sesi (2026-11-06, commit edilmedi):** Upstream'de yok, Linux'a özgü ve varsayılan kapalı. Ayarlar → Çark → "Bir iş bitince ses çal" (`jobs/doneSound`). Başarıyla biten her iş için kısa bir zil çalar (`ui/resources/job-done.wav`, kodla üretilmiş iki notalı ses; telif sorunu yok). Başarısız ve iptal edilen işlerde çalmaz. `ToastWindow.qml` içinde `JobManager.jobFinished` dinlenir; `QtMultimedia` yoksa sessizce vazgeçer. Birim testi var (`tst_userconfig`); gerçek oturumda sesin duyulması denenmedi.
 
 ### 3.3. İleriki Fazlar
 * **Faz numarası olmayan isteğe bağlı eklentiler:** `tesseract` (OCR) ve `opencv` (yüz algılama) yardımlı otomatik karartma bölgesi önerisi; KWin betiği ile pencere yerleşim çarkı.
