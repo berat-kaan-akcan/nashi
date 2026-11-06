@@ -17,6 +17,7 @@ Tray::Tray(App *app, QObject *parent)
     m_open = m_menu->addAction(QString(), m_app, &App::showHome);
     m_download = m_menu->addAction(QString(), m_app, &App::showDownloadFromClipboard);
     m_shelf = m_menu->addAction(QString(), m_app, &App::toggleShelf);
+    m_place = m_menu->addAction(QString(), m_app, &App::showWindowPlacer);
     m_chords = m_menu->addAction(QString());
     m_chords->setCheckable(true);
     connect(m_chords, &QAction::triggered, this, [this](bool on) { m_app->inputd()->setEnabled(on); });
@@ -47,6 +48,7 @@ void Tray::retranslate()
     m_open->setText(tr("Open Nashi"));
     m_download->setText(tr("Download from link…"));
     m_shelf->setText(tr("Toggle Float Shelf"));
+    m_place->setText(tr("Place a window…"));
     m_chords->setText(tr("Enable drag chords"));
     m_welcome->setText(tr("Welcome tour"));
     m_quit->setText(tr("Quit"));

@@ -26,6 +26,7 @@ private:
     QAction *m_open = nullptr;
     QAction *m_download = nullptr;
     QAction *m_shelf = nullptr;
+    QAction *m_place = nullptr;
     QAction *m_chords = nullptr;
     QAction *m_welcome = nullptr;
     QAction *m_quit = nullptr;

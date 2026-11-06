@@ -18,6 +18,7 @@ use nashi_core::job::{self, JobKind};
 use nashi_core::options::Options;
 use nashi_core::preview;
 use nashi_core::process;
+use nashi_core::suggest;
 
 #[derive(Clone, Copy, ValueEnum)]
 enum CliPreviewKind {
@@ -124,6 +125,16 @@ enum Cmd {
         color: Option<String>,
         #[arg(long)]
         adjust: Option<String>,
+    },
+    /// Suggest areas to redact in a picture or a video frame (reads the text with OCR).
+    Suggest {
+        file: PathBuf,
+        #[arg(long, allow_hyphen_values = true)]
+        at: Option<f64>,
+        #[arg(long)]
+        kinds: Option<String>,
+        #[arg(long)]
+        lang: Option<String>,
     },
     /// Download a URL via yt-dlp or curl.
     Download {
@@ -510,6 +521,58 @@ fn real_main() -> ExitCode {
                             .and_then(|v| v.as_str().map(String::from))
                             .unwrap_or_default();
                         eprintln!("error [{code_str}]: {}", err.message);
+                    }
+                    return ExitCode::from(code_num);
+                }
+            }
+        }
+        Cmd::Suggest {
+            file,
+            at,
+            kinds,
+            lang,
+        } => {
+            if let Err(e) = process::install_signal_handlers() {
+                eprintln!("nashi-cli: cannot install signal handlers: {e}");
+            }
+            let req = suggest::SuggestRequest {
+                file,
+                at,
+                kinds,
+                lang,
+            };
+            match suggest::run(Deps::global(), &req) {
+                Ok(out) => {
+                    if json {
+                        print_json(&out);
+                    } else {
+                        out!(
+                            "{} suggestion(s) in {}x{} ({})",
+                            out.rects.len(),
+                            out.width,
+                            out.height,
+                            out.language
+                        );
+                        for r in &out.rects {
+                            out!("  {} {},{} {}x{}", r.kind, r.x, r.y, r.w, r.h);
+                        }
+                    }
+                }
+                Err(err) => {
+                    let code_num: u8 =
+                        if err.code == ErrorCode::Cancelled || process::is_cancelled() {
+                            130
+                        } else if err.code == ErrorCode::MissingDependency {
+                            3
+                        } else {
+                            1
+                        };
+                    if json {
+                        print_json(&serde_json::json!({
+                            "error": { "code": err.code, "message": err.message }
+                        }));
+                    } else {
+                        eprintln!("nashi-cli: {}", err.message);
                     }
                     return ExitCode::from(code_num);
                 }

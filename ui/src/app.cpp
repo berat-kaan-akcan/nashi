@@ -20,6 +20,7 @@
 #include "settings.h"
 #include "setupcheck.h"
 #include "shelfmodel.h"
+#include "windowplacer.h"
 #include "surfaces.h"
 #include "toastcontroller.h"
 #include "tray.h"
@@ -105,6 +106,7 @@ App::App(const Options &options, QObject *parent)
     , m_clipboard(new ClipboardImport(this))
     , m_preview(new PreviewClient(this))
     , m_shelf(new ShelfModel(&m_settings->store(), this))
+    , m_placer(new WindowPlacer(this))
 {
     Q_ASSERT(!s_instance);
     s_instance = this;
@@ -154,6 +156,7 @@ App::~App()
     delete m_previewWindow.data();
     delete m_shelfWindow.data();
     delete m_shareWindow.data();
+    delete m_placerWindow.data();
     s_instance = nullptr;
 }
 
@@ -721,6 +724,25 @@ QString App::formatSize(qint64 bytes) const
 QUrl App::localFileUrl(const QString &path) const
 {
     return path.isEmpty() ? QUrl() : QUrl::fromLocalFile(QFileInfo(path).absoluteFilePath());
+}
+
+void App::showWindowPlacer()
+{
+    if (!m_engine)
+        return;
+    if (!m_placerWindow) {
+        QQmlComponent component(m_engine);
+        component.loadFromModule("NashiApp", "PlaceWindow");
+        QObject *obj = component.create();
+        m_placerWindow = qobject_cast<QQuickWindow *>(obj);
+        if (!m_placerWindow) {
+            qCWarning(lcApp) << "PlaceWindow failed to load:" << component.errorString();
+            delete obj;
+            return;
+        }
+    }
+    if (m_options.windows)
+        presentWindow(m_placerWindow);
 }
 
 void App::toggleShelf()

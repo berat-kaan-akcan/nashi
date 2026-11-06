@@ -25,6 +25,7 @@ class Selection;
 class Settings;
 class SetupCheck;
 class ShelfModel;
+class WindowPlacer;
 class ToastController;
 class Tray;
 class WheelQuery;
@@ -47,6 +48,7 @@ class App : public QObject
     Q_MOC_INCLUDE("setupcheck.h")
     Q_MOC_INCLUDE("shelfmodel.h")
     Q_MOC_INCLUDE("toastcontroller.h")
+    Q_MOC_INCLUDE("windowplacer.h")
     QML_ELEMENT
     QML_SINGLETON
 
@@ -64,6 +66,7 @@ class App : public QObject
     Q_PROPERTY(ClipboardImport *clipboard READ clipboard CONSTANT)
     Q_PROPERTY(PreviewClient *preview READ preview CONSTANT)
     Q_PROPERTY(ShelfModel *shelf READ shelf CONSTANT)
+    Q_PROPERTY(WindowPlacer *windowPlacer READ windowPlacer CONSTANT)
     Q_PROPERTY(QString version READ version CONSTANT)
     Q_PROPERTY(QString cliPath READ cliPath CONSTANT)
     Q_PROPERTY(bool layerShell READ layerShell CONSTANT)
@@ -102,6 +105,7 @@ public:
     ClipboardImport *clipboard() const { return m_clipboard; }
     PreviewClient *preview() const { return m_preview; }
     ShelfModel *shelf() const { return m_shelf; }
+    WindowPlacer *windowPlacer() const { return m_placer; }
     QString version() const;
     QString cliPath() const { return m_cliPath; }
     bool layerShell() const;
@@ -161,6 +165,9 @@ public:
     Q_INVOKABLE void addToShelf(const QStringList &files);
     Q_INVOKABLE void shelfResized();
 
+    // Window placement on KDE Plasma (PlaceWindow.qml).
+    Q_INVOKABLE void showWindowPlacer();
+
     // Share (ShareSheet.qml via KDE Purpose).
     Q_INVOKABLE void showShare(const QStringList &paths);
     Q_INVOKABLE QStringList fileUrlsFor(const QStringList &paths) const;
@@ -201,6 +208,7 @@ private:
     ClipboardImport *m_clipboard;
     PreviewClient *m_preview;
     ShelfModel *m_shelf;
+    WindowPlacer *m_placer;
     QQmlEngine *m_engine = nullptr;
     OverlaySurfaces *m_surfaces = nullptr;
     Tray *m_tray = nullptr;
@@ -210,6 +218,7 @@ private:
     QPointer<QQuickWindow> m_downloadWindow;
     QPointer<QQuickWindow> m_previewWindow;
     QPointer<QQuickWindow> m_shelfWindow;
+    QPointer<QQuickWindow> m_placerWindow;
     QPointer<QQuickWindow> m_shareWindow;
     void startJob(const QString &kind, const QString &id, const QString &title, const QStringList &files,
                   const QString &options);

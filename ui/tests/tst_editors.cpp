@@ -381,6 +381,34 @@ private Q_SLOTS:
         QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
     }
 
+    void redactImageSuggestsPersonalData()
+    {
+        g_messages.clear();
+        QQuickWindow *w = openEditor(QStringLiteral("redactImage"), QStringLiteral("Redact Image"), photoPath);
+        QVERIFY(w);
+        auto *editor = w->findChild<QObject *>(QStringLiteral("rectEditor"));
+        QVERIFY(editor);
+        QTRY_COMPARE_WITH_TIMEOUT(w->property("mediaWidth").toInt(), 640, 10000);
+
+        QVariantList before = w->property("result").toMap().value(QStringLiteral("rects")).toList();
+        QMetaObject::invokeMethod(editor, "suggestAreas");
+        QTRY_COMPARE_WITH_TIMEOUT(w->property("result").toMap().value(QStringLiteral("rects")).toList().size(),
+                                  before.size() + 2, 10000);
+        // The fake engine read a 1280x720 picture; the editor shows 640x360.
+        const QVariantList rects = w->property("result").toMap().value(QStringLiteral("rects")).toList();
+        const QVariantMap first = rects.at(before.size()).toMap();
+        QCOMPARE(first.value(QStringLiteral("x")).toInt(), 100);
+        QCOMPARE(first.value(QStringLiteral("w")).toInt(), 200);
+        QCOMPARE(editor->property("suggestReqId").toInt(), -1);
+
+        // Asking again finds the same places and adds nothing.
+        QMetaObject::invokeMethod(editor, "suggestAreas");
+        QTRY_VERIFY_WITH_TIMEOUT(editor->property("suggestReqId").toInt() == -1, 10000);
+        QCOMPARE(w->property("result").toMap().value(QStringLiteral("rects")).toList().size(), before.size() + 2);
+        w->hide();
+        QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
+    }
+
     void redactImageMultiRectAndStyles()
     {
         g_messages.clear();

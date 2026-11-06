@@ -46,6 +46,10 @@ CommandLine parse(const QStringList &args, const QString &cwd)
     parser.addOption(downloadOpt);
     parser.addOption(downloadClipboardOpt);
     parser.addOption(shelfOpt);
+    const QCommandLineOption windowsOpt(
+        QStringLiteral("windows"),
+        QCoreApplication::translate("CliArgs", "Choose where the window you used last goes (KDE Plasma)."));
+    parser.addOption(windowsOpt);
     parser.addPositionalArgument(QStringLiteral("files"), QCoreApplication::translate("CliArgs", "Files to open."),
                                  QStringLiteral("[FILE…]"));
     cmd.helpText = parser.helpText();
@@ -86,11 +90,11 @@ CommandLine parse(const QStringList &args, const QString &cwd)
 
     const int exclusiveCount = int(parser.isSet(backgroundOpt)) + int(parser.isSet(wheelOpt))
                                + int(parser.isSet(downloadOpt)) + int(parser.isSet(downloadClipboardOpt))
-                               + int(parser.isSet(shelfOpt));
+                               + int(parser.isSet(shelfOpt)) + int(parser.isSet(windowsOpt));
     if (exclusiveCount > 1) {
         cmd.action = CommandLine::Error;
         cmd.error = QCoreApplication::translate(
-            "CliArgs", "--background, --wheel, --download, --download-clipboard and --shelf cannot be combined");
+            "CliArgs", "--background, --wheel, --download, --download-clipboard, --shelf and --windows cannot be combined");
         return cmd;
     }
 
@@ -118,6 +122,16 @@ CommandLine parse(const QStringList &args, const QString &cwd)
             return cmd;
         }
         cmd.action = CommandLine::DownloadClipboard;
+        return cmd;
+    }
+
+    if (parser.isSet(windowsOpt)) {
+        if (!cmd.files.isEmpty()) {
+            cmd.action = CommandLine::Error;
+            cmd.error = QCoreApplication::translate("CliArgs", "--windows takes no file arguments");
+            return cmd;
+        }
+        cmd.action = CommandLine::PlaceWindow;
         return cmd;
     }
 
@@ -162,6 +176,8 @@ ForwardCall forwardCallFor(const CommandLine &cmd)
         return {kInterface, QStringLiteral("ToggleShelf"), {}};
     case CommandLine::AddToShelf:
         return {kInterface, QStringLiteral("AddToShelf"), {cmd.files}};
+    case CommandLine::PlaceWindow:
+        return {kInterface, QStringLiteral("ShowWindowPlacer"), {}};
     case CommandLine::OpenFiles: {
         // Nashi1 has no "open these files in Home" method, so use the standard
         // org.freedesktop.Application.Open(as uris, a{sv} platform_data).

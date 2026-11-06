@@ -57,7 +57,7 @@ reference/        upstream Nashi FeatureCatalog.json (MIT) used as the source of
 |---|---|
 | Binaries | `/usr/bin/nashi` (UI), `/usr/bin/nashi-cli`, `/usr/bin/nashi-inputd` |
 | App id / desktop file / icon | `io.github.beratkaanakcan.Nashi` (`data/io.github.beratkaanakcan.Nashi.desktop`, icon of the same name) |
-| UI command line | `nashi` (start or raise Home), `nashi --background` (tray only, used by autostart and D-Bus activation), `nashi --wheel [--mode convert\|tools\|actions] FILE…` (forward to the running instance's `ShowWheel`), `nashi FILE…` (open Home with these files queued) |
+| UI command line | `nashi` (start or raise Home), `nashi --background` (tray only, used by autostart and D-Bus activation), `nashi --wheel [--mode convert\|tools\|actions] FILE…` (forward to the running instance's `ShowWheel`), `nashi FILE…` (open Home with these files queued), `nashi --windows` (window placement picker, KDE Plasma) |
 | How the UI finds the CLI | `$NASHI_CLI`, else `nashi-cli` next to the `nashi` executable, else `PATH` |
 | Cancellation | UI calls `QProcess::terminate()` (SIGTERM); CLI emits `done` with `cancelled: true`, exits 130 |
 | inputd system files (owned by `crates/nashi-inputd/dist/`) | `70-nashi-inputd.rules` (udev), `nashi-inputd.service` (systemd **user** unit, `ExecStart=/usr/bin/nashi-inputd`) |

@@ -159,6 +159,43 @@ int PreviewClient::readMetadata(const QString &file)
     return id;
 }
 
+int PreviewClient::suggestRedactions(const QString &file, double at, const QString &kinds)
+{
+    const int id = ++m_nextId;
+    const QFileInfo fi(file);
+    if (file.isEmpty() || !fi.exists()) {
+        QTimer::singleShot(0, this, [this, id] { Q_EMIT failed(id, tr("File not found")); });
+        return id;
+    }
+
+    QStringList args{QStringLiteral("suggest"), fi.absoluteFilePath()};
+    if (at >= 0)
+        args << QStringLiteral("--at") << QString::number(at, 'f', 3);
+    if (!kinds.trimmed().isEmpty())
+        args << QStringLiteral("--kinds") << kinds.trimmed();
+    args << QStringLiteral("--json");
+
+    QPointer<PreviewClient> self(this);
+    CliCall::run(this, m_program, args,
+                 [self, id](bool ok, const QJsonObject &obj, const QString &err) {
+                     if (!self)
+                         return;
+                     if (!ok) {
+                         Q_EMIT self->failed(id, err);
+                         return;
+                     }
+                     const QJsonObject error = obj.value(QStringLiteral("error")).toObject();
+                     if (!error.isEmpty()) {
+                         Q_EMIT self->failed(id, error.value(QStringLiteral("message")).toString());
+                         return;
+                     }
+                     Q_EMIT self->suggested(id, obj.value(QStringLiteral("width")).toInt(),
+                                            obj.value(QStringLiteral("height")).toInt(),
+                                            obj.value(QStringLiteral("rects")).toArray().toVariantList());
+                 });
+    return id;
+}
+
 QString PreviewClient::readTextPreview(const QString &file, int maxBytes) const
 {
     if (file.isEmpty() || maxBytes <= 0)

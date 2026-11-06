@@ -140,6 +140,22 @@ def metadata_cmd(args):
     return 0
 
 
+def suggest_cmd(args):
+    files = [a for a in args if not a.startswith("--")]
+    if "--kinds" in args and args[args.index("--kinds") + 1] == "bad":
+        print(json.dumps({"error": {"code": "invalid_options", "message": "unknown kind"}}))
+        return 1
+    if files and files[0].endswith(".txt"):
+        print(json.dumps({"error": {"code": "invalid_input", "message": "suggest reads pictures and videos only"}}))
+        return 1
+    # The picture the editor shows is 640x360; the engine may read a bigger one.
+    print(json.dumps({"width": 1280, "height": 720, "language": "eng", "rects": [
+        {"x": 200, "y": 100, "w": 400, "h": 60, "kind": "email"},
+        {"x": 200, "y": 300, "w": 300, "h": 60, "kind": "phone"},
+    ]}))
+    return 0
+
+
 def preview_cmd(args):
     if not args:
         return 2
@@ -316,6 +332,8 @@ def main(argv):
         return inspect_cmd(args[1:])
     if cmd == "metadata":
         return metadata_cmd(args[1:])
+    if cmd == "suggest":
+        return suggest_cmd(args[1:])
     if cmd == "preview":
         return preview_cmd(args[1:])
     if cmd == "download":

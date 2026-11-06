@@ -121,11 +121,26 @@ pub const DEPS: &[DepDef] = &[
     ),
     d("7z", "7zip", true, &["archive", "extractArchive"], &[]),
     d("zbarimg", "zbar", false, &["readQRCode"], &["--version"]),
+    d(
+        "tesseract",
+        "tesseract",
+        true,
+        &["suggestRedactions"],
+        &["--version"],
+    ),
     d("pandoc", "pandoc-cli", true, &["epub"], &["--version"]),
     d("rsvg-convert", "librsvg", true, &["svg"], &["--version"]),
     d("yt-dlp", "yt-dlp", true, &["download"], &["--version"]),
     d("curl", "curl", true, &["download"], &["--version"]),
     d("libheif", "libheif", true, &["heic"], &[]),
+    // Python's OpenCV module, run through `python3`; checked only when asked for.
+    d(
+        "opencv",
+        "python-opencv",
+        true,
+        &["suggestRedactions"],
+        &["-I", "-c", "import cv2;print(cv2.__version__)"],
+    ),
 ];
 
 /// Helper programs probed but not reported by `deps` (fallbacks).
@@ -142,6 +157,8 @@ const EXTRA: &[&str] = &[
     "montage",
     // Isolates pandoc when its own `--sandbox` is unusable (see engines/office.rs).
     "bwrap",
+    // Runs the face finder of `suggest` (OpenCV is a Python module).
+    "python3",
 ];
 
 /// Result of probing the system.
@@ -149,6 +166,9 @@ const EXTRA: &[&str] = &[
 pub struct Deps {
     paths: HashMap<String, PathBuf>,
     magick_formats: HashMap<String, (bool, bool)>,
+    /// Whether `python3` can import `cv2`; found out on first use because
+    /// importing it takes a fifth of a second.
+    opencv_ok: std::sync::OnceLock<bool>,
 }
 
 fn disabled() -> HashSet<String> {
@@ -239,7 +259,7 @@ impl Deps {
         let names = DEPS
             .iter()
             .map(|d| d.id)
-            .filter(|id| *id != "libheif")
+            .filter(|id| *id != "libheif" && *id != "opencv")
             .chain(EXTRA.iter().copied());
         for name in names {
             if off.contains(name) {
@@ -269,6 +289,7 @@ impl Deps {
         let mut deps = Deps {
             paths,
             magick_formats,
+            ..Deps::default()
         };
         let heif = (deps.magick_can("HEIC", true) && deps.magick_can("HEIC", false))
             || (deps.has("heif-enc") && deps.has("heif-dec"));
@@ -285,10 +306,23 @@ impl Deps {
     }
 
     pub fn has(&self, id: &str) -> bool {
+        if id == "opencv" {
+            return self.path(id).is_some();
+        }
         self.paths.contains_key(id)
     }
 
     pub fn path(&self, id: &str) -> Option<&Path> {
+        if id == "opencv" {
+            // The program that runs OpenCV is `python3`.
+            let python = self.paths.get("python3")?;
+            let ok = *self.opencv_ok.get_or_init(|| {
+                !disabled().contains("opencv")
+                    && probe_output(python, &["-I", "-c", "import cv2"], Duration::from_secs(15))
+                        .is_some_and(|out| out.trim().is_empty())
+            });
+            return ok.then_some(python.as_path());
+        }
         self.paths
             .get(id)
             .map(|p| p.as_path())

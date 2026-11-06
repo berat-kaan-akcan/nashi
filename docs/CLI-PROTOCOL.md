@@ -13,6 +13,7 @@ Stable contract. Changing it requires updating `ui/` and this file in the same c
 | `nashi-cli convert TARGET FILE... [--out-dir DIR] [--options JSON] --json` | Convert each file to `TARGET` extension |
 | `nashi-cli tool TOOL_ID FILE... [--out-dir DIR] [--options JSON] --json` | Run a tool (single-input tools run per file; multi-input tools take all files) |
 | `nashi-cli preview FILE --kind frame\|waveform\|pages --out-dir DIR [...] --json` | Render editor preview PNGs (frame, waveform, PDF pages) into `DIR` |
+| `nashi-cli suggest FILE [--at SEC] [--kinds LIST] [--lang LANGS] --json` | Find places in a picture or video frame that look like personal data (OCR) |
 | `nashi-cli download URL [--kind auto\|video\|audio\|thumbnail\|image] [--out-dir DIR] --json` | Download an `http`/`https` URL via `yt-dlp` or `curl` |
 
 Without `--json` the CLI prints human-readable text. Exit codes: `0` all succeeded, `1` one or more inputs failed, `2` usage error, `3` required external tool missing, `130` cancelled (SIGINT/SIGTERM).
@@ -47,7 +48,7 @@ Without `--json` the CLI prints human-readable text. Exit codes: `0` all succeed
 ]}
 ```
 
-`package` is the Arch Linux package name. Tool ids: `ffmpeg`, `ffprobe`, `magick`, `soffice`, `exiftool`, `qpdf`, `pdftoppm`, `pdftotext`, `gs`, `7z`, `zbarimg`, `pandoc`, `rsvg-convert`, `yt-dlp`, `curl`.
+`package` is the Arch Linux package name. Tool ids: `ffmpeg`, `ffprobe`, `magick`, `soffice`, `exiftool`, `qpdf`, `pdftoppm`, `pdftotext`, `gs`, `7z`, `zbarimg`, `tesseract`, `opencv` (Python's OpenCV, run through `python3`), `pandoc`, `rsvg-convert`, `yt-dlp`, `curl`.
 
 ## `inspect` output
 
@@ -153,6 +154,25 @@ Writes PNGs into `DIR` (created if missing; the caller owns and deletes it) and 
 
 `rects[].style` (optional): `"black"` (default), `"blur"` or `"pixelate"`.
 
+### `suggest` command
+
+```
+nashi-cli suggest FILE [--at SEC] [--kinds LIST] [--lang LANGS] --json
+```
+
+Reads the text of a picture, or of one video frame (`--at`, seconds), with `tesseract` and returns the places that look like personal data; it also finds faces with OpenCV. It changes nothing and writes nothing next to `FILE`.
+
+```json
+{"width": 1000, "height": 400, "language": "tur+eng",
+ "rects": [{"x": 284, "y": 34, "w": 330, "h": 36, "kind": "email"}]}
+```
+
+- `width`/`height` are the size of the picture the rectangles refer to, after orientation (the same pixels `redactImage`/`redactVideo` use). Video frames are read at full size.
+- `kind`: `iban` (checksum), `email`, `url` (`http://`, `https://`, `www.`), `card` (13–19 digits, Luhn), `id` (11-digit Turkish identity number, checksums), `phone` (10–15 digits, also when split into groups), `face` (front-facing faces, box widened by about 12 % each side). `--kinds` takes a comma-separated subset; anything else returns `invalid_options`. Without `--kinds` it looks for everything the installed tools can find (text kinds need `tesseract`, `face` needs OpenCV); with `--kinds` every tool it names must be installed.
+- `--lang` takes tesseract languages joined with `+` (default `tur+eng`). Languages that are not installed are left out; when none is installed an explicit `--lang` returns `invalid_options`, and the default falls back to whatever is installed.
+- The matched text never appears in the output, only its kind and place. OCR can miss text or misread it, so the result is a suggestion for the user to check, not a guarantee.
+- Pictures, GIFs and videos only; other files return `invalid_input`. Missing `tesseract` or OpenCV (`python-opencv`) when needed → `missing_dependency` (exit 3). `deps` lists `opencv` as available when `python3` can import `cv2`; this is only checked when asked, because importing it takes about 0.2 s. Errors are printed as `{"error": {"code", "message"}}`, exit 1.
+
 ### `download` command
 
 ```
@@ -192,7 +212,7 @@ nashi-cli download URL [--kind auto|video|audio|thumbnail|image] [--out-dir DIR]
 - Conversion options, per target: images take `quality` (`jpg`, `webp`, `heic`, `avif`). Audio and video targets take `audio_kbps` (8..512), ignored by lossless and PCM codecs. Video targets take `crf` (mapped to a fixed quantizer for `avi` and `wmv`) and `max_height` (2..16384), which only shrinks. `gif` takes `gif_fps` (1..60, default 12), `gif_max_width` (2..16384, default 640), which only shrinks, and `gif_compression` (`fast`, `balanced` (default), `maximum` for the smallest file). Out-of-range values return `invalid_options`.
 - `strip_metadata` (bool) on a conversion of an image, audio or video leaves out tags, chapters and album art. On images it uses `magick -strip`, which also drops the colour profile. Other targets ignore it; use `removeMetadata` for PDFs.
 - `splitPDF` option `pages_per_file` (at least 1, default 1) writes parts named `stem-first-last.pdf`, or `stem-page.pdf` for a part of one page. It applies to the pages chosen by `pages`.
-- `mergePDF` and `organizePDF` option `uniform_width` (bool) scales every page to the width of the narrowest as shown, keeping its shape. It needs `gs` and `pdfinfo`. Pages that are already that wide are copied as they are; Ghostscript rewrites the others, so check form fields and links on those.
+- `mergePDF` and `organizePDF` option `uniform_width` (bool) scales every page to the width of the narrowest as shown, keeping its shape. It needs `gs` and `pdfinfo`. Pages that are already that wide are copied as they are; Ghostscript rewrites the others: links keep working and are scaled, but form fields on those pages stop being fillable (they still show). When that happens the `output` event carries a `message` saying so.
 - `normalizeAudio` options: `target_lufs` (-70..-5, default -16), `loudness_range` (1..50, default 11), `true_peak` (-9..0, default -1.5).
 - `wav` and `aiff` outputs of conversions and audio tools keep the source's sample depth (16, 24 or 32-bit integer, or float). Conversion option `sample_depth` (`16`, `24`, `32`, `float32`) chooses another. `audio_compression` (`fast`, `balanced`, `maximum`) sets the FLAC compression level. Other values return `invalid_options`.
 - `mergePDF` and `joinVideos` use the files in the order given on the command line.

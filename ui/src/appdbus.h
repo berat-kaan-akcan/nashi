@@ -23,6 +23,7 @@ public Q_SLOTS:
     void DownloadClipboard();
     void ToggleShelf();
     void AddToShelf(const QStringList &paths);
+    void ShowWindowPlacer();
 
 private:
     App *m_app;

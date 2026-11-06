@@ -54,6 +54,11 @@ void NashiAdaptor::AddToShelf(const QStringList &paths)
     m_app->addToShelf(paths);
 }
 
+void NashiAdaptor::ShowWindowPlacer()
+{
+    m_app->showWindowPlacer();
+}
+
 FdoApplicationAdaptor::FdoApplicationAdaptor(App *app)
     : QDBusAbstractAdaptor(app)
     , m_app(app)
@@ -85,6 +90,8 @@ void FdoApplicationAdaptor::ActivateAction(const QString &name, const QVariantLi
         m_app->quit();
     else if (name == QLatin1String("DownloadClipboard"))
         m_app->showDownloadFromClipboard();
+    else if (name == QLatin1String("PlaceWindow"))
+        m_app->showWindowPlacer();
     else
         m_app->showHome();
 }

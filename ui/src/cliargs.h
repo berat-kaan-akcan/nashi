@@ -17,6 +17,7 @@ struct CommandLine
         DownloadClipboard, // `nashi --download-clipboard`
         ToggleShelf,       // `nashi --shelf`
         AddToShelf,        // `nashi --shelf FILE…`
+        PlaceWindow,       // `nashi --windows`
         ShowHelp,
         ShowVersion,
         Error,

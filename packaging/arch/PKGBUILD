@@ -10,7 +10,7 @@
 
 pkgname=nashi-git
 _pkgname=nashi
-pkgver=0.1.0.r25.gaa26cf8
+pkgver=0.1.0.r44.gbd902bc
 pkgrel=1
 pkgdesc="Drag a file, press a modifier and convert it from a wheel under the cursor (KDE Plasma / Wayland)"
 arch=('x86_64' 'aarch64')
@@ -50,6 +50,8 @@ optdepends=(
   'ghostscript: PDF compression'
   '7zip: archive extraction and creation'
   'zbar: QR code reading'
+  'python-opencv: find faces in pictures to redact'
+  'tesseract: find personal data in pictures to redact (add tesseract-data-eng or another language)'
   'pandoc-cli: Markdown and EPUB conversions'
   'yt-dlp: web video download tool'
   'curl: direct file download from web links'

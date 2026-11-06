@@ -32,6 +32,11 @@ public:
     // Runs `nashi-cli metadata FILE --json`; emits metadataRead() or failed().
     Q_INVOKABLE int readMetadata(const QString &file);
 
+    // Runs `nashi-cli suggest FILE [--at T] [--kinds K] --json`: places in a picture or a
+    // video frame that look like personal data. Emits suggested() or failed().
+    // `at` < 0 means "not given" (images, or the first video frame).
+    Q_INVOKABLE int suggestRedactions(const QString &file, double at = -1, const QString &kinds = QString());
+
     // Reads up to maxBytes of UTF-8 text for the Library preview pane.
     Q_INVOKABLE QString readTextPreview(const QString &file, int maxBytes = 65536) const;
 
@@ -52,6 +57,8 @@ Q_SIGNALS:
     void ready(int requestId, const QString &kind, const QStringList &files, int width, int height);
     void inspected(int requestId, const QVariantMap &info);
     void metadataRead(int requestId, const QVariantList &fields);
+    // `rects` are {x, y, w, h, kind} maps in the pixels of a width x height picture.
+    void suggested(int requestId, int width, int height, const QVariantList &rects);
     void failed(int requestId, const QString &message);
 
 private:

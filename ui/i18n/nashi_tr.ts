@@ -244,6 +244,10 @@
         <translation>Float rafını aç/kapat ya da DOSYALARI rafa ekle.</translation>
     </message>
     <message>
+        <source>Choose where the window you used last goes (KDE Plasma).</source>
+        <translation>Son kullandığınız pencerenin nereye gideceğini seçin (KDE Plasma).</translation>
+    </message>
+    <message>
         <source>Files to open.</source>
         <translation>Açılacak dosyalar.</translation>
     </message>
@@ -252,8 +256,8 @@
         <translation>--mode yalnızca --wheel ile kullanılabilir</translation>
     </message>
     <message>
-        <source>--background, --wheel, --download, --download-clipboard and --shelf cannot be combined</source>
-        <translation>--background, --wheel, --download, --download-clipboard ve --shelf birlikte kullanılamaz</translation>
+        <source>--background, --wheel, --download, --download-clipboard, --shelf and --windows cannot be combined</source>
+        <translation>--background, --wheel, --download, --download-clipboard, --shelf ve --windows birlikte kullanılamaz</translation>
     </message>
     <message>
         <source>--download takes only a URL, not files</source>
@@ -266,6 +270,10 @@
     <message>
         <source>--download-clipboard takes no file arguments</source>
         <translation>--download-clipboard dosya argümanı almaz</translation>
+    </message>
+    <message>
+        <source>--windows takes no file arguments</source>
+        <translation>--windows dosya almaz</translation>
     </message>
     <message>
         <source>Unknown mode &quot;%1&quot; (expected convert, tools or actions)</source>
@@ -2059,6 +2067,73 @@
     </message>
 </context>
 <context>
+    <name>PlaceWindow</name>
+    <message>
+        <source>Place window</source>
+        <translation>Pencere yerleştir</translation>
+    </message>
+    <message>
+        <source>Left half</source>
+        <translation>Sol yarı</translation>
+    </message>
+    <message>
+        <source>Right half</source>
+        <translation>Sağ yarı</translation>
+    </message>
+    <message>
+        <source>Top half</source>
+        <translation>Üst yarı</translation>
+    </message>
+    <message>
+        <source>Bottom half</source>
+        <translation>Alt yarı</translation>
+    </message>
+    <message>
+        <source>Top left</source>
+        <translation>Sol üst</translation>
+    </message>
+    <message>
+        <source>Top right</source>
+        <translation>Sağ üst</translation>
+    </message>
+    <message>
+        <source>Bottom left</source>
+        <translation>Sol alt</translation>
+    </message>
+    <message>
+        <source>Bottom right</source>
+        <translation>Sağ alt</translation>
+    </message>
+    <message>
+        <source>Left third</source>
+        <translation>Sol üçte bir</translation>
+    </message>
+    <message>
+        <source>Middle third</source>
+        <translation>Orta üçte bir</translation>
+    </message>
+    <message>
+        <source>Right third</source>
+        <translation>Sağ üçte bir</translation>
+    </message>
+    <message>
+        <source>Fill the screen</source>
+        <translation>Ekranı kapla</translation>
+    </message>
+    <message>
+        <source>KWin did not accept the request. This works on KDE Plasma only.</source>
+        <translation>KWin isteği kabul etmedi. Bu yalnızca KDE Plasma'da çalışır.</translation>
+    </message>
+    <message>
+        <source>KWin was not found. This works on KDE Plasma only.</source>
+        <translation>KWin bulunamadı. Bu yalnızca KDE Plasma'da çalışır.</translation>
+    </message>
+    <message>
+        <source>Where should the last window you used go?</source>
+        <translation>Son kullandığınız pencere nereye gitsin?</translation>
+    </message>
+</context>
+<context>
     <name>PreviewClient</name>
     <message>
         <source>File not found</source>
@@ -2259,12 +2334,34 @@
         <translation>Siyah</translation>
     </message>
     <message>
+        <source>Reading the text…</source>
+        <translation>Metin okunuyor…</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n area(s) added. Check them before saving.</source>
+        <translation>
+            <numerusform>%n alan eklendi. Kaydetmeden önce kontrol edin.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Nothing that looks like personal data was found.</source>
+        <translation>Kişisel veriye benzeyen bir şey bulunamadı.</translation>
+    </message>
+    <message>
         <source>Free</source>
         <translation>Serbest</translation>
     </message>
     <message>
         <source>Style:</source>
         <translation>Stil:</translation>
+    </message>
+    <message>
+        <source>Reading…</source>
+        <translation>Okunuyor…</translation>
+    </message>
+    <message>
+        <source>Find personal data</source>
+        <translation>Kişisel verileri bul</translation>
     </message>
     <message>
         <source>Add area</source>
@@ -2875,6 +2972,10 @@
     <message>
         <source>Toggle Float Shelf</source>
         <translation>Float Rafını aç/kapat</translation>
+    </message>
+    <message>
+        <source>Place a window…</source>
+        <translation>Pencere yerleştir…</translation>
     </message>
     <message>
         <source>Enable drag chords</source>

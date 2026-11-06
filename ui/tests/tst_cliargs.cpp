@@ -121,6 +121,15 @@ private Q_SLOTS:
                  CommandLine::Error);
         QCOMPARE(p({QStringLiteral("--download-clipboard"), QStringLiteral("extra.png")}).action, CommandLine::Error);
         QCOMPARE(p({QStringLiteral("--shelf"), QStringLiteral("--wheel")}).action, CommandLine::Error);
+
+        const auto win = p({QStringLiteral("--windows")});
+        QCOMPARE(win.action, CommandLine::PlaceWindow);
+        const ForwardCall fwin = CliArgs::forwardCallFor(win);
+        QCOMPARE(fwin.interface, CliArgs::kInterface);
+        QCOMPARE(fwin.method, QStringLiteral("ShowWindowPlacer"));
+        QVERIFY(fwin.args.isEmpty());
+        QCOMPARE(p({QStringLiteral("--windows"), QStringLiteral("a.png")}).action, CommandLine::Error);
+        QCOMPARE(p({QStringLiteral("--windows"), QStringLiteral("--shelf")}).action, CommandLine::Error);
     }
 
     void errors()

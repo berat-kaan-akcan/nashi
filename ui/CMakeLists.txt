@@ -62,6 +62,7 @@ target_sources(nashi_ui PRIVATE
     src/wheelgeometry.cpp      src/wheelgeometry.h
     src/wheelmodel.cpp         src/wheelmodel.h
     src/wheelquery.cpp         src/wheelquery.h
+    src/windowplacer.cpp       src/windowplacer.h
 )
 target_include_directories(nashi_ui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(nashi_ui PUBLIC
@@ -102,6 +103,7 @@ set(NASHI_QML_FILES
     qml/PreviewWindow.qml
     qml/ShelfWindow.qml
     qml/ShareSheet.qml
+    qml/PlaceWindow.qml
 )
 set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 

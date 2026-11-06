@@ -105,6 +105,9 @@ int main(int argc, char *argv[])
     case CommandLine::AddToShelf:
         app.addToShelf(cmd.files);
         break;
+    case CommandLine::PlaceWindow:
+        app.showWindowPlacer();
+        break;
     default:
         app.showHome();
         break;

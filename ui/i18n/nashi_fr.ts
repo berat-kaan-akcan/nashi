@@ -247,6 +247,10 @@
         <translation>Afficher ou masquer l’étagère Float, ou y ajouter des FICHIERS.</translation>
     </message>
     <message>
+        <source>Choose where the window you used last goes (KDE Plasma).</source>
+        <translation>Choisir où placer la dernière fenêtre utilisée (KDE Plasma).</translation>
+    </message>
+    <message>
         <source>Files to open.</source>
         <translation>Fichiers à ouvrir.</translation>
     </message>
@@ -255,8 +259,8 @@
         <translation>--mode nécessite --wheel</translation>
     </message>
     <message>
-        <source>--background, --wheel, --download, --download-clipboard and --shelf cannot be combined</source>
-        <translation>--background, --wheel, --download, --download-clipboard et --shelf ne peuvent pas être combinés</translation>
+        <source>--background, --wheel, --download, --download-clipboard, --shelf and --windows cannot be combined</source>
+        <translation>--background, --wheel, --download, --download-clipboard, --shelf et --windows ne peuvent pas être combinés</translation>
     </message>
     <message>
         <source>--download takes only a URL, not files</source>
@@ -269,6 +273,10 @@
     <message>
         <source>--download-clipboard takes no file arguments</source>
         <translation>--download-clipboard n’accepte aucun fichier en argument</translation>
+    </message>
+    <message>
+        <source>--windows takes no file arguments</source>
+        <translation>--windows n’accepte aucun fichier</translation>
     </message>
     <message>
         <source>Unknown mode &quot;%1&quot; (expected convert, tools or actions)</source>
@@ -2067,6 +2075,73 @@
     </message>
 </context>
 <context>
+    <name>PlaceWindow</name>
+    <message>
+        <source>Place window</source>
+        <translation>Placer la fenêtre</translation>
+    </message>
+    <message>
+        <source>Left half</source>
+        <translation>Moitié gauche</translation>
+    </message>
+    <message>
+        <source>Right half</source>
+        <translation>Moitié droite</translation>
+    </message>
+    <message>
+        <source>Top half</source>
+        <translation>Moitié haute</translation>
+    </message>
+    <message>
+        <source>Bottom half</source>
+        <translation>Moitié basse</translation>
+    </message>
+    <message>
+        <source>Top left</source>
+        <translation>Haut gauche</translation>
+    </message>
+    <message>
+        <source>Top right</source>
+        <translation>Haut droite</translation>
+    </message>
+    <message>
+        <source>Bottom left</source>
+        <translation>Bas gauche</translation>
+    </message>
+    <message>
+        <source>Bottom right</source>
+        <translation>Bas droite</translation>
+    </message>
+    <message>
+        <source>Left third</source>
+        <translation>Tiers gauche</translation>
+    </message>
+    <message>
+        <source>Middle third</source>
+        <translation>Tiers central</translation>
+    </message>
+    <message>
+        <source>Right third</source>
+        <translation>Tiers droit</translation>
+    </message>
+    <message>
+        <source>Fill the screen</source>
+        <translation>Plein écran</translation>
+    </message>
+    <message>
+        <source>KWin did not accept the request. This works on KDE Plasma only.</source>
+        <translation>KWin a refusé la demande. Cela ne fonctionne que sous KDE Plasma.</translation>
+    </message>
+    <message>
+        <source>KWin was not found. This works on KDE Plasma only.</source>
+        <translation>KWin est introuvable. Cela ne fonctionne que sous KDE Plasma.</translation>
+    </message>
+    <message>
+        <source>Where should the last window you used go?</source>
+        <translation>Où placer la dernière fenêtre utilisée ?</translation>
+    </message>
+</context>
+<context>
     <name>PreviewClient</name>
     <message>
         <source>File not found</source>
@@ -2268,12 +2343,35 @@
         <translation>Noir</translation>
     </message>
     <message>
+        <source>Reading the text…</source>
+        <translation>Lecture du texte…</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n area(s) added. Check them before saving.</source>
+        <translation>
+            <numerusform>%n zone ajoutée. Vérifiez-la avant d’enregistrer.</numerusform>
+            <numerusform>%n zones ajoutées. Vérifiez-les avant d’enregistrer.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Nothing that looks like personal data was found.</source>
+        <translation>Aucune donnée personnelle détectée.</translation>
+    </message>
+    <message>
         <source>Free</source>
         <translation>Libre</translation>
     </message>
     <message>
         <source>Style:</source>
         <translation>Style&#xa0;:</translation>
+    </message>
+    <message>
+        <source>Reading…</source>
+        <translation>Lecture…</translation>
+    </message>
+    <message>
+        <source>Find personal data</source>
+        <translation>Détecter les données personnelles</translation>
     </message>
     <message>
         <source>Add area</source>
@@ -2886,6 +2984,10 @@
     <message>
         <source>Toggle Float Shelf</source>
         <translation>Afficher ou masquer l’étagère Float</translation>
+    </message>
+    <message>
+        <source>Place a window…</source>
+        <translation>Placer une fenêtre…</translation>
     </message>
     <message>
         <source>Enable drag chords</source>

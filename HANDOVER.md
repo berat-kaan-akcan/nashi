@@ -81,7 +81,7 @@ Upstream'in `b3c60f2..be59b13` aralığı incelendi; Linux'u etkileyen hatalar �
 
 ### 2.5.2. Kalan İkincil Özellikler (2026-11-05, commit edilmedi)
 * **Format varsayılanları:** Ayarlar → Format varsayılanları; hedef formata göre kalite, en fazla yükseklik, ses bit hızı, GIF kare hızı/genişliği, metadata koruma. Dengeli varsayılanda seçenek gönderilmez, mevcut çıktılar değişmez. `avi`/`wmv` artık `crf` değerini sabit kuantizöre çevirir; bu Sıkıştır aracının bu kaplardaki çıktısını da küçültür.
-* **PDF:** `splitPDF` için `pages_per_file` ve sayfa seçimi; `mergePDF` ve `organizePDF` için `uniform_width` (en dar sayfa genişliği, Ghostscript ile yalnızca ölçeklenen sayfalar yeniden yazılır; form alanları ve bağlantılar bu sayfalarda ayrıca kontrol edilmeli).
+* **PDF:** `splitPDF` için `pages_per_file` ve sayfa seçimi; `mergePDF` ve `organizePDF` için `uniform_width` (en dar sayfa genişliği, Ghostscript ile yalnızca ölçeklenen sayfalar yeniden yazılır. 2026-11-06'da gerçek PDF ile denendi: bağlantılar korunur ve ölçeklenir, form alanları görünür kalır ama doldurulamaz hâle gelir; motor bu durumda `output` olayında uyarı mesajı verir, testi `pdf_loudness.rs` içinde).
 * **Ses:** `normalizeAudio` için `target_lufs`, `loudness_range`, `true_peak` ve form. Normalleştir, PDF Böl ve Birleştir artık çarktan tıklanınca önce form açar.
 * **Çark sesi:** upstream `WheelSelection.wav`, Ayarlar → Çark'tan kapatılabilir.
 * **Test notu:** ImageMagick'te `info:` Türkçe yerelde dosyaya yazar, o dosya durdukça da `LC_ALL=C.UTF-8` ile bile dosya adı sayılır. Testlerde `magick` çağrılarına `LC_ALL` verin; ortada `crates/nashi-cli/info:` kalırsa `adjust`/`compose` testleri topluca düşer.
@@ -89,6 +89,20 @@ Upstream'in `b3c60f2..be59b13` aralığı incelendi; Linux'u etkileyen hatalar �
 ### 2.5.3. Eksiklerin Kapatılması (2026-11-06, commit edilmedi)
 * **GIF sıkıştırma ön ayarı:** Ayarlar → Format varsayılanları → GIF → Sıkıştırma (Hızlı / Dengeli / En küçük dosya); motor seçeneği `gif_compression` (`fast`, `balanced`, `maximum`). Dengeli bugünkü çıktıyla birebir aynı, seçenek gönderilmez. Hızlı: bayer titreşim, ölçümde ~%40 daha hızlı, boyut benzer. En küçük: 128 renk, titreşim yok, yalnızca değişen dikdörtgenler; üç farklı örnekte %18–54 daha küçük. Upstream'de bu seçici var ama motoru kullanmıyor.
 * **Bulunan hatalar:** (1) PDF → DOCX/EPUB "sayfaları resim olarak koru" LibreOffice kullanmadığı hâlde LibreOffice yoksa reddediliyordu; son CI hatası buydu. (2) Kırpma/karartma, işaretleme, PDF kartı ve zaman çizelgesinde fare dikey yönde sürüklenince seçenek sayfasının `ScrollView`'u sürüklemeyi alıyordu; tutamaç iki adımdan sonra duruyordu (`preventStealing`). (3) `.pages` dosyaları `libwpg` eksikken anlaşılmaz "source file could not be loaded" hatası veriyordu.
+
+### 2.5.4. OCR ile Karartma Önerisi (2026-11-06, commit edilmedi)
+* **Motor:** `nashi-cli suggest FILE [--at] [--kinds] [--lang]` ([`suggest.rs`](crates/nashi-core/src/suggest.rs)): görsel ya da video karesini `tesseract` ile okur; IBAN (sağlama), e-posta, bağlantı, kart (Luhn), TC kimlik no (sağlama) ve telefon (gruplara bölünmüş olsa da) bulur. Çıktıda metin yok, yalnızca tür ve konum. Sözleşme `docs/CLI-PROTOCOL.md` içinde.
+* **Arayüz:** Karartma editöründe "Kişisel verileri bul" düğmesi; bulunanları mevcut alanların yanına ekler, çift eklemez. Her zaman kullanıcı kontrol eder; OCR yanlış okuyabilir.
+* **Bağımlılık:** `tesseract` isteğe bağlı (PKGBUILD `optdepends`); dil verisi ayrı paket (`tesseract-data-tur`). Yoksa `missing_dependency`.
+* **Testler:** `crates/nashi-cli/tests/suggest.rs` (gerçek OCR; araç/yazı tipi yoksa atlar) ve `tst_editors` `redactImageSuggestsPersonalData`.
+* **Yüz algılama (2026-11-06):** `--kinds face` (varsayılan aramaya da dahil); `python3 -I -c` ile OpenCV Haar kaskatı (`haarcascade_frontalface_default`), kutu yüzde 12 genişletilir. `deps`te `opencv` (paket `python-opencv`); `cv2` içe aktarması 0,2 sn sürdüğü için yalnızca istenince denenir. Gerçek fotoğrafla denenmedi: elimde yüzlü örnek yoktu, testler ImageMagick ile çizilmiş kaba bir yüz kullanır. Haar yalnızca önden yüzleri bulur; yandan/eğik/küçük yüzleri kaçırabilir.
+* **Yapılmadı:** PDF'te öneri, çoklu dil seçimi arayüzü (varsayılan `tur+eng`), karartma editörü açılışındaki varsayılan alanın öneri gelince silinmesi.
+
+### 2.5.5. Pencere Yerleştirme (KDE Plasma, 2026-11-06, commit edilmedi)
+* **Ne:** `nashi --windows` (D-Bus `ShowWindowPlacer`, tepsi girişi, `.desktop` eylemi `PlaceWindow`) küçük bir seçici açar: sol/sağ/üst/alt yarı, dört köşe, üçte birler, tam ekran. Seçilen yerleşim, KWin'e D-Bus ile yüklenen kısa bir betikle (`WindowPlacer`, [`windowplacer.cpp`](ui/src/windowplacer.cpp)) en üstteki normal, Nashi'ye ait olmayan, simge durumunda olmayan, tam ekran olmayan ve geçerli sanal masaüstündeki pencereye uygulanır.
+* **Kısayol:** Nashi genel kısayol kaydetmez; Sistem Ayarları → Klavye → Kısayollar'dan `nashi --windows` komutuna kısayol atayın.
+* **Doğrulama:** Betik metni gerçek KWin'de yalnızca kendi açtığım `kcalc` penceresiyle denendi (sağ yarı, sol alt, tam ekran doğru geometri verdi). Birim testleri (`tst_windowplacer`) betiği sahte `workspace` nesneleriyle çalıştırıp hangi pencerenin seçildiğini sınar.
+* **Denenmedi:** seçicideki düğmeye gerçek oturumda tıklayıp kullanmak; birden çok ekran; çok masaüstü; Plasma dışı masaüstleri (çalışmaz, seçici bunu söyler).
 
 ### 2.6. Test Denetimi (2026-11-04)
 * **Mutasyon testi:** Motor kasıtlı bozularak testlerin hatayı yakalayıp yakalamadığı ölçüldü. İlk ölçümde 9 mutasyonun 8'i yakalanmıyordu. [`crates/nashi-cli/tests/behavior.rs`](crates/nashi-cli/tests/behavior.rs) (piksel, ses seviyesi, LUFS ve dosya boyutu ölçümleri) ve `v02.rs` düzeltmeleriyle işlevsel açıkların tamamı kapandı. Yalnızca `--proto-redir` kaldırılınca test geçiyor, çünkü `--proto` aynı yönlendirmeyi tek başına engelliyor; ikisi birden kaldırılınca test düşüyor.

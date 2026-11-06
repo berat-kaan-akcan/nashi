@@ -42,6 +42,10 @@ Item {
     property string fallbackPreviewPath: ""
     property bool loadingPreview: false
 
+    // Suggested areas (OCR): the request that is running and what it found.
+    property int suggestReqId: -1
+    property string suggestNote: ""
+
     readonly property int effWidth: mediaWidth > 0 ? mediaWidth
                                   : (previewWidth > 0 ? previewWidth
                                   : (previewImg.implicitWidth > 0 ? previewImg.implicitWidth : 640))
@@ -112,6 +116,8 @@ Item {
     }
 
     onFilePathChanged: {
+        suggestReqId = -1
+        suggestNote = ""
         resolvedImageUrl = ""
         fallbackPreviewPath = ""
         frameTime = 0
@@ -148,9 +154,20 @@ Item {
                 root.resolvedImageUrl = root.fileUrl(first)
         }
         function onFailed(requestId, message) {
+            if (requestId === root.suggestReqId) {
+                root.suggestReqId = -1
+                root.suggestNote = message
+                return
+            }
             if (requestId !== root.previewReqId)
                 return
             root.loadingPreview = false
+        }
+        function onSuggested(requestId, width, height, found) {
+            if (requestId !== root.suggestReqId)
+                return
+            root.suggestReqId = -1
+            root.applySuggestions(width, height, found)
         }
     }
 
@@ -203,6 +220,41 @@ Item {
         selectedIndex = next.length - 1
         currentStyle = st
         rectsModified()
+    }
+
+    // Ask the engine where text that looks like personal data is, and add an
+    // area for each place. Existing areas stay as they are.
+    function suggestAreas() {
+        if (!filePath || filePath.length === 0 || suggestReqId >= 0)
+            return
+        suggestNote = qsTr("Reading the text…")
+        suggestReqId = App.preview.suggestRedactions(filePath, isVideo ? frameTime : -1, "")
+    }
+
+    function applySuggestions(pw, ph, found) {
+        const mw = Math.max(1, effWidth)
+        const mh = Math.max(1, effHeight)
+        const sx = pw > 0 ? mw / pw : 1
+        const sy = ph > 0 ? mh / ph : 1
+        let added = 0
+        for (let i = 0; i < found.length; ++i) {
+            const f = found[i]
+            const x = Math.round(f.x * sx), y = Math.round(f.y * sy)
+            const w = Math.round(f.w * sx), h = Math.round(f.h * sy)
+            let same = false
+            for (let k = 0; k < rects.length; ++k) {
+                const r = rects[k]
+                if (Math.abs(r.x - x) < 4 && Math.abs(r.y - y) < 4 && Math.abs(r.w - w) < 4 && Math.abs(r.h - h) < 4)
+                    same = true
+            }
+            if (same)
+                continue
+            addRedactRect(x, y, w, h, currentStyle)
+            ++added
+        }
+        suggestNote = added > 0
+            ? qsTr("%n area(s) added. Check them before saving.", "", added)
+            : qsTr("Nothing that looks like personal data was found.")
     }
 
     function addDefaultRedactRect() {
@@ -339,6 +391,16 @@ Item {
                 Item { Layout.fillWidth: true }
 
                 NButton {
+                    objectName: "suggestAreas"
+                    compact: true
+                    kind: "quiet"
+                    iconName: "edit-find"
+                    text: root.suggestReqId >= 0 ? qsTr("Reading…") : qsTr("Find personal data")
+                    enabled: root.suggestReqId < 0 && root.filePath.length > 0
+                    onClicked: root.suggestAreas()
+                }
+
+                NButton {
                     compact: true
                     iconName: "list-add"
                     text: qsTr("Add area")
@@ -353,6 +415,15 @@ Item {
                     enabled: root.selectedIndex >= 0 && root.selectedIndex < root.rects.length
                     onClicked: root.removeSelectedRect()
                 }
+            }
+
+            Text {
+                objectName: "suggestNote"
+                visible: root.mode === "redact" && root.suggestNote.length > 0
+                text: root.suggestNote
+                font.pixelSize: Theme.sizeSmall
+                color: Theme.secondaryText
+                elide: Text.ElideRight
             }
 
             Pill {
