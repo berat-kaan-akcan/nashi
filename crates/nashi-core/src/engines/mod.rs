@@ -276,7 +276,7 @@ pub fn tool_multi(ctx: &Ctx, tool: &str, inputs: &[Input], out_dir: &Path) -> Jo
             if inputs.len() < 2 {
                 return Err(JobError::invalid_input("mergePDF needs at least two PDFs"));
             }
-            pdf::merge(ctx, inputs, out_dir).map(Into::into)
+            pdf::merge(ctx, inputs, out_dir)
         }
         "joinVideos" => {
             need(Category::Video, "video")?;

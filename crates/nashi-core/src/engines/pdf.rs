@@ -586,13 +586,21 @@ fn shown_page_sizes(ctx: &Ctx, path: &Path) -> JobResult<Vec<(f64, f64)>> {
 
 /// Copy `src` to `out` with every page scaled to the width of the narrowest.
 /// Pages already that wide stay untouched; Ghostscript rewrites the others.
-fn write_uniform_width(ctx: &Ctx, src: &Path, out: &Path, work: &WorkDir) -> JobResult<()> {
+/// Returns a note when a rewritten page had form fields: Ghostscript keeps
+/// how they look but not that they can be filled in.
+fn write_uniform_width(
+    ctx: &Ctx,
+    src: &Path,
+    out: &Path,
+    work: &WorkDir,
+) -> JobResult<Option<String>> {
     let sizes = shown_page_sizes(ctx, src)?;
     let narrowest = sizes.iter().map(|s| s.0).fold(f64::INFINITY, f64::min);
     if !narrowest.is_finite() || narrowest <= 0.0 {
         return Err(JobError::invalid_input("The PDF has no valid page sizes."));
     }
     let mut files = Vec::new();
+    let mut lost_fields = false;
     for (n, (w, h)) in sizes.iter().enumerate() {
         crate::process::check_cancel()?;
         let page = n as u32 + 1;
@@ -602,6 +610,7 @@ fn write_uniform_width(ctx: &Ctx, src: &Path, out: &Path, work: &WorkDir) -> Job
             files.push(one);
             continue;
         }
+        lost_fields |= has_form_fields(ctx, &one);
         let scaled = work.join(&format!("scaled-{page}.pdf"));
         gs_base(ctx)?
             .args(["-dFIXEDMEDIA", "-dPDFFitPage"])
@@ -617,7 +626,34 @@ fn write_uniform_width(ctx: &Ctx, src: &Path, out: &Path, work: &WorkDir) -> Job
         files.push(scaled);
     }
     let paths: Vec<&Path> = files.iter().map(PathBuf::as_path).collect();
-    join_pdfs(ctx, &paths, out, work)
+    join_pdfs(ctx, &paths, out, work)?;
+    Ok(lost_fields.then(|| {
+        "Some pages were scaled and their form fields can no longer be filled in. \
+         The fields still show on the page."
+            .to_string()
+    }))
+}
+
+/// Whether a one-page PDF has fillable form fields. Without qpdf it cannot
+/// tell, so it says no.
+fn has_form_fields(ctx: &Ctx, path: &Path) -> bool {
+    let Some(qpdf) = ctx.deps.path("qpdf") else {
+        return false;
+    };
+    let Ok(r) = Cmd::new(qpdf)
+        .args(["--json=2", "--json-key=acroform"])
+        .arg(path)
+        .run()
+    else {
+        return false;
+    };
+    serde_json::from_str::<serde_json::Value>(&r.stdout)
+        .ok()
+        .and_then(|v| {
+            v.pointer("/acroform/fields")
+                .map(|f| f.as_array().is_some_and(|a| !a.is_empty()))
+        })
+        .unwrap_or(false)
 }
 
 fn extract_page(ctx: &Ctx, src: &Path, page: u32, out: &Path) -> JobResult<()> {
@@ -729,7 +765,11 @@ fn organize(ctx: &Ctx, input: &Input) -> JobResult<Produced> {
         let work = WorkDir::new_in(&input.out_dir)?;
         let ordered = work.join("ordered.pdf");
         std::fs::rename(staged.path(), &ordered)?;
-        write_uniform_width(ctx, &ordered, staged.path(), &work)?;
+        let message = write_uniform_width(ctx, &ordered, staged.path(), &work)?;
+        return Ok(Produced {
+            paths: vec![staged.commit()?],
+            message,
+        });
     }
     Ok(staged.commit()?.into())
 }
@@ -764,7 +804,7 @@ fn join_pdfs(ctx: &Ctx, paths: &[&Path], out: &Path, work: &WorkDir) -> JobResul
 }
 
 /// Merge PDFs into `merged.pdf`.
-pub fn merge(ctx: &Ctx, inputs: &[Input], out_dir: &Path) -> JobResult<PathBuf> {
+pub fn merge(ctx: &Ctx, inputs: &[Input], out_dir: &Path) -> JobResult<Produced> {
     ctx.progress(None, "Merging");
     let uniform = ctx.opts.uniform_width == Some(true);
     if uniform {
@@ -773,14 +813,18 @@ pub fn merge(ctx: &Ctx, inputs: &[Input], out_dir: &Path) -> JobResult<PathBuf> 
     let staged = Staged::file(out_dir, "merged", "pdf")?;
     let paths: Vec<&Path> = inputs.iter().map(|i| i.path.as_path()).collect();
     let work = WorkDir::new_in(out_dir)?;
+    let mut message = None;
     if uniform {
         let joined = work.join("all.pdf");
         join_pdfs(ctx, &paths, &joined, &work)?;
-        write_uniform_width(ctx, &joined, staged.path(), &work)?;
+        message = write_uniform_width(ctx, &joined, staged.path(), &work)?;
     } else {
         join_pdfs(ctx, &paths, staged.path(), &work)?;
     }
-    Ok(staged.commit()?)
+    Ok(Produced {
+        paths: vec![staged.commit()?],
+        message,
+    })
 }
 
 #[cfg(test)]

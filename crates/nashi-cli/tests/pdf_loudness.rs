@@ -441,3 +441,88 @@ fn normalize_handles_silence() {
     r.ok();
     r.one();
 }
+
+/// A two-page PDF: 612 wide with a link and a text field, 400 wide with a text field.
+fn form_pdf(dir: &Path) -> PathBuf {
+    let stream = |t: &str| format!("<< /Length {} >>\nstream\n{t}\nendstream", t.len());
+    let objs = [
+        "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [9 0 R 10 0 R] /DA (/Helv 12 Tf 0 g) /DR << /Font << /Helv 5 0 R >> >> >> >>".to_string(),
+        "<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>".into(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 6 0 R /Resources << /Font << /F1 5 0 R /Helv 5 0 R >> >> /Annots [8 0 R 9 0 R] >>".into(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 500] /Contents 7 0 R /Resources << /Font << /F1 5 0 R /Helv 5 0 R >> >> /Annots [10 0 R] >>".into(),
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".into(),
+        stream("BT /F1 24 Tf 72 700 Td (Wide) Tj ET"),
+        stream("BT /F1 24 Tf 40 450 Td (Narrow) Tj ET"),
+        "<< /Type /Annot /Subtype /Link /Rect [72 600 300 630] /Border [0 0 1] /A << /S /URI /URI (https://example.com/one) >> >>".into(),
+        "<< /Type /Annot /Subtype /Widget /FT /Tx /T (name1) /V (hello) /Rect [72 500 300 530] /F 4 /P 3 0 R /DA (/Helv 12 Tf 0 g) >>".into(),
+        "<< /Type /Annot /Subtype /Widget /FT /Tx /T (name2) /V (world) /Rect [40 300 250 330] /F 4 /P 4 0 R /DA (/Helv 12 Tf 0 g) >>".into(),
+    ];
+    let mut out = String::from("%PDF-1.7\n");
+    let mut offsets = Vec::new();
+    for (i, o) in objs.iter().enumerate() {
+        offsets.push(out.len());
+        out += &format!("{} 0 obj\n{o}\nendobj\n", i + 1);
+    }
+    let xref = out.len();
+    out += &format!("xref\n0 {}\n0000000000 65535 f \n", objs.len() + 1);
+    for o in offsets {
+        out += &format!("{o:010} 00000 n \n");
+    }
+    out += &format!(
+        "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n",
+        objs.len() + 1
+    );
+    let p = dir.join("form.pdf");
+    std::fs::write(&p, out).unwrap();
+    p
+}
+
+#[test]
+fn uniform_width_keeps_links_and_says_when_form_fields_stop_working() {
+    need!("pdfinfo", "gs", "qpdf");
+    let d = tempfile::tempdir().unwrap();
+    let form = form_pdf(d.path());
+    let r = tool_run(
+        "organizePDF",
+        &[&form],
+        Some(r#"{"pages":"1,2","uniform_width":true}"#),
+    );
+    r.ok();
+    let out = r.one();
+    let note = r
+        .events
+        .iter()
+        .find(|e| e["event"] == "output")
+        .and_then(|e| e["message"].as_str())
+        .unwrap_or_default();
+    assert!(note.contains("form fields"), "{note:?}");
+    let dump = Command::new("qpdf")
+        .args(["--qdf", "--object-streams=disable"])
+        .arg(&out)
+        .arg("-")
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&dump.stdout);
+    assert!(text.contains("https://example.com/one"), "link lost");
+    // The scaled page lost its field, the page that was already narrow kept its own.
+    assert_eq!(text.matches("/Subtype /Widget").count(), 1);
+}
+
+#[test]
+fn uniform_width_without_form_fields_has_no_note() {
+    need!("magick", "pdfinfo", "gs", "qpdf");
+    let d = tempfile::tempdir().unwrap();
+    let wide = sized_pdf(d.path(), "wide.pdf", "600x300");
+    let small = sized_pdf(d.path(), "small.pdf", "200x400");
+    let r = tool_run(
+        "mergePDF",
+        &[&wide, &small],
+        Some(r#"{"uniform_width":true}"#),
+    );
+    r.ok();
+    assert!(r
+        .events
+        .iter()
+        .find(|e| e["event"] == "output")
+        .is_some_and(|e| e["message"].is_null()));
+}
