@@ -1370,10 +1370,26 @@ fn read_qr(ctx: &Ctx, input: &Input) -> JobResult<Produced> {
     let work = WorkDir::new_in(&input.out_dir)?;
     let (src, ext) = readable_source(ctx, input, &work)?;
     // zbarimg decodes through ImageMagick: same confinement and coder prefix.
-    let out = im_cmd(zbar, &work)?
+    let spec = ispec(&work, &src, &ext, true)?;
+    let mut out = im_cmd(zbar, &work)?
         .args(["--quiet", "--raw"])
-        .arg(ispec(&work, &src, &ext, true)?)
+        .arg(&spec)
         .run()?;
+    if out.status.code() == Some(4) {
+        // zbar only reads dark-on-light codes. A light code on a transparent or
+        // dark background reads once it is put on black and inverted.
+        let inverted = work.join("qr-inverted.png");
+        let made = magick(ctx.deps, &work)?
+            .arg(&spec)
+            .args(["-background", "black", "-alpha", "remove", "-alpha", "off"])
+            .args(["-negate", "PNG:qr-inverted.png"])
+            .run()?;
+        if made.status.success() && inverted.exists() {
+            out = im_cmd(zbar, &work)?
+                .args(["--quiet", "--raw", "PNG:qr-inverted.png"])
+                .run()?;
+        }
+    }
     match out.status.code() {
         Some(0) => {}
         Some(4) => return Err(JobError::invalid_input("no QR code or barcode found")),

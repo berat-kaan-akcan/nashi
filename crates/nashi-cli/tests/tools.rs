@@ -418,6 +418,44 @@ fn read_qr_code() {
     assert_eq!(std::fs::read_to_string(&out).unwrap().trim(), "hello nashi");
     let ev = r.events.iter().find(|e| e["event"] == "output").unwrap();
     assert_eq!(ev["message"], "hello nashi");
+
+    // A light code on a transparent background (no dark pixels to read) and a
+    // light code on a dark background both read through the inverted retry.
+    let t = d.path().join("light.png");
+    tool(
+        "qrencode",
+        &[
+            "-o",
+            s(&t),
+            "-s",
+            "6",
+            "--foreground=FFFFFFFF",
+            "--background=00000000",
+            "light one",
+        ],
+    );
+    let r = tool_run("readQRCode", &[&t], None);
+    r.ok();
+    assert_eq!(
+        std::fs::read_to_string(r.one()).unwrap().trim(),
+        "light one"
+    );
+    let dark = d.path().join("lightdark.png");
+    tool(
+        "qrencode",
+        &[
+            "-o",
+            s(&dark),
+            "-s",
+            "6",
+            "--foreground=FFFFFF",
+            "--background=000000",
+            "on dark",
+        ],
+    );
+    let r = tool_run("readQRCode", &[&dark], None);
+    r.ok();
+    assert_eq!(std::fs::read_to_string(r.one()).unwrap().trim(), "on dark");
 }
 
 #[test]
