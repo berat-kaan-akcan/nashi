@@ -2,7 +2,7 @@
 
 ## Arch / CachyOS — PKGBUILD (önerilen)
 
-`packaging/arch/PKGBUILD` bir VCS paketidir (`nashi-git`, `nashi` sağlar): GitHub'daki `main` dalının son commit'ini derler. Henüz etiketli sürüm olmadığı için AUR adlandırma kuralına uygun olarak `-git` son eki kullanıldı; sürüm `0.1.0.r<commit sayısı>.g<kısa hash>` biçimindedir.
+`packaging/arch/PKGBUILD` bir VCS paketidir (`nashi-git`, `nashi` sağlar): GitHub'daki `main` dalının son commit'ini derler. Paket etiketli sürüme değil son commit'e göre derlendiği için AUR adlandırma kuralına uygun olarak `-git` son eki kullanıldı; sürüm `0.1.0.r<commit sayısı>.g<kısa hash>` biçimindedir.
 
 ```sh
 cd packaging/arch

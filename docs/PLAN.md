@@ -27,11 +27,11 @@ Yedek giriş yolları: global kısayol (panodaki/seçili dosyalar), Dolphin sağ
 | Faz | İçerik | Durum |
 |---|---|---|
 | **0 — Temel** | Repo iskeleti, plan, mimari, sözleşmeler (CLI protokolü, D-Bus), CI | tamamlandı |
-| **1 — Motor + CLI** | Katalog (46 format; HTML → PDF eklendi), dosya tespiti, dönüşümler, parametresiz araçlar, JSON ilerleme, testler | tamamlandı (Ajan A); gerçek cihaz testi Faz 5 |
-| **2 — inputd** | evdev akor algılama durum makinesi, D-Bus sinyalleri, udev kuralı, systemd user servisi | tamamlandı (Ajan B); gerçek cihaz testi Faz 5 |
-| **3 — Arayüz prototipi** | Tam ekran şeffaf layer-shell overlay, çark, bırakma, işi CLI'ye verme, ilerleme bildirimi, tepsi, ana pencere | tamamlandı (Ajan C); gerçek cihaz testi Faz 5 |
-| **4 — Paketleme + entegrasyon** | PKGBUILD, kurulum betiği, .desktop + MIME, Dolphin servis menüsü, Nautilus betiği | tamamlandı (Ajan D); gerçek cihaz testi Faz 5 |
-| **5 — Gerçek cihaz testi** | CachyOS üzerinde overlay + DnD + inputd denemesi, bulguya göre düzeltme | doğrulandı; iki aşamalı çark yedeği denenmedi (`HANDOVER.md` §3.1) |
+| **1 — Motor + CLI** | Katalog (46 format; HTML → PDF eklendi), dosya tespiti, dönüşümler, parametresiz araçlar, JSON ilerleme, testler | tamamlandı; gerçek cihaz testi Faz 5 |
+| **2 — inputd** | evdev akor algılama durum makinesi, D-Bus sinyalleri, udev kuralı, systemd user servisi | tamamlandı; gerçek cihaz testi Faz 5 |
+| **3 — Arayüz prototipi** | Tam ekran şeffaf layer-shell overlay, çark, bırakma, işi CLI'ye verme, ilerleme bildirimi, tepsi, ana pencere | tamamlandı; gerçek cihaz testi Faz 5 |
+| **4 — Paketleme + entegrasyon** | PKGBUILD, kurulum betiği, .desktop + MIME, Dolphin servis menüsü, Nautilus betiği | tamamlandı; gerçek cihaz testi Faz 5 |
+| **5 — Gerçek cihaz testi** | CachyOS üzerinde overlay + DnD + inputd denemesi, bulguya göre düzeltme | doğrulandı; iki aşamalı çark yedeği denenmedi |
 | **6 — Medya araçları tamamı** | Kesme/kırpma/hız/bölme/birleştirme/karartma vb. ffmpeg araçlarının parametreli sürümleri, web indirme (yt-dlp) | tamamlandı (Tur 2) |
 | **7 — Editörler** | Görsel kırpma, not ekleme, karartma, video zaman çizelgesi (I/O), PDF sayfa düzenleme arayüzleri | tamamlandı (Tur 2) |
 | **8 — Diğer masaüstleri** | GNOME Shell eklentisi, wlroots/Hyprland testi, X11 yolu | sonraki tur |
@@ -53,19 +53,6 @@ Upstream (`nashi-app`, Mac/Windows) ile karşılaştırılıp Linux'ta eksik kal
 | 7 | İsteğe bağlı: OCR/yüz yardımlı karartma, KWin pencere yerleşimi | değerlendirilecek |
 
 Bilerek yapılmayanlar: Pages yazma (kapalı format), otomatik güncelleme (pacman/AUR), "Taşı" eylemi (girdi dosyalarına dokunmama kuralı).
-
-## Ajan bölümü (bu tur)
-
-Ajanlar aynı repoda **ayrı klasörlerde** çalışır; sözleşmeler `docs/` altındadır ve değiştirilmeden önce entegrasyon sahibine (ana oturum) sorulur.
-
-| Ajan | Sahip olduğu klasörler | Teslim |
-|---|---|---|
-| A — Motor | `crates/nashi-core`, `crates/nashi-cli` | `docs/CLI-PROTOCOL.md`'ye uyan `nashi-cli`, birim + entegrasyon testleri |
-| B — Giriş | `crates/nashi-inputd` | `docs/DBUS.md`'ye uyan daemon, durum makinesi testleri, udev/systemd dosyaları |
-| C — Arayüz | `ui/` | Qt6/QML uygulaması `nashi`, sahte CLI ile testler, offscreen smoke test |
-| D — Paketleme | `packaging/`, `data/`, `.github/` | PKGBUILD, install.sh, masaüstü entegrasyonu, CI |
-
-Entegrasyon, bağımsız inceleme ve GitHub'a gönderme ana oturumdadır.
 
 ## Riskler
 

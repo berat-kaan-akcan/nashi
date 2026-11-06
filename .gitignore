@@ -13,3 +13,6 @@ CMakeLists.txt.user
 # Local reference clone of upstream and editor settings
 /nashi-app/
 /.vscode/
+
+# Local session notes
+/HANDOVER.md

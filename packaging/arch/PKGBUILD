@@ -1,8 +1,8 @@
 # Maintainer: Berat Kaan Akcan <beratkaanakcan@gmail.com>
 #
-# VCS package: builds the latest commit of the main branch. There is no tagged
-# release yet, so this is named `nashi-git` (AUR convention) and provides
-# `nashi`. pkgver is `<cargo version>.r<commit count>.g<short hash>`.
+# VCS package: builds the latest commit of the main branch (v0.1.0 is tagged, but
+# this package follows main), so it is named `nashi-git` (AUR convention) and
+# provides `nashi`. pkgver is `<cargo version>.r<commit count>.g<short hash>`.
 #
 # Build from a local checkout instead of GitHub (uncommitted changes included):
 #   NASHI_LOCAL_SRC="$PWD/../.." makepkg -si        # run inside packaging/arch
