@@ -107,6 +107,19 @@ fn split_applies_the_part_size_to_the_chosen_pages() {
 }
 
 #[test]
+fn split_keeps_every_part_when_pages_repeat() {
+    need!("qpdf", "pdfinfo");
+    let d = tempfile::tempdir().unwrap();
+    let f = pdf(d.path(), "b.pdf", 3);
+    let r = tool_run("splitPDF", &[&f], Some(r#"{"pages":"2-3,2-3"}"#));
+    r.ok();
+    assert_eq!(
+        files_in(&r.one()),
+        ["b-2 (1).pdf", "b-2.pdf", "b-3 (1).pdf", "b-3.pdf"]
+    );
+}
+
+#[test]
 fn split_stays_one_page_each_by_default() {
     need!("qpdf");
     let d = tempfile::tempdir().unwrap();

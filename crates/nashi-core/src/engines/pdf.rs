@@ -8,7 +8,7 @@ use super::{office, Ctx, Input, Produced};
 use crate::deps::require;
 use crate::detect::pdf_pages;
 use crate::events::{JobError, JobResult};
-use crate::fsops::{files_in, Staged, WorkDir};
+use crate::fsops::{files_in, rename_noreplace, unique_path, Staged, WorkDir};
 use crate::options::parse_pages;
 use crate::process::Cmd;
 
@@ -501,14 +501,16 @@ fn split(ctx: &Ctx, input: &Input) -> JobResult<Produced> {
         let name = match part {
             [only] => {
                 extract_page(ctx, &input.path, *only, &tmp)?;
-                format!("{stem}-{only}.pdf")
+                format!("{stem}-{only}")
             }
             _ => {
                 extract_part(ctx, &input.path, part, &tmp, &work)?;
-                format!("{stem}-{}-{}.pdf", part[0], part[part.len() - 1])
+                format!("{stem}-{}-{}", part[0], part[part.len() - 1])
             }
         };
-        std::fs::rename(&tmp, staged.path().join(name))?;
+        // A list such as "2-3,2-3" repeats pages: keep every part ("b-2 (1).pdf").
+        let target = unique_path(staged.path(), &name, "pdf");
+        rename_noreplace(&tmp, &target)?;
     }
     Ok(staged.commit()?.into())
 }
