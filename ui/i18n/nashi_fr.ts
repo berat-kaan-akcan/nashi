@@ -503,10 +503,6 @@
         <translation>Ctrl+V · Collez des fichiers, du texte, une image ou un lien</translation>
     </message>
     <message>
-        <source>Download link…</source>
-        <translation>Télécharger un lien…</translation>
-    </message>
-    <message>
         <source>Save video, audio or a file from an http(s) link</source>
         <translation>Enregistrer une vidéo, un son ou un fichier depuis un lien http(s)</translation>
     </message>
@@ -517,10 +513,6 @@
     <message>
         <source>Tools</source>
         <translation>Outils</translation>
-    </message>
-    <message>
-        <source>Actions</source>
-        <translation>Actions</translation>
     </message>
     <message>
         <source>Clear</source>
@@ -591,8 +583,20 @@
         <translation>Retirer %1</translation>
     </message>
     <message>
+        <source>File actions</source>
+        <translation>Actions sur les fichiers</translation>
+    </message>
+    <message>
         <source>Hold a key while dragging a file</source>
         <translation>Maintenez une touche en faisant glisser un fichier</translation>
+    </message>
+    <message>
+        <source>Download a link</source>
+        <translation>Télécharger un lien</translation>
+    </message>
+    <message>
+        <source>Video, audio, or an image. Straight into your tools.</source>
+        <translation>Vidéo, audio ou image. Directement dans vos outils.</translation>
     </message>
     <message>
         <source>Reading files…</source>
@@ -637,6 +641,58 @@
     <message>
         <source>Nothing in this group for these files.</source>
         <translation>Rien dans ce groupe pour ces fichiers.</translation>
+    </message>
+    <message>
+        <source>Freshly made</source>
+        <translation>Tout juste créés</translation>
+    </message>
+    <message>
+        <source>Find a recent file</source>
+        <translation>Rechercher un fichier récent</translation>
+    </message>
+    <message>
+        <source>See all  ↗</source>
+        <translation>Tout voir  ↗</translation>
+    </message>
+    <message>
+        <source>Your next fresh copy will land here.</source>
+        <translation>Votre prochaine copie arrivera ici.</translation>
+    </message>
+    <message>
+        <source>No matches. Try a file name or folder.</source>
+        <translation>Aucun résultat. Essayez un nom de fichier ou de dossier.</translation>
+    </message>
+    <message>
+        <source>Preview</source>
+        <translation>Aperçu</translation>
+    </message>
+    <message>
+        <source>Use again</source>
+        <translation>Réutiliser</translation>
+    </message>
+    <message>
+        <source>Open</source>
+        <translation>Ouvrir</translation>
+    </message>
+    <message>
+        <source>Show in folder</source>
+        <translation>Afficher dans le dossier</translation>
+    </message>
+    <message>
+        <source>Tools &amp; shortcuts</source>
+        <translation>Outils et raccourcis</translation>
+    </message>
+    <message>
+        <source>Set up tools (%1 missing)</source>
+        <translation>Configurer les outils (%1 manquants)</translation>
+    </message>
+    <message>
+        <source>Check tools</source>
+        <translation>Vérifier les outils</translation>
+    </message>
+    <message>
+        <source>Features &amp; shortcuts</source>
+        <translation>Fonctionnalités et raccourcis</translation>
     </message>
 </context>
 <context>
@@ -1090,6 +1146,18 @@
         <translation>Nashi</translation>
     </message>
     <message>
+        <source>Finish setup</source>
+        <translation>Terminer la configuration</translation>
+    </message>
+    <message>
+        <source>Tools ready</source>
+        <translation>Outils prêts</translation>
+    </message>
+    <message>
+        <source>%1 tools missing</source>
+        <translation>%1 outils manquants</translation>
+    </message>
+    <message>
         <source>Home</source>
         <translation>Accueil</translation>
     </message>
@@ -1098,8 +1166,8 @@
         <translation>Bibliothèque</translation>
     </message>
     <message>
-        <source>Tools (%1 missing)</source>
-        <translation>Outils (%1 manquants)</translation>
+        <source>Files stay on your computer.</source>
+        <translation>Les fichiers restent sur votre ordinateur.</translation>
     </message>
     <message>
         <source>Tools</source>
@@ -1124,14 +1192,6 @@
     <message>
         <source>Settings</source>
         <translation>Réglages</translation>
-    </message>
-    <message>
-        <source>A little less file fuss. A little more flow.</source>
-        <translation>Moins de tracas avec vos fichiers. Plus de fluidité.</translation>
-    </message>
-    <message>
-        <source>Made for Linux</source>
-        <translation>Conçu pour Linux</translation>
     </message>
     <message>
         <source>Drag chords are disabled.</source>
@@ -2904,6 +2964,105 @@
     <message>
         <source>Share all</source>
         <translation>Tout partager</translation>
+    </message>
+</context>
+<context>
+    <name>ShortcutsDialog</name>
+    <message>
+        <source>Nashi · Features &amp; shortcuts</source>
+        <translation>Nashi · Fonctionnalités et raccourcis</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>Fermer</translation>
+    </message>
+    <message>
+        <source>Home</source>
+        <translation>Accueil</translation>
+    </message>
+    <message>
+        <source>Choose files</source>
+        <translation>Choisir des fichiers</translation>
+    </message>
+    <message>
+        <source>Paste files, text, an image or a link</source>
+        <translation>Coller des fichiers, du texte, une image ou un lien</translation>
+    </message>
+    <message>
+        <source>Download a copied link</source>
+        <translation>Télécharger un lien copié</translation>
+    </message>
+    <message>
+        <source>Home / Library / Tools</source>
+        <translation>Accueil / Bibliothèque / Outils</translation>
+    </message>
+    <message>
+        <source>Settings</source>
+        <translation>Réglages</translation>
+    </message>
+    <message>
+        <source>Find in Library</source>
+        <translation>Rechercher dans la bibliothèque</translation>
+    </message>
+    <message>
+        <source>Drag a file</source>
+        <translation>Glisser un fichier</translation>
+    </message>
+    <message>
+        <source>Hold a key</source>
+        <translation>Maintenir une touche</translation>
+    </message>
+    <message>
+        <source>By default Shift converts, Ctrl opens tools and Alt shows file actions</source>
+        <translation>Par défaut, Maj convertit, Ctrl ouvre les outils et Alt affiche les actions sur les fichiers</translation>
+    </message>
+    <message>
+        <source>Drop</source>
+        <translation>Déposer</translation>
+    </message>
+    <message>
+        <source>Drop the file on a slice of the wheel to start</source>
+        <translation>Déposez le fichier sur une part de la roue pour commencer</translation>
+    </message>
+    <message>
+        <source>Wheel and Library</source>
+        <translation>Roue et bibliothèque</translation>
+    </message>
+    <message>
+        <source>Choose a slice</source>
+        <translation>Choisir une part</translation>
+    </message>
+    <message>
+        <source>Open the chosen slice or file</source>
+        <translation>Ouvrir la part ou le fichier choisi</translation>
+    </message>
+    <message>
+        <source>Preview the chosen Library file</source>
+        <translation>Prévisualiser le fichier choisi de la bibliothèque</translation>
+    </message>
+    <message>
+        <source>Editors</source>
+        <translation>Éditeurs</translation>
+    </message>
+    <message>
+        <source>Play or pause</source>
+        <translation>Lecture ou pause</translation>
+    </message>
+    <message>
+        <source>Half a second back or forward (Shift: a tenth)</source>
+        <translation>Une demi-seconde en arrière ou en avant (Maj : un dixième)</translation>
+    </message>
+    <message>
+        <source>Set the start or end of the range</source>
+        <translation>Définir le début ou la fin de la plage</translation>
+    </message>
+    <message>
+        <source>Mark a frame at the playhead</source>
+        <translation>Marquer une image à la tête de lecture</translation>
+    </message>
+    <message>
+        <source>Remove the selected area</source>
+        <translation>Supprimer la zone sélectionnée</translation>
     </message>
 </context>
 <context>

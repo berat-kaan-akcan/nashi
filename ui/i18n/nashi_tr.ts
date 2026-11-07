@@ -500,10 +500,6 @@
         <translation>Ctrl+V · Dosya, metin, görsel ya da bağlantı yapıştır</translation>
     </message>
     <message>
-        <source>Download link…</source>
-        <translation>Bağlantı indir…</translation>
-    </message>
-    <message>
         <source>Save video, audio or a file from an http(s) link</source>
         <translation>Bir http(s) bağlantısından video, ses ya da dosya kaydet</translation>
     </message>
@@ -514,10 +510,6 @@
     <message>
         <source>Tools</source>
         <translation>Araçlar</translation>
-    </message>
-    <message>
-        <source>Actions</source>
-        <translation>İşlemler</translation>
     </message>
     <message>
         <source>Clear</source>
@@ -588,8 +580,20 @@
         <translation>Kaldır: %1</translation>
     </message>
     <message>
+        <source>File actions</source>
+        <translation>Dosya işlemleri</translation>
+    </message>
+    <message>
         <source>Hold a key while dragging a file</source>
         <translation>Dosyayı sürüklerken bir tuşa basılı tutun</translation>
+    </message>
+    <message>
+        <source>Download a link</source>
+        <translation>Bağlantıdan indir</translation>
+    </message>
+    <message>
+        <source>Video, audio, or an image. Straight into your tools.</source>
+        <translation>Video, ses veya görsel. Doğrudan araçlarına aktar.</translation>
     </message>
     <message>
         <source>Reading files…</source>
@@ -634,6 +638,58 @@
     <message>
         <source>Nothing in this group for these files.</source>
         <translation>Bu dosyalar için bu grupta bir şey yok.</translation>
+    </message>
+    <message>
+        <source>Freshly made</source>
+        <translation>Yeni hazırlananlar</translation>
+    </message>
+    <message>
+        <source>Find a recent file</source>
+        <translation>Son dosyalarda ara</translation>
+    </message>
+    <message>
+        <source>See all  ↗</source>
+        <translation>Tümünü gör  ↗</translation>
+    </message>
+    <message>
+        <source>Your next fresh copy will land here.</source>
+        <translation>Bir sonraki yeni kopyan burada görünecek.</translation>
+    </message>
+    <message>
+        <source>No matches. Try a file name or folder.</source>
+        <translation>Eşleşme bulunamadı. Dosya veya klasör adıyla ara.</translation>
+    </message>
+    <message>
+        <source>Preview</source>
+        <translation>Önizleme</translation>
+    </message>
+    <message>
+        <source>Use again</source>
+        <translation>Yeniden kullan</translation>
+    </message>
+    <message>
+        <source>Open</source>
+        <translation>Aç</translation>
+    </message>
+    <message>
+        <source>Show in folder</source>
+        <translation>Klasörde göster</translation>
+    </message>
+    <message>
+        <source>Tools &amp; shortcuts</source>
+        <translation>Araçlar ve kısayollar</translation>
+    </message>
+    <message>
+        <source>Set up tools (%1 missing)</source>
+        <translation>Araçları kur (%1 eksik)</translation>
+    </message>
+    <message>
+        <source>Check tools</source>
+        <translation>Araçları denetle</translation>
+    </message>
+    <message>
+        <source>Features &amp; shortcuts</source>
+        <translation>Özellikler ve kısayollar</translation>
     </message>
 </context>
 <context>
@@ -1085,6 +1141,18 @@
         <translation>Nashi</translation>
     </message>
     <message>
+        <source>Finish setup</source>
+        <translation>Kurulumu tamamla</translation>
+    </message>
+    <message>
+        <source>Tools ready</source>
+        <translation>Araçlar hazır</translation>
+    </message>
+    <message>
+        <source>%1 tools missing</source>
+        <translation>%1 araç eksik</translation>
+    </message>
+    <message>
         <source>Home</source>
         <translation>Ana sayfa</translation>
     </message>
@@ -1093,8 +1161,8 @@
         <translation>Kitaplık</translation>
     </message>
     <message>
-        <source>Tools (%1 missing)</source>
-        <translation>Araçlar (%1 eksik)</translation>
+        <source>Files stay on your computer.</source>
+        <translation>Dosyaların bilgisayarında kalır.</translation>
     </message>
     <message>
         <source>Tools</source>
@@ -1119,14 +1187,6 @@
     <message>
         <source>Settings</source>
         <translation>Ayarlar</translation>
-    </message>
-    <message>
-        <source>A little less file fuss. A little more flow.</source>
-        <translation>Biraz daha az dosya derdi. Biraz daha fazla akış.</translation>
-    </message>
-    <message>
-        <source>Made for Linux</source>
-        <translation>Linux için yapıldı</translation>
     </message>
     <message>
         <source>Drag chords are disabled.</source>
@@ -2122,11 +2182,11 @@
     </message>
     <message>
         <source>KWin did not accept the request. This works on KDE Plasma only.</source>
-        <translation>KWin isteği kabul etmedi. Bu yalnızca KDE Plasma'da çalışır.</translation>
+        <translation>KWin isteği kabul etmedi. Bu yalnızca KDE Plasma&apos;da çalışır.</translation>
     </message>
     <message>
         <source>KWin was not found. This works on KDE Plasma only.</source>
-        <translation>KWin bulunamadı. Bu yalnızca KDE Plasma'da çalışır.</translation>
+        <translation>KWin bulunamadı. Bu yalnızca KDE Plasma&apos;da çalışır.</translation>
     </message>
     <message>
         <source>Where should the last window you used go?</source>
@@ -2893,6 +2953,105 @@
     <message>
         <source>Share all</source>
         <translation>Tümünü paylaş</translation>
+    </message>
+</context>
+<context>
+    <name>ShortcutsDialog</name>
+    <message>
+        <source>Nashi · Features &amp; shortcuts</source>
+        <translation>Nashi · Özellikler ve kısayollar</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>Kapat</translation>
+    </message>
+    <message>
+        <source>Home</source>
+        <translation>Ana sayfa</translation>
+    </message>
+    <message>
+        <source>Choose files</source>
+        <translation>Dosya seç</translation>
+    </message>
+    <message>
+        <source>Paste files, text, an image or a link</source>
+        <translation>Dosya, metin, görsel veya bağlantı yapıştır</translation>
+    </message>
+    <message>
+        <source>Download a copied link</source>
+        <translation>Kopyalanan bağlantıyı indir</translation>
+    </message>
+    <message>
+        <source>Home / Library / Tools</source>
+        <translation>Ana sayfa / Kitaplık / Araçlar</translation>
+    </message>
+    <message>
+        <source>Settings</source>
+        <translation>Ayarlar</translation>
+    </message>
+    <message>
+        <source>Find in Library</source>
+        <translation>Kitaplıkta ara</translation>
+    </message>
+    <message>
+        <source>Drag a file</source>
+        <translation>Dosya sürükle</translation>
+    </message>
+    <message>
+        <source>Hold a key</source>
+        <translation>Bir tuşu basılı tut</translation>
+    </message>
+    <message>
+        <source>By default Shift converts, Ctrl opens tools and Alt shows file actions</source>
+        <translation>Varsayılan olarak Shift dönüştürür, Ctrl araçları açar, Alt dosya işlemlerini gösterir</translation>
+    </message>
+    <message>
+        <source>Drop</source>
+        <translation>Bırak</translation>
+    </message>
+    <message>
+        <source>Drop the file on a slice of the wheel to start</source>
+        <translation>Başlatmak için dosyayı çarkın bir dilimine bırak</translation>
+    </message>
+    <message>
+        <source>Wheel and Library</source>
+        <translation>Çark ve Kitaplık</translation>
+    </message>
+    <message>
+        <source>Choose a slice</source>
+        <translation>Dilim seç</translation>
+    </message>
+    <message>
+        <source>Open the chosen slice or file</source>
+        <translation>Seçili dilimi veya dosyayı aç</translation>
+    </message>
+    <message>
+        <source>Preview the chosen Library file</source>
+        <translation>Seçili Kitaplık dosyasını önizle</translation>
+    </message>
+    <message>
+        <source>Editors</source>
+        <translation>Düzenleyiciler</translation>
+    </message>
+    <message>
+        <source>Play or pause</source>
+        <translation>Oynat veya duraklat</translation>
+    </message>
+    <message>
+        <source>Half a second back or forward (Shift: a tenth)</source>
+        <translation>Yarım saniye geri veya ileri (Shift: onda bir)</translation>
+    </message>
+    <message>
+        <source>Set the start or end of the range</source>
+        <translation>Aralığın başını veya sonunu ayarla</translation>
+    </message>
+    <message>
+        <source>Mark a frame at the playhead</source>
+        <translation>Oynatma konumundaki kareyi işaretle</translation>
+    </message>
+    <message>
+        <source>Remove the selected area</source>
+        <translation>Seçili alanı kaldır</translation>
     </message>
 </context>
 <context>

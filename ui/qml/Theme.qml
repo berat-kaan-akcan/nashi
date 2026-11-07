@@ -21,6 +21,8 @@ QtObject {
     readonly property color surface: pick("#fffdf7", "#1c271f")
     readonly property color inset: pick("#f1ede0", "#151f18")
     readonly property color border: pick(Qt.rgba(0, 0, 0, 0.075), Qt.rgba(1, 1, 1, 0.08))
+    // Firmer outline for small chips and badges (upstream Windows "Line").
+    readonly property color line: pick(Qt.rgba(0, 0, 0, 0.13), "#344237")
     readonly property color hover: pick(Qt.rgba(0, 0, 0, 0.035), Qt.rgba(1, 1, 1, 0.05))
 
     // Text

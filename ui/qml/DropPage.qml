@@ -16,11 +16,35 @@ Page {
 
     function keyName(key, fallback) {
         const k = key && key.length > 0 ? key : fallback
-        return { shift: "⇧", ctrl: "Ctrl", alt: "Alt", meta: "Meta" }[k] || "—"
+        return { shift: "Shift", ctrl: "Ctrl", alt: "Alt", meta: "Meta" }[k] || "—"
     }
 
     background: null
     padding: 0
+
+    // Handled by HomeWindow: switch tab or open the shortcuts sheet.
+    signal libraryRequested()
+    signal toolsRequested()
+    signal shortcutsRequested()
+
+    // Existing recent files matching the Home search, newest first.
+    property int recentRevision: 0
+    readonly property var recentHits: {
+        page.recentRevision
+        return App.filteredRecentPaths(recentSearch.text)
+    }
+    // Library files still on disk; Home only lists those.
+    readonly property int recentTotal: {
+        page.recentRevision
+        return App.filteredRecentPaths("").length
+    }
+    Connections {
+        target: App.recent
+        function onRowsInserted() { page.recentRevision++ }
+        function onRowsRemoved() { page.recentRevision++ }
+        function onModelReset() { page.recentRevision++ }
+        function onDataChanged() { page.recentRevision++ }
+    }
 
     // Used by the Home window's Ctrl+O / Ctrl+V shortcuts.
     function chooseFiles() { fileDialog.open() }
@@ -130,15 +154,6 @@ Page {
                                     onClicked: page.paste()
                                 }
                                 NButton {
-                                    objectName: "downloadLinkButton"
-                                    kind: "quiet"
-                                    iconName: "folder-download"
-                                    text: qsTr("Download link…")
-                                    ToolTip.visible: hovered
-                                    ToolTip.text: qsTr("Save video, audio or a file from an http(s) link")
-                                    onClicked: App.showDownloadFromClipboard()
-                                }
-                                NButton {
                                     visible: page.hasFiles
                                     kind: "primary"
                                     iconName: "view-refresh"
@@ -148,25 +163,12 @@ Page {
                             }
                         }
 
-                        // Pear "garden"
-                        Item {
-                            Layout.preferredWidth: 150
-                            Layout.preferredHeight: 136
-                            Rectangle {
-                                anchors.centerIn: parent
-                                width: 128
-                                height: 128
-                                radius: 64
-                                color: dropArea.containsDrag ? Theme.sand : Theme.sage
-                                Behavior on color { ColorAnimation { duration: Theme.normal } }
-                            }
-                            NashiMark {
-                                anchors.centerIn: parent
-                                anchors.verticalCenterOffset: dropArea.containsDrag && Theme.motion ? -6 : 0
-                                size: 104
-                                happy: page.hasFiles || dropArea.containsDrag
-                                Behavior on anchors.verticalCenterOffset { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutBack } }
-                            }
+                        FileGarden {
+                            Layout.preferredWidth: implicitWidth
+                            Layout.preferredHeight: implicitHeight
+                            Layout.alignment: Qt.AlignVCenter
+                            targeted: dropArea.containsDrag
+                            selected: page.hasFiles
                         }
                     }
 
@@ -242,7 +244,7 @@ Page {
                         // Live chord keys from nashi-inputd's config (defaults until known).
                         KeyChip { keyText: page.keyName(App.inputd.convertKey, "shift"); label: qsTr("Convert") }
                         KeyChip { keyText: page.keyName(App.inputd.toolsKey, "ctrl"); label: qsTr("Tools") }
-                        KeyChip { keyText: page.keyName(App.inputd.actionsKey, "alt"); label: qsTr("Actions") }
+                        KeyChip { keyText: page.keyName(App.inputd.actionsKey, "alt"); label: qsTr("File actions") }
                         Item { Layout.fillWidth: true }
                         Text {
                             text: qsTr("Hold a key while dragging a file")
@@ -269,6 +271,69 @@ Page {
                         if (drop.hasUrls)
                             page.sel.setUrls(drop.urls)
                     }
+                }
+            }
+
+            // "Download a link": the whole card is the button (upstream CardButton),
+            // so hover and keyboard focus outline the card itself in gold.
+            AbstractButton {
+                id: linkCard
+                objectName: "downloadLinkButton"
+                Layout.fillWidth: true
+                Layout.leftMargin: 28
+                Layout.rightMargin: 28
+                Layout.topMargin: -10
+                padding: linkCard.visualFocus ? 17 : 18
+                leftPadding: linkCard.visualFocus ? 21 : 22
+                rightPadding: leftPadding
+                hoverEnabled: true
+                focusPolicy: Qt.StrongFocus
+                Accessible.role: Accessible.Button
+                Accessible.name: qsTr("Download a link")
+                Accessible.description: qsTr("Video, audio, or an image. Straight into your tools.")
+                ToolTip.visible: hovered
+                ToolTip.delay: 600
+                ToolTip.text: qsTr("Save video, audio or a file from an http(s) link")
+                onClicked: App.showDownloadFromClipboard()
+
+                contentItem: RowLayout {
+                    spacing: 14
+                    Text {
+                        text: "↓"
+                        font.pixelSize: 28
+                        color: Theme.dark ? Theme.gold : Theme.goldInk
+                    }
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 2
+                        Text {
+                            Layout.fillWidth: true
+                            text: qsTr("Download a link")
+                            elide: Text.ElideRight
+                            font.pixelSize: Theme.sizeHeading - 1
+                            font.weight: Font.DemiBold
+                            color: Theme.text
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            text: qsTr("Video, audio, or an image. Straight into your tools.")
+                            elide: Text.ElideRight
+                            font.pixelSize: Theme.sizeSmall + 1
+                            color: Theme.secondaryText
+                        }
+                    }
+                    Text {
+                        text: "Ctrl+Shift+D"
+                        font.pixelSize: Theme.sizeSmall + 1
+                        color: Theme.secondaryText
+                    }
+                }
+                background: Rectangle {
+                    radius: Theme.radiusCard
+                    color: linkCard.down ? Theme.sage : Theme.surface
+                    border.width: linkCard.visualFocus ? 2 : 1
+                    border.color: linkCard.hovered || linkCard.visualFocus ? Theme.gold : Theme.border
+                    Behavior on border.color { ColorAnimation { duration: Theme.quick } }
                 }
             }
 
@@ -349,6 +414,202 @@ Page {
                 interactive: false
                 wheelModel: page.sel.model
                 onPicked: (kind, itemId, title) => App.runItem(kind, itemId, title, page.sel.files)
+            }
+
+            // Freshly made: the three newest Library files, with a quick search.
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.leftMargin: 28
+                Layout.rightMargin: 28
+                Layout.topMargin: 8
+                spacing: 8
+                Text {
+                    text: qsTr("Freshly made")
+                    font.pixelSize: Theme.sizeHeading + 3
+                    font.weight: Font.DemiBold
+                    color: Theme.text
+                }
+                Text {
+                    Layout.alignment: Qt.AlignVCenter
+                    Layout.leftMargin: 2
+                    text: page.recentTotal
+                    font.pixelSize: Theme.sizeSmall
+                    color: Theme.secondaryText
+                }
+                Item { Layout.fillWidth: true }
+                TextField {
+                    id: recentSearch
+                    objectName: "homeRecentSearch"
+                    Layout.preferredWidth: 180
+                    visible: page.recentTotal > 0
+                    placeholderText: qsTr("Find a recent file")
+                    selectByMouse: true
+                    leftPadding: 11
+                    rightPadding: 11
+                    topPadding: 7
+                    bottomPadding: 7
+                    color: Theme.text
+                    placeholderTextColor: Theme.tertiaryText
+                    font.pixelSize: Theme.sizeSmall + 1
+                    background: Rectangle {
+                        radius: Theme.radiusCompact
+                        color: Theme.inset
+                        border.width: recentSearch.activeFocus ? 2 : 1
+                        border.color: recentSearch.activeFocus ? Theme.gold : Theme.line
+                    }
+                }
+                NButton {
+                    objectName: "homeSeeAllButton"
+                    compact: true
+                    text: qsTr("See all  ↗")
+                    onClicked: page.libraryRequested()
+                }
+            }
+
+            Card {
+                Layout.fillWidth: true
+                Layout.leftMargin: 28
+                Layout.rightMargin: 28
+                Layout.topMargin: -12
+                implicitHeight: recentColumn.implicitHeight + 14
+
+                ColumnLayout {
+                    id: recentColumn
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.margins: 7
+                    spacing: 2
+
+                    Text {
+                        Layout.fillWidth: true
+                        Layout.margins: 15
+                        visible: page.recentHits.length === 0
+                        wrapMode: Text.Wrap
+                        font.pixelSize: Theme.sizeBody
+                        color: Theme.secondaryText
+                        text: page.recentTotal === 0 ? qsTr("Your next fresh copy will land here.")
+                                                     : qsTr("No matches. Try a file name or folder.")
+                    }
+
+                    Repeater {
+                        model: page.recentHits.slice(0, 3)
+                        delegate: Rectangle {
+                            id: recentRow
+                            required property string modelData
+                            required property int index
+                            Layout.fillWidth: true
+                            implicitHeight: recentRowLayout.implicitHeight + 16
+                            radius: Theme.radiusRow
+                            color: rowHover.hovered ? Theme.hover : "transparent"
+
+                            HoverHandler { id: rowHover }
+                            TapHandler { onDoubleTapped: App.actions.open(recentRow.modelData) }
+
+                            RowLayout {
+                                id: recentRowLayout
+                                anchors.fill: parent
+                                anchors.leftMargin: 10
+                                anchors.rightMargin: 6
+                                spacing: 12
+                                Rectangle {
+                                    Layout.preferredWidth: 34
+                                    Layout.preferredHeight: 34
+                                    radius: 10
+                                    color: Theme.inset
+                                    Image {
+                                        anchors.centerIn: parent
+                                        source: "image://icon/" + App.mimeIcon(recentRow.modelData)
+                                        sourceSize: Qt.size(48, 48)
+                                        width: 22
+                                        height: 22
+                                    }
+                                }
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 1
+                                    Text {
+                                        Layout.fillWidth: true
+                                        elide: Text.ElideMiddle
+                                        text: App.fileName(recentRow.modelData)
+                                        font.pixelSize: Theme.sizeBody
+                                        font.weight: Font.DemiBold
+                                        color: Theme.text
+                                    }
+                                    Text {
+                                        Layout.fillWidth: true
+                                        elide: Text.ElideMiddle
+                                        text: recentRow.modelData.substring(0, recentRow.modelData.lastIndexOf("/"))
+                                        font.pixelSize: Theme.sizeSmall
+                                        color: Theme.secondaryText
+                                    }
+                                }
+                                NButton {
+                                    objectName: "homeRecentPreview_" + recentRow.index
+                                    compact: true
+                                    kind: "quiet"
+                                    iconName: "view-preview"
+                                    Accessible.name: qsTr("Preview")
+                                    ToolTip.visible: hovered
+                                    ToolTip.text: qsTr("Preview")
+                                    onClicked: App.showPreview(recentRow.modelData, page.recentHits)
+                                }
+                                NButton {
+                                    compact: true
+                                    kind: "quiet"
+                                    iconName: "view-refresh"
+                                    Accessible.name: qsTr("Use again")
+                                    ToolTip.visible: hovered
+                                    ToolTip.text: qsTr("Use again")
+                                    onClicked: App.reuseFiles([recentRow.modelData])
+                                }
+                                NButton {
+                                    compact: true
+                                    kind: "quiet"
+                                    iconName: "document-open"
+                                    Accessible.name: qsTr("Open")
+                                    ToolTip.visible: hovered
+                                    ToolTip.text: qsTr("Open")
+                                    onClicked: App.actions.open(recentRow.modelData)
+                                }
+                                NButton {
+                                    compact: true
+                                    kind: "quiet"
+                                    iconName: "folder-open"
+                                    Accessible.name: qsTr("Show in folder")
+                                    ToolTip.visible: hovered
+                                    ToolTip.text: qsTr("Show in folder")
+                                    onClicked: App.actions.reveal([recentRow.modelData])
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Expander {
+                objectName: "toolsExpander"
+                Layout.fillWidth: true
+                Layout.leftMargin: 32
+                Layout.rightMargin: 32
+                Layout.topMargin: -6
+                title: qsTr("Tools & shortcuts")
+
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 8
+                    NButton {
+                        compact: true
+                        text: App.deps.missingCount > 0 ? qsTr("Set up tools (%1 missing)").arg(App.deps.missingCount)
+                                                        : qsTr("Check tools")
+                        onClicked: page.toolsRequested()
+                    }
+                    NButton {
+                        compact: true
+                        text: qsTr("Features & shortcuts")
+                        onClicked: page.shortcutsRequested()
+                    }
+                }
             }
 
             Item { Layout.preferredHeight: 8 }

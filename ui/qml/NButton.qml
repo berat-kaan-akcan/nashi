@@ -8,6 +8,8 @@ AbstractButton {
 
     property string kind: "secondary"
     property bool compact: false
+    // Current page in a switcher: sage fill, as upstream Windows marks it.
+    property bool selected: false
     property string iconName: ""
     readonly property bool primary: kind === "primary"
     readonly property int r: compact ? Theme.radiusCompact : Theme.radiusButton
@@ -56,7 +58,7 @@ AbstractButton {
 
     background: Rectangle {
         radius: control.r
-        color: control.kind === "quiet" ? "transparent" : Theme.surface
+        color: control.selected ? Theme.sage : control.kind === "quiet" ? "transparent" : Theme.surface
         border.width: control.kind === "quiet" ? 0 : 1
         border.color: control.primary ? Qt.rgba(1, 1, 1, 0.12) : Theme.border
         gradient: control.primary ? goldGradient : null

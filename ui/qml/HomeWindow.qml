@@ -49,23 +49,32 @@ ApplicationWindow {
             }
             Item { Layout.fillWidth: true }
 
-            // Page switcher; `currentIndex` mirrors the old TabBar API (tests use it).
+            // Header after upstream Windows: setup state, Home, Library,
+            // "On your computer", Float and Settings. `tabs.currentIndex`
+            // keeps the old TabBar API (tests use it): 0 Home, 1 Library,
+            // 2 Tools, 3 Settings.
+            NButton {
+                objectName: "toolsSetupButton"
+                compact: true
+                selected: tabs.currentIndex === 2
+                text: App.deps.missingCount > 0 ? qsTr("Finish setup") : qsTr("Tools ready")
+                ToolTip.visible: hovered
+                ToolTip.text: (App.deps.missingCount > 0 ? qsTr("%1 tools missing").arg(App.deps.missingCount)
+                                                         : qsTr("Tools")) + " · Ctrl+3"
+                onClicked: tabs.currentIndex = 2
+            }
             Row {
                 id: tabs
                 objectName: "mainTabs"
                 property int currentIndex: 0
-                spacing: 4
+                spacing: 6
                 Repeater {
-                    model: [
-                        qsTr("Home"),
-                        qsTr("Library"),
-                        App.deps.missingCount > 0 ? qsTr("Tools (%1 missing)").arg(App.deps.missingCount) : qsTr("Tools")
-                    ]
+                    model: [qsTr("Home"), qsTr("Library")]
                     delegate: NButton {
                         required property int index
                         required property string modelData
                         compact: true
-                        kind: tabs.currentIndex === index ? "secondary" : "quiet"
+                        selected: tabs.currentIndex === index
                         text: modelData
                         ToolTip.visible: hovered
                         ToolTip.text: "Ctrl+" + (index + 1)
@@ -73,28 +82,29 @@ ApplicationWindow {
                     }
                 }
             }
-            Pill {
+            Text {
+                Layout.leftMargin: 2
+                Layout.rightMargin: 2
                 text: qsTr("On your computer")
-                iconName: "object-locked"
+                font.pixelSize: Theme.sizeSmall
+                color: Theme.secondaryText
             }
             NButton {
                 objectName: "floatToggleButton"
                 compact: true
-                kind: App.shelf.visible ? "primary" : "quiet"
-                iconName: "pin"
+                kind: App.shelf.visible ? "primary" : "secondary"
                 text: App.shelf.count > 0 ? qsTr("Float (%1)").arg(App.shelf.count) : qsTr("Float")
                 ToolTip.visible: hovered
                 ToolTip.text: qsTr("Toggle Float Shelf")
                 onClicked: App.toggleShelf()
             }
             NButton {
+                objectName: "settingsButton"
                 compact: true
-                kind: tabs.currentIndex === 3 ? "secondary" : "quiet"
-                iconName: "configure"
-                text: ""
-                Accessible.name: qsTr("Settings")
+                selected: tabs.currentIndex === 3
+                text: qsTr("Settings")
                 ToolTip.visible: hovered
-                ToolTip.text: qsTr("Settings") + " · Ctrl+,"
+                ToolTip.text: "Ctrl+,"
                 onClicked: tabs.currentIndex = 3
             }
         }
@@ -103,7 +113,12 @@ ApplicationWindow {
     StackLayout {
         anchors.fill: parent
         currentIndex: tabs.currentIndex
-        DropPage { id: dropPage }
+        DropPage {
+            id: dropPage
+            onLibraryRequested: tabs.currentIndex = 1
+            onToolsRequested: tabs.currentIndex = 2
+            onShortcutsRequested: shortcutsDialog.open()
+        }
         RecentPage { id: recentPage }
         DepsPage {}
         SettingsPage {}
@@ -127,6 +142,10 @@ ApplicationWindow {
     Shortcut { sequence: "Ctrl+3"; onActivated: tabs.currentIndex = 2 }
     Shortcut { sequence: "Ctrl+,"; onActivated: tabs.currentIndex = 3 }
     Shortcut { sequences: [StandardKey.Find]; onActivated: root.showLibrarySearch() }
+    // Same as the KDE global shortcut, so the Home hint works even without it.
+    Shortcut { sequence: "Ctrl+Shift+D"; onActivated: App.showDownloadFromClipboard() }
+
+    ShortcutsDialog { id: shortcutsDialog }
     Shortcut {
         sequences: [StandardKey.Open]
         onActivated: {
@@ -171,7 +190,7 @@ ApplicationWindow {
                 property string message: ""
                 text: message.length > 0 ? message
                       : App.inputd.available
-                        ? (App.inputd.enabled ? qsTr("A little less file fuss. A little more flow.")
+                        ? (App.inputd.enabled ? qsTr("Files stay on your computer.")
                                               : qsTr("Drag chords are disabled."))
                         : qsTr("nashi-inputd is not running — drag chords are unavailable; drop files here instead.")
 
@@ -187,12 +206,6 @@ ApplicationWindow {
                         messageTimer.restart()
                     }
                 }
-            }
-            Text {
-                text: qsTr("Made for Linux")
-                font.pixelSize: Theme.sizeTiny
-                font.weight: Font.Medium
-                color: Theme.tertiaryText
             }
         }
     }

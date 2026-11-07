@@ -92,6 +92,9 @@ set(NASHI_QML_FILES
     qml/PageHeading.qml
     qml/SectionBox.qml
     qml/KeyChip.qml
+    qml/FileGarden.qml
+    qml/Expander.qml
+    qml/ShortcutsDialog.qml
     qml/ActionTile.qml
     qml/OptionsWindow.qml
     qml/RectEditor.qml

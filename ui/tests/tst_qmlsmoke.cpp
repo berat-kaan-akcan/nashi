@@ -12,9 +12,11 @@
 #include <QDirIterator>
 #include <QMimeData>
 #include <QSignalSpy>
+#include <QTemporaryDir>
 #include "wheelgeometry.h"
 #include <QQmlComponent>
 #include <QQmlEngine>
+#include <QQuickItem>
 #include <QQuickWindow>
 #include <QTest>
 #include <QtQml/qqmlextensionplugin.h>
@@ -33,6 +35,19 @@ void shot(QQuickWindow *w, const QString &name)
         return;
     QTest::qWait(150);
     w->grabWindow().save(dir + QLatin1Char('/') + name + QStringLiteral(".png"));
+}
+
+// Repeater delegates have no QObject parent, so walk the visual tree.
+QQuickItem *findItem(QQuickItem *root, const QString &name)
+{
+    if (!root)
+        return nullptr;
+    if (root->objectName() == name)
+        return root;
+    for (QQuickItem *child : root->childItems())
+        if (QQuickItem *hit = findItem(child, name))
+            return hit;
+    return nullptr;
 }
 
 void captureHandler(QtMsgType type, const QMessageLogContext &ctx, const QString &msg)
@@ -369,6 +384,17 @@ private Q_SLOTS:
     void homeWithFiles()
     {
         g_messages.clear();
+        // Two Library files that exist, so Home's "Freshly made" lists rows.
+        QTemporaryDir made;
+        QVERIFY(made.isValid());
+        const QStringList madePaths{made.filePath(QStringLiteral("report.pdf")),
+                                    made.filePath(QStringLiteral("holiday.png"))};
+        for (const QString &path : madePaths) {
+            QFile f(path);
+            QVERIFY(f.open(QIODevice::WriteOnly));
+            f.write("x");
+        }
+        app->recent()->add(madePaths);
         app->home()->setFiles({QStringLiteral("/tmp/clip.mp4")});
         QQmlComponent component(engine);
         component.loadFromModule("NashiApp", "HomeWindow");
@@ -382,6 +408,12 @@ private Q_SLOTS:
         QTRY_VERIFY_WITH_TIMEOUT(!app->deps()->loading(), 10000);
         QObject *tabs = w->findChild<QObject *>(QStringLiteral("mainTabs"));
         QVERIFY(tabs);
+        QTRY_VERIFY(findItem(w->contentItem(), QStringLiteral("homeRecentPreview_0")));
+        QTRY_VERIFY(findItem(w->contentItem(), QStringLiteral("homeRecentPreview_1")));
+        QObject *seeAll = w->findChild<QObject *>(QStringLiteral("homeSeeAllButton"));
+        QVERIFY(seeAll);
+        QMetaObject::invokeMethod(seeAll, "clicked");
+        QCOMPARE(tabs->property("currentIndex").toInt(), 1);
         for (int i : {1, 2, 3, 0}) {
             tabs->setProperty("currentIndex", i);
             QTest::qWait(50);
@@ -399,6 +431,35 @@ private Q_SLOTS:
             app->settings()->setAppearance(before);
             tabs->setProperty("currentIndex", 0);
         }
+        // Home extras after upstream Windows: Tools & shortcuts and the sheet.
+        QObject *expander = w->findChild<QObject *>(QStringLiteral("toolsExpander"));
+        QVERIFY(expander);
+        expander->setProperty("expanded", true);
+        QObject *sheet = w->findChild<QObject *>(QStringLiteral("shortcutsDialog"));
+        QVERIFY(sheet);
+        QMetaObject::invokeMethod(sheet, "open");
+        QTRY_VERIFY(sheet->property("visible").toBool());
+        shot(w, QStringLiteral("home-shortcuts"));
+        QMetaObject::invokeMethod(sheet, "close");
+        // Empty Home, the first thing a new user sees.
+        app->home()->clear();
+        if (!qEnvironmentVariableIsEmpty("NASHI_SCREENSHOT_DIR")) {
+            const QString before = app->settings()->appearance();
+            for (const QString &look : {QStringLiteral("light"), QStringLiteral("dark")}) {
+                app->settings()->setAppearance(look);
+                shot(w, QStringLiteral("home-%1-empty").arg(look));
+            }
+            app->settings()->setAppearance(before);
+            // Longest header labels (Turkish) at the narrowest window.
+            app->settings()->setLanguage(QStringLiteral("tr"));
+            w->resize(700, 820);
+            shot(w, QStringLiteral("home-tr-narrow"));
+            app->settings()->setLanguage(QStringLiteral("en"));
+            w->resize(960, 820);
+        }
+        expander->setProperty("expanded", false);
+        app->home()->setFiles({QStringLiteral("/tmp/clip.mp4")});
+        QTRY_VERIFY_WITH_TIMEOUT(app->home()->ready(), 10000);
         app->home()->model()->setMode(QStringLiteral("tools"));
         QTest::qWait(30);
         app->home()->model()->setMode(QStringLiteral("actions"));
