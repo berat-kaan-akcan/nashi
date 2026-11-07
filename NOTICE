@@ -1,7 +1,9 @@
 This project's conversion catalog (reference/upstream-FeatureCatalog.json and the
 catalog derived from it in crates/nashi-core), the pear artwork (ui/resources/mark*.svg,
 ui/resources/nashi.svg, data/icons/…), the wheel sound (ui/resources/wheel-selection.wav), part of the French translation (ui/i18n/nashi_fr.ts) and the UI design language (ui/qml/Theme.qml) are
-based on Nashi:
+based on Nashi. The experimental C# engine in dotnet/ uses Nashi.Core from the same
+project unchanged (git submodule vendor/nashi-app; third-party notices in its
+windows/THIRD-PARTY-NOTICES.txt):
 https://github.com/orkunisitmak/nashi-app
 
 MIT License

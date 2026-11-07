@@ -64,3 +64,7 @@ reference/        upstream Nashi FeatureCatalog.json (MIT) used as the source of
 | UI D-Bus activation file (owned by `data/`) | `io.github.beratkaanakcan.Nashi.service` → `Exec=/usr/bin/nashi --background` |
 | Autostart (owned by `data/`) | `io.github.beratkaanakcan.Nashi-autostart.desktop` → `nashi --background`, installed to `/etc/xdg/autostart/` |
 | Config | `~/.config/nashi/inputd.toml` (inputd), `~/.config/nashi/nashi.conf` (UI, QSettings) |
+
+## Experimental: C# engine (`dotnet/`, branch `dotnet-engine-prototype`)
+
+`dotnet/Nashi.Cli` builds `nashi-cli-dotnet`, a drop-in for `nashi-cli` selected with `NASHI_CLI`. It runs audio/video `convert` jobs on upstream's `Nashi.Core` (git submodule `vendor/nashi-app`, pinned) and `execv`s the Rust `nashi-cli` for everything else, so the CLI contract is unchanged. Not packaged; see [dotnet/README.md](../dotnet/README.md).

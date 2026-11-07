@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Prototype: answers `convert` for media routes with upstream Nashi.Core and hands
+       every other command to the Rust nashi-cli. See dotnet/README.md. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>nashi-cli-dotnet</AssemblyName>
+    <RootNamespace>Nashi.Cli</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../vendor/nashi-app/windows/Nashi.Core/Nashi.Core.csproj" />
+  </ItemGroup>
+</Project>

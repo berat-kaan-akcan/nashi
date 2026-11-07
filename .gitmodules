@@ -1,0 +1,3 @@
+[submodule "vendor/nashi-app"]
+	path = vendor/nashi-app
+	url = https://github.com/orkunisitmak/nashi-app.git

@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Runs the built nashi-cli-dotnet against generated fixtures. Routes whose
+       external tool is missing are skipped, not failed. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Nashi.Cli/Nashi.Cli.csproj" />
+  </ItemGroup>
+</Project>

@@ -16,3 +16,7 @@ CMakeLists.txt.user
 
 # Local session notes
 /HANDOVER.md
+
+# .NET build output (dotnet/ prototype)
+/dotnet/*/bin/
+/dotnet/*/obj/
