@@ -30,9 +30,9 @@ try
     Check("second conversion gets 'stem (1)'", () =>
     {
         var dir = Fresh("collide");
-        var first = Outputs(Convert(dir, "mp3", tone)).Single();
-        var second = Outputs(Convert(dir, "mp3", tone)).Single();
-        Expect(Path.GetFileName(first) == "tone.mp3" && Path.GetFileName(second) == "tone (1).mp3", $"{first} / {second}");
+        var first = Outputs(Convert(dir, "m4a", tone)).Single();
+        var second = Outputs(Convert(dir, "m4a", tone)).Single();
+        Expect(Path.GetFileName(first) == "tone.m4a" && Path.GetFileName(second) == "tone (1).m4a", $"{first} / {second}");
     });
     Check("no staging left and the input is unchanged", () =>
     {
@@ -44,7 +44,7 @@ try
     Check("a missing --out-dir is created", () =>
     {
         var dir = Path.Combine(Fresh("nested"), "a", "b");
-        Expect(Outputs(Convert(dir, "mp3", tone)).Single().StartsWith(dir + "/"), "wrong folder");
+        Expect(Outputs(Convert(dir, "m4a", tone)).Single().StartsWith(dir + "/"), "wrong folder");
     });
     Check("event stream: start, progress 0..1, output, done", () =>
     {
@@ -79,6 +79,25 @@ try
                 Expect(err.Contains("handing over to the Rust engine"), $"{target} {options} stayed on Nashi.Core");
             }
         });
+        Check("lossy audio without audio_kbps matches the Rust engine's bitrate", () =>
+        {
+            // Noise keeps the encoders near their target rate, unlike a sine tone.
+            var noise = Path.Combine(root, "noise.wav");
+            Run(ffmpeg, "-v", "error", "-f", "lavfi", "-i", "anoisesrc=d=3:a=0.5", "-ac", "2", noise);
+            string BitRate(string file) => Capture(ffprobe, ["-v", "error", "-show_entries", "format=bit_rate", "-of", "default=nw=1:nk=1", file]).Trim();
+            foreach (var target in new[] { "m4a", "opus", "wma", "mp3" })
+            {
+                var mine = Outputs(Convert(Fresh("bitrate-dotnet"), target, noise)).Single();
+                var theirs = Capture(rust, ["convert", target, noise, "--out-dir", Fresh("bitrate-rust"), "--json"]);
+                var rustFile = Path.Combine(root, "out-bitrate-rust", Path.GetFileName(mine));
+                Expect(File.Exists(rustFile), $"{target}: Rust made no {rustFile}: {theirs}");
+                Expect(double.Parse(BitRate(mine)) is var a && double.Parse(BitRate(rustFile)) is var b && Math.Abs(a - b) <= b * .05,
+                    $"{target}: {BitRate(mine)} bit/s here, {BitRate(rustFile)} from Rust");
+                File.Delete(mine); File.Delete(rustFile);
+            }
+            var err = CaptureError(cli, ["convert", "mp3", noise, "--out-dir", Fresh("bitrate-trace"), "--json"]);
+            Expect(err.Contains("handing over to the Rust engine"), "mp3 without audio_kbps stayed on Nashi.Core");
+        });
         Check("non-media commands match the Rust engine", () =>
         {
             Expect(Capture(cli, ["wheel", clip, "--json"]) == Capture(rust, ["wheel", clip, "--json"]), "wheel differs");
@@ -87,7 +106,7 @@ try
     else
     {
         Console.WriteLine("SKIP hand-over checks: set NASHI_RUST_CLI to the Rust nashi-cli");
-        skipped += 2;
+        skipped += 3;
     }
 }
 finally
@@ -100,7 +119,9 @@ return failures.Count == 0 ? 0 : 1;
 
 void Route(string input, string target) => Check($"{Path.GetExtension(input)[1..]} → {target}", () =>
 {
-    var events = Convert(Fresh("route-" + target + Path.GetExtension(input)), target, input);
+    // Without a bitrate, MP3 goes to the Rust engine (VBR), so ask for one.
+    string[] extra = target == "mp3" ? ["--options", "{\"audio_kbps\":192}"] : [];
+    var events = Convert(Fresh("route-" + target + Path.GetExtension(input)), target, input, extra);
     var output = Outputs(events).Single();
     Expect(Path.GetExtension(output) == "." + target, "extension");
     var probe = Capture(OnPath("ffprobe")!, ["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", output]);

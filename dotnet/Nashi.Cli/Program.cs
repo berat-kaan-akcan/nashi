@@ -133,7 +133,10 @@ internal static class MediaConvert
             var route = ext != target && (FeatureCatalog.IsAudio(input) ? audioTarget : FeatureCatalog.IsVideo(input));
             if (!route) { why = $"route {ext} → {target}"; return false; }
         }
-        if (!TryOptions(options, out var media, out why)) return false;
+        if (!TryOptions(options, target, out var media, out why)) return false;
+        // The Rust engine encodes MP3 with VBR (-q:a 2) unless a bitrate is asked for;
+        // Nashi.Core only has constant bitrate, so those jobs go to Rust.
+        if (target == "mp3" && !HasAudioKbps(options)) { why = "mp3 without audio_kbps (VBR)"; return false; }
         if (Tools.Find("ffmpeg") is not { } ffmpeg || Tools.Find("ffprobe") is not { } ffprobe)
         {
             why = "ffmpeg or ffprobe missing";
@@ -143,10 +146,19 @@ internal static class MediaConvert
         return true;
     }
 
-    private static bool TryOptions(string? text, out MediaOptions options, out string why)
+    private static bool HasAudioKbps(string? text)
     {
-        // Contract defaults for GIF (CLI-PROTOCOL.md): 12 fps, 640 px wide.
-        options = new MediaOptions { GifFrameRate = 12, GifWidth = 640 };
+        if (string.IsNullOrEmpty(text)) return false;
+        using var doc = JsonDocument.Parse(text);
+        return doc.RootElement.TryGetProperty("audio_kbps", out var k) && k.ValueKind != JsonValueKind.Null;
+    }
+
+    private static bool TryOptions(string? text, string target, out MediaOptions options, out string why)
+    {
+        // Contract defaults (CLI-PROTOCOL.md): GIF at 12 fps and 640 px wide; lossy
+        // audio at Opus 128 kbit/s and AAC/WMA 192, in place of Nashi.Core's 256.
+        // Vorbis follows quality, not this bitrate.
+        options = new MediaOptions { GifFrameRate = 12, GifWidth = 640, AudioBitrate = target is "opus" or "webm" ? 128 : 192 };
         why = "";
         if (string.IsNullOrEmpty(text)) return true;
         try

@@ -20,8 +20,10 @@ without changing the Qt UI?
 
 Mapped options: `audio_kbps`, `max_height`, `gif_fps`, `gif_max_width`,
 `strip_metadata`. GIF defaults follow the contract (12 fps, 640 px).
-Without `audio_kbps`, lossy audio uses Nashi.Core's 256 kbit/s, where the Rust
-engine uses each encoder's default, so files are larger.
+Without `audio_kbps`, lossy audio follows the contract defaults (192 kbit/s
+AAC and WMA, 128 kbit/s Opus) instead of Nashi.Core's 256, so sizes match the
+Rust engine. MP3 without `audio_kbps` goes to the Rust engine, which encodes
+VBR (`-q:a 2`); Nashi.Core only has constant bitrate.
 
 ## Build and try
 
