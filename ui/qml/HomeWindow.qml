@@ -50,7 +50,8 @@ ApplicationWindow {
             Item { Layout.fillWidth: true }
 
             // Header after upstream Windows: setup state, Home, Library,
-            // "On your computer", Float and Settings. `tabs.currentIndex`
+            // Float and Settings (upstream's "On your PC" label is left out:
+            // the footer already says files stay on this computer). `tabs.currentIndex`
             // keeps the old TabBar API (tests use it): 0 Home, 1 Library,
             // 2 Tools, 3 Settings.
             NButton {
@@ -81,13 +82,6 @@ ApplicationWindow {
                         onClicked: tabs.currentIndex = index
                     }
                 }
-            }
-            Text {
-                Layout.leftMargin: 2
-                Layout.rightMargin: 2
-                text: qsTr("On your computer")
-                font.pixelSize: Theme.sizeSmall
-                color: Theme.secondaryText
             }
             NButton {
                 objectName: "floatToggleButton"

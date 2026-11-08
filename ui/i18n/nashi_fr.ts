@@ -1230,10 +1230,6 @@
         <translation>Outils</translation>
     </message>
     <message>
-        <source>On your computer</source>
-        <translation>Sur votre ordinateur</translation>
-    </message>
-    <message>
         <source>Float (%1)</source>
         <translation>Float (%1)</translation>
     </message>

@@ -1225,10 +1225,6 @@
         <translation>Araçlar</translation>
     </message>
     <message>
-        <source>On your computer</source>
-        <translation>Bilgisayarınızda</translation>
-    </message>
-    <message>
         <source>Float (%1)</source>
         <translation>Float (%1)</translation>
     </message>
