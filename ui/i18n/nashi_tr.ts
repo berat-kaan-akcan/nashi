@@ -342,12 +342,68 @@
         <translation>nashi-cli bulunamadı. Nashi&apos;yi düzgün kurun ya da NASHI_CLI değişkenini ayarlayın.</translation>
     </message>
     <message>
-        <source>Install what&apos;s missing</source>
-        <translation>Eksikleri kur</translation>
+        <source>Media tools</source>
+        <translation>Medya araçları</translation>
     </message>
     <message>
-        <source>Some features need tools that are not installed. Install them with:</source>
-        <translation>Bazı özellikler kurulu olmayan araçlara ihtiyaç duyuyor. Şu komutla kurabilirsiniz:</translation>
+        <source>Audio and video conversion, previews, trimming and web downloads.</source>
+        <translation>Ses ve video dönüştürme, önizleme, kırpma ve web indirmeleri.</translation>
+    </message>
+    <message>
+        <source>Document tools</source>
+        <translation>Belge araçları</translation>
+    </message>
+    <message>
+        <source>Office files, PDF pages, text extraction and compression.</source>
+        <translation>Office dosyaları, PDF sayfaları, metin çıkarma ve sıkıştırma.</translation>
+    </message>
+    <message>
+        <source>Image tools</source>
+        <translation>Görsel araçları</translation>
+    </message>
+    <message>
+        <source>Image conversion, editing, metadata, HEIC and SVG.</source>
+        <translation>Görsel dönüştürme, düzenleme, meta veriler, HEIC ve SVG.</translation>
+    </message>
+    <message>
+        <source>More tools</source>
+        <translation>Diğer araçlar</translation>
+    </message>
+    <message>
+        <source>Archives, QR codes, text recognition and everything else.</source>
+        <translation>Arşivler, QR kodları, metin tanıma ve geri kalan her şey.</translation>
+    </message>
+    <message>
+        <source>A few tools. More possibilities.</source>
+        <translation>Birkaç araç. Daha fazla olanak.</translation>
+    </message>
+    <message>
+        <source>Checking…</source>
+        <translation>Denetleniyor…</translation>
+    </message>
+    <message>
+        <source>%1 tools missing</source>
+        <translation>%1 araç eksik</translation>
+    </message>
+    <message>
+        <source>Ready. You can go back to your files.</source>
+        <translation>Hazır. Dosyalarına dönebilirsin.</translation>
+    </message>
+    <message>
+        <source>Install them to enable every conversion, preview and download. Tools already on your computer are kept.</source>
+        <translation>Tüm dönüştürmeler, önizlemeler ve indirmeler için bunları kur. Bilgisayarında zaten olan araçlar korunur.</translation>
+    </message>
+    <message>
+        <source>Every conversion, preview and download is available.</source>
+        <translation>Tüm dönüştürmeler, önizlemeler ve indirmeler kullanılabilir.</translation>
+    </message>
+    <message>
+        <source>Continue to Nashi</source>
+        <translation>Nashi’ye devam et</translation>
+    </message>
+    <message>
+        <source>Install command</source>
+        <translation>Kurulum komutu</translation>
     </message>
     <message>
         <source>Copy</source>
@@ -2327,20 +2383,32 @@
         <translation>Kitaplığınız</translation>
     </message>
     <message>
-        <source>Freshly made and ready for another round.</source>
-        <translation>Yeni yapıldı, bir tur daha için hazır.</translation>
-    </message>
-    <message>
         <source>Find a file · Ctrl+F</source>
         <translation>Dosya bul · Ctrl+F</translation>
     </message>
     <message>
-        <source>Nothing here yet. Files you create with Nashi appear here.</source>
-        <translation>Burada henüz bir şey yok. Nashi ile oluşturduğunuz dosyalar burada görünür.</translation>
+        <source>Freshly made, pasted, and ready for another round.</source>
+        <translation>Yeni hazırlanan, yapıştırılan ve yeniden kullanıma hazır dosyaların.</translation>
     </message>
     <message>
-        <source>No longer exists</source>
-        <translation>Artık mevcut değil</translation>
+        <source>File or folder name</source>
+        <translation>Dosya ya da klasör adı</translation>
+    </message>
+    <message>
+        <source>Find a file</source>
+        <translation>Dosya bul</translation>
+    </message>
+    <message>
+        <source>Nothing here yet. Paste something or make your first fresh copy.</source>
+        <translation>Burada henüz bir şey yok. Bir dosya yapıştır veya ilk kopyanı oluştur.</translation>
+    </message>
+    <message>
+        <source>No matches. Try a file name or folder.</source>
+        <translation>Eşleşme bulunamadı. Dosya veya klasör adıyla ara.</translation>
+    </message>
+    <message>
+        <source>Files missing</source>
+        <translation>Dosyalar bulunamıyor</translation>
     </message>
     <message>
         <source>Preview</source>
@@ -2483,10 +2551,6 @@
         <translation>Ayarlar</translation>
     </message>
     <message>
-        <source>Make Nashi feel like yours.</source>
-        <translation>Nashi&apos;yi kendinize göre ayarlayın.</translation>
-    </message>
-    <message>
         <source>Startup</source>
         <translation>Başlangıç</translation>
     </message>
@@ -2609,6 +2673,62 @@
     <message>
         <source>Format defaults</source>
         <translation>Format varsayılanları</translation>
+    </message>
+    <message>
+        <source>General</source>
+        <translation>Genel</translation>
+    </message>
+    <message>
+        <source>Your kind of flow.</source>
+        <translation>Senin tarzın, senin akışın.</translation>
+    </message>
+    <message>
+        <source>A few small preferences. A smoother everyday.</source>
+        <translation>Birkaç küçük tercih. Daha akıcı bir gün.</translation>
+    </message>
+    <message>
+        <source>Formats</source>
+        <translation>Biçimler</translation>
+    </message>
+    <message>
+        <source>Your go-to exports.</source>
+        <translation>Sık kullandığın çıktı ayarları.</translation>
+    </message>
+    <message>
+        <source>Defaults apply whenever you choose an output format.</source>
+        <translation>Bir çıktı biçimi seçtiğinde bu varsayılanlar uygulanır.</translation>
+    </message>
+    <message>
+        <source>Drag &amp; wheel</source>
+        <translation>Sürükle ve çark</translation>
+    </message>
+    <message>
+        <source>Drag, hold, choose.</source>
+        <translation>Sürükle, basılı tut, seç.</translation>
+    </message>
+    <message>
+        <source>Hold a key while you drag a file and its wheel opens right there.</source>
+        <translation>Bir dosyayı sürüklerken bir tuşa basılı tut; çarkı hemen orada açılır.</translation>
+    </message>
+    <message>
+        <source>Folders</source>
+        <translation>Klasörler</translation>
+    </message>
+    <message>
+        <source>A place for fresh files.</source>
+        <translation>Yeni dosyalar için bir yer.</translation>
+    </message>
+    <message>
+        <source>Originals remain safe. Choose where new copies should land.</source>
+        <translation>Orijinaller güvende. Yeni kopyaların nereye kaydedileceğini seç.</translation>
+    </message>
+    <message>
+        <source>About</source>
+        <translation>Hakkında</translation>
+    </message>
+    <message>
+        <source>A little pear. A lot of possibility.</source>
+        <translation>Küçük bir armut. Bir sürü olasılık.</translation>
     </message>
     <message>
         <source>Convert to</source>
@@ -2787,6 +2907,14 @@
         <translation>Sıkıştır penceresi bu ayarlarla açılır. Her seferinde yine değiştirebilirsiniz.</translation>
     </message>
     <message>
+        <source>Updates arrive through your package manager, like the rest of your system.</source>
+        <translation>Güncellemeler, sistemin geri kalanı gibi paket yöneticin üzerinden gelir.</translation>
+    </message>
+    <message>
+        <source>Source &amp; third-party notices  ↗</source>
+        <translation>Kaynak kod ve üçüncü taraf bildirimleri  ↗</translation>
+    </message>
+    <message>
         <source>Notifications</source>
         <translation>Bildirimler</translation>
     </message>
@@ -2827,16 +2955,24 @@
         <translation>KDE Plasma da pencereleri taşımak için Meta + sürüklemeyi kullanır; Nashi sürüklemeyi yalnızca pencere yöneticisi geçirirse görür.</translation>
     </message>
     <message>
+        <source>Local by design · MIT source</source>
+        <translation>Tasarımı gereği yerel · MIT kaynak kodu</translation>
+    </message>
+    <message>
+        <source>Version %1</source>
+        <translation>Sürüm %1</translation>
+    </message>
+    <message>
+        <source>nashi-cli: %1</source>
+        <translation>nashi-cli: %1</translation>
+    </message>
+    <message>
         <source>Overlay: Wayland layer-shell.</source>
         <translation>Katman: Wayland layer-shell.</translation>
     </message>
     <message>
         <source>Overlay: full-screen window fallback (no layer-shell).</source>
         <translation>Katman: tam ekran pencere yedeği (layer-shell yok).</translation>
-    </message>
-    <message>
-        <source>Nashi %1 · nashi-cli: %2</source>
-        <translation>Nashi %1 · nashi-cli: %2</translation>
     </message>
     <message>
         <source>not found</source>

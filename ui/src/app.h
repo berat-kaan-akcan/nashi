@@ -114,6 +114,8 @@ public:
     QString lastMessage() const { return m_lastMessage; }
 
     Q_INVOKABLE void showHome();
+    // Shows Home on its Home page (the `nashi` command, launchers, opening files).
+    Q_INVOKABLE void showHomePage();
     // First-run wizard (WelcomeWindow.qml); shown by init() until finished.
     Q_INVOKABLE void showWelcome();
     // Marks the wizard done, hides it and shows Home.

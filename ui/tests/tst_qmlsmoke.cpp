@@ -418,6 +418,21 @@ private Q_SLOTS:
             tabs->setProperty("currentIndex", i);
             QTest::qWait(50);
         }
+        // `nashi` (Activate) brings Home back to its Home page, even from Settings.
+        tabs->setProperty("currentIndex", 3);
+        app->showHomePage();
+        QCOMPARE(tabs->property("currentIndex").toInt(), 0);
+        // Settings sections after upstream Windows: one at a time.
+        QObject *formats = findItem(w->contentItem(), QStringLiteral("settingsSection_formats"));
+        QVERIFY(formats);
+        tabs->setProperty("currentIndex", 3);
+        QMetaObject::invokeMethod(formats, "clicked");
+        QTRY_VERIFY(findItem(w->contentItem(), QStringLiteral("formatDefaultsBox"))->isVisible());
+        QObject *general = findItem(w->contentItem(), QStringLiteral("settingsSection_general"));
+        QVERIFY(general);
+        QMetaObject::invokeMethod(general, "clicked");
+        QVERIFY(!findItem(w->contentItem(), QStringLiteral("formatDefaultsBox"))->isVisible());
+        tabs->setProperty("currentIndex", 0);
         if (!qEnvironmentVariableIsEmpty("NASHI_SCREENSHOT_DIR")) {
             const QString before = app->settings()->appearance();
             w->resize(960, 820);
@@ -427,6 +442,13 @@ private Q_SLOTS:
                     tabs->setProperty("currentIndex", i);
                     shot(w, QStringLiteral("home-%1-%2").arg(look).arg(i));
                 }
+                for (const char *section : {"formats", "chords", "folders", "about"}) {
+                    if (QObject *item = findItem(w->contentItem(), QStringLiteral("settingsSection_") + QLatin1String(section)))
+                        QMetaObject::invokeMethod(item, "clicked");
+                    shot(w, QStringLiteral("home-%1-settings-%2").arg(look, QLatin1String(section)));
+                }
+                if (QObject *item = findItem(w->contentItem(), QStringLiteral("settingsSection_general")))
+                    QMetaObject::invokeMethod(item, "clicked");
             }
             app->settings()->setAppearance(before);
             tabs->setProperty("currentIndex", 0);

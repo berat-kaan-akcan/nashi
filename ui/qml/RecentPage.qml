@@ -27,6 +27,25 @@ Page {
         return App.matchesSearch(search.text, name, folder)
     }
 
+    property int revision: 0
+    Connections {
+        target: App.recent
+        function onRowsInserted() { page.revision++ }
+        function onRowsRemoved() { page.revision++ }
+        function onModelReset() { page.revision++ }
+        function onDataChanged() { page.revision++ }
+    }
+    readonly property int matchCount: {
+        page.revision
+        let n = 0
+        for (let i = 0; i < list.count; ++i) {
+            const item = list.itemAtIndex(i)
+            if (!item || item.shown)
+                ++n
+        }
+        return n
+    }
+
     function previewPath(path) {
         App.showPreview(path, App.filteredRecentPaths(search.text))
     }
@@ -44,7 +63,7 @@ Page {
             PageHeading {
                 Layout.fillWidth: true
                 title: qsTr("Your Library")
-                subtitle: qsTr("Freshly made and ready for another round.")
+                subtitle: qsTr("Freshly made, pasted, and ready for another round.")
             }
             NButton {
                 Layout.alignment: Qt.AlignBottom
@@ -57,25 +76,46 @@ Page {
             }
         }
 
-        TextField {
-            id: search
-            objectName: "librarySearch"
+        ColumnLayout {
             Layout.fillWidth: true
+            Layout.topMargin: 6
             visible: App.recent.count > 0
-            placeholderText: qsTr("Find a file · Ctrl+F")
-            selectByMouse: true
-            Keys.onDownPressed: list.forceActiveFocus()
+            spacing: 4
+            Text {
+                Layout.leftMargin: 4
+                text: qsTr("Find a file · Ctrl+F")
+                font.pixelSize: Theme.sizeSmall + 1
+                color: Theme.secondaryText
+            }
+            NTextField {
+                id: search
+                objectName: "librarySearch"
+                Layout.fillWidth: true
+                placeholderText: qsTr("File or folder name")
+                Accessible.name: qsTr("Find a file")
+                Keys.onDownPressed: list.forceActiveFocus()
+            }
         }
 
-        Text {
+        Card {
             Layout.fillWidth: true
+            visible: App.recent.count === 0 || (search.text.length > 0 && page.matchCount === 0)
+            implicitHeight: emptyText.implicitHeight + 44
+            Text {
+                id: emptyText
+                anchors.fill: parent
+                anchors.margins: 22
+                wrapMode: Text.Wrap
+                verticalAlignment: Text.AlignVCenter
+                font.pixelSize: Theme.sizeBody + 1
+                color: Theme.secondaryText
+                text: App.recent.count === 0 ? qsTr("Nothing here yet. Paste something or make your first fresh copy.")
+                                             : qsTr("No matches. Try a file name or folder.")
+            }
+        }
+        Item {
             Layout.fillHeight: true
             visible: App.recent.count === 0
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-            wrapMode: Text.Wrap
-            color: Theme.secondaryText
-            text: qsTr("Nothing here yet. Files you create with Nashi appear here.")
         }
 
         ListView {
@@ -85,7 +125,7 @@ Page {
             visible: App.recent.count > 0
             clip: true
             model: App.recent
-            spacing: 8
+            spacing: 6
             keyNavigationEnabled: true
             ScrollBar.vertical: ScrollBar {}
 
@@ -105,14 +145,20 @@ Page {
                 Rectangle {
                     id: card
                     anchors.fill: parent
-                    implicitHeight: rowLayout.implicitHeight + 24
-                    radius: Theme.radiusRow
+                    implicitHeight: rowLayout.implicitHeight + 20
+                    radius: Theme.radiusCard
                     color: Theme.surface
-                    border.width: row.ListView.isCurrentItem && list.activeFocus ? 1.5 : 1
-                    border.color: row.ListView.isCurrentItem && list.activeFocus ? Theme.gold : Theme.border
+                    border.width: row.ListView.isCurrentItem && list.activeFocus ? 2 : 1
+                    border.color: row.ListView.isCurrentItem && list.activeFocus ? Theme.gold
+                                  : rowHover.hovered ? Theme.line : Theme.border
+
+                    HoverHandler { id: rowHover }
 
                     TapHandler {
-                        onTapped: list.currentIndex = row.index
+                        onTapped: {
+                            list.currentIndex = row.index
+                            list.forceActiveFocus()
+                        }
                         onDoubleTapped: if (row.exists) App.actions.open(row.path)
                     }
 
@@ -123,19 +169,12 @@ Page {
                         anchors.rightMargin: 10
                         spacing: 12
 
-                        Rectangle {
-                            Layout.preferredWidth: 36
-                            Layout.preferredHeight: 36
-                            radius: 10
-                            color: Theme.inset
-                            Image {
-                                anchors.centerIn: parent
-                                source: "image://icon/" + App.mimeIcon(row.path)
-                                sourceSize: Qt.size(48, 48)
-                                width: 24
-                                height: 24
-                                opacity: row.exists ? 1 : 0.4
-                            }
+                        Image {
+                            Layout.preferredWidth: 29
+                            Layout.preferredHeight: 29
+                            source: "image://icon/" + App.mimeIcon(row.path)
+                            sourceSize: Qt.size(58, 58)
+                            opacity: row.exists ? 1 : 0.4
                         }
                         ColumnLayout {
                             Layout.fillWidth: true
@@ -154,7 +193,8 @@ Page {
                                 elide: Text.ElideMiddle
                                 font.pixelSize: Theme.sizeSmall
                                 color: row.exists ? Theme.secondaryText : Theme.danger
-                                text: row.exists ? row.when + " · " + row.folder : qsTr("No longer exists")
+                                text: row.exists ? row.when + "  ·  " + row.folder
+                                                 : row.when + "  ·  " + qsTr("Files missing")
                             }
                         }
                         NButton {

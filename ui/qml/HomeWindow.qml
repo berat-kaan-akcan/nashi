@@ -120,7 +120,7 @@ ApplicationWindow {
             onShortcutsRequested: shortcutsDialog.open()
         }
         RecentPage { id: recentPage }
-        DepsPage {}
+        DepsPage { onHomeRequested: tabs.currentIndex = 0 }
         SettingsPage {}
     }
 

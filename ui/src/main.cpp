@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
         app.showWindowPlacer();
         break;
     default:
-        app.showHome();
+        app.showHomePage();
         break;
     }
     return QApplication::exec();

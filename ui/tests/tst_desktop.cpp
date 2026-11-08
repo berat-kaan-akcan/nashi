@@ -436,6 +436,9 @@ private Q_SLOTS:
         QVERIFY2(component.isReady(), qPrintable(component.errorString()));
         std::unique_ptr<QObject> page(component.create());
         QVERIFY(page);
+        // Format defaults live in their own section, as in upstream Settings.
+        QCOMPARE(page->property("section").toString(), QStringLiteral("general"));
+        page->setProperty("section", QStringLiteral("formats"));
         auto *box = page->findChild<QObject *>(QStringLiteral("formatDefaultsBox"));
         QVERIFY(box);
         const auto shown = [&](const char *name) {

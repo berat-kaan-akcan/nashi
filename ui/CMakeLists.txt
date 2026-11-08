@@ -94,6 +94,11 @@ set(NASHI_QML_FILES
     qml/KeyChip.qml
     qml/FileGarden.qml
     qml/Expander.qml
+    qml/NSwitch.qml
+    qml/NRadio.qml
+    qml/NSlider.qml
+    qml/NTextField.qml
+    qml/NComboBox.qml
     qml/ShortcutsDialog.qml
     qml/ActionTile.qml
     qml/OptionsWindow.qml

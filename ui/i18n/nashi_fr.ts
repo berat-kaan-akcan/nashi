@@ -345,12 +345,68 @@
         <translation>nashi-cli est introuvable. Installez Nashi correctement ou définissez NASHI_CLI.</translation>
     </message>
     <message>
-        <source>Install what&apos;s missing</source>
-        <translation>Installer ce qui manque</translation>
+        <source>Media tools</source>
+        <translation>Outils multimédias</translation>
     </message>
     <message>
-        <source>Some features need tools that are not installed. Install them with:</source>
-        <translation>Certaines fonctions nécessitent des outils qui ne sont pas installés. Installez-les avec&#xa0;:</translation>
+        <source>Audio and video conversion, previews, trimming and web downloads.</source>
+        <translation>Conversion audio et vidéo, aperçus, découpe et téléchargements web.</translation>
+    </message>
+    <message>
+        <source>Document tools</source>
+        <translation>Outils de documents</translation>
+    </message>
+    <message>
+        <source>Office files, PDF pages, text extraction and compression.</source>
+        <translation>Fichiers Office, pages PDF, extraction de texte et compression.</translation>
+    </message>
+    <message>
+        <source>Image tools</source>
+        <translation>Outils d’image</translation>
+    </message>
+    <message>
+        <source>Image conversion, editing, metadata, HEIC and SVG.</source>
+        <translation>Conversion et retouche d’images, métadonnées, HEIC et SVG.</translation>
+    </message>
+    <message>
+        <source>More tools</source>
+        <translation>Autres outils</translation>
+    </message>
+    <message>
+        <source>Archives, QR codes, text recognition and everything else.</source>
+        <translation>Archives, codes QR, reconnaissance de texte et tout le reste.</translation>
+    </message>
+    <message>
+        <source>A few tools. More possibilities.</source>
+        <translation>Quelques outils. Plus de possibilités.</translation>
+    </message>
+    <message>
+        <source>Checking…</source>
+        <translation>Vérification…</translation>
+    </message>
+    <message>
+        <source>%1 tools missing</source>
+        <translation>%1 outils manquants</translation>
+    </message>
+    <message>
+        <source>Ready. You can go back to your files.</source>
+        <translation>Prêt. Vous pouvez retourner à vos fichiers.</translation>
+    </message>
+    <message>
+        <source>Install them to enable every conversion, preview and download. Tools already on your computer are kept.</source>
+        <translation>Installez-les pour activer toutes les conversions, aperçus et téléchargements. Les outils déjà présents sur votre ordinateur sont conservés.</translation>
+    </message>
+    <message>
+        <source>Every conversion, preview and download is available.</source>
+        <translation>Toutes les conversions, aperçus et téléchargements sont disponibles.</translation>
+    </message>
+    <message>
+        <source>Continue to Nashi</source>
+        <translation>Continuer vers Nashi</translation>
+    </message>
+    <message>
+        <source>Install command</source>
+        <translation>Commande d’installation</translation>
     </message>
     <message>
         <source>Copy</source>
@@ -2336,20 +2392,32 @@
         <translation>Votre bibliothèque</translation>
     </message>
     <message>
-        <source>Freshly made and ready for another round.</source>
-        <translation>Tout juste créés et prêts pour un autre tour.</translation>
-    </message>
-    <message>
         <source>Find a file · Ctrl+F</source>
         <translation>Trouver un fichier · Ctrl+F</translation>
     </message>
     <message>
-        <source>Nothing here yet. Files you create with Nashi appear here.</source>
-        <translation>Rien pour l’instant. Les fichiers que vous créez avec Nashi apparaissent ici.</translation>
+        <source>Freshly made, pasted, and ready for another round.</source>
+        <translation>Tout juste créés, collés et prêts pour un nouveau tour.</translation>
     </message>
     <message>
-        <source>No longer exists</source>
-        <translation>N’existe plus</translation>
+        <source>File or folder name</source>
+        <translation>Nom de fichier ou de dossier</translation>
+    </message>
+    <message>
+        <source>Find a file</source>
+        <translation>Trouver un fichier</translation>
+    </message>
+    <message>
+        <source>Nothing here yet. Paste something or make your first fresh copy.</source>
+        <translation>Rien ici pour l’instant. Collez quelque chose ou créez votre première copie.</translation>
+    </message>
+    <message>
+        <source>No matches. Try a file name or folder.</source>
+        <translation>Aucun résultat. Essayez un nom de fichier ou de dossier.</translation>
+    </message>
+    <message>
+        <source>Files missing</source>
+        <translation>Fichiers manquants</translation>
     </message>
     <message>
         <source>Preview</source>
@@ -2494,10 +2562,6 @@
         <translation>Réglages</translation>
     </message>
     <message>
-        <source>Make Nashi feel like yours.</source>
-        <translation>Adaptez Nashi à vos goûts.</translation>
-    </message>
-    <message>
         <source>Startup</source>
         <translation>Démarrage</translation>
     </message>
@@ -2620,6 +2684,62 @@
     <message>
         <source>Format defaults</source>
         <translation>Réglages par format</translation>
+    </message>
+    <message>
+        <source>General</source>
+        <translation>Général</translation>
+    </message>
+    <message>
+        <source>Your kind of flow.</source>
+        <translation>Votre façon de travailler.</translation>
+    </message>
+    <message>
+        <source>A few small preferences. A smoother everyday.</source>
+        <translation>Quelques petites préférences. Un quotidien plus fluide.</translation>
+    </message>
+    <message>
+        <source>Formats</source>
+        <translation>Formats</translation>
+    </message>
+    <message>
+        <source>Your go-to exports.</source>
+        <translation>Vos exports favoris.</translation>
+    </message>
+    <message>
+        <source>Defaults apply whenever you choose an output format.</source>
+        <translation>Ces valeurs par défaut s’appliquent chaque fois que vous choisissez un format de sortie.</translation>
+    </message>
+    <message>
+        <source>Drag &amp; wheel</source>
+        <translation>Glisser et roue</translation>
+    </message>
+    <message>
+        <source>Drag, hold, choose.</source>
+        <translation>Glissez, maintenez, choisissez.</translation>
+    </message>
+    <message>
+        <source>Hold a key while you drag a file and its wheel opens right there.</source>
+        <translation>Maintenez une touche pendant que vous glissez un fichier et sa roue s’ouvre aussitôt.</translation>
+    </message>
+    <message>
+        <source>Folders</source>
+        <translation>Dossiers</translation>
+    </message>
+    <message>
+        <source>A place for fresh files.</source>
+        <translation>Un endroit pour les nouveaux fichiers.</translation>
+    </message>
+    <message>
+        <source>Originals remain safe. Choose where new copies should land.</source>
+        <translation>Les originaux restent intacts. Choisissez où placer les nouvelles copies.</translation>
+    </message>
+    <message>
+        <source>About</source>
+        <translation>À propos</translation>
+    </message>
+    <message>
+        <source>A little pear. A lot of possibility.</source>
+        <translation>Une petite poire. Plein de possibilités.</translation>
     </message>
     <message>
         <source>Convert to</source>
@@ -2798,6 +2918,14 @@
         <translation>Réglages d’ouverture de la fenêtre Compresser. Vous pouvez toujours les changer à chaque fois.</translation>
     </message>
     <message>
+        <source>Updates arrive through your package manager, like the rest of your system.</source>
+        <translation>Les mises à jour arrivent par votre gestionnaire de paquets, comme le reste du système.</translation>
+    </message>
+    <message>
+        <source>Source &amp; third-party notices  ↗</source>
+        <translation>Source et mentions tierces  ↗</translation>
+    </message>
+    <message>
         <source>Notifications</source>
         <translation>Notifications</translation>
     </message>
@@ -2838,16 +2966,24 @@
         <translation>KDE Plasma utilise aussi Meta + glisser pour déplacer les fenêtres&#xa0;; Nashi ne voit le glissement que si le gestionnaire de fenêtres le laisse passer.</translation>
     </message>
     <message>
+        <source>Local by design · MIT source</source>
+        <translation>Local par conception · Source MIT</translation>
+    </message>
+    <message>
+        <source>Version %1</source>
+        <translation>Version %1</translation>
+    </message>
+    <message>
+        <source>nashi-cli: %1</source>
+        <translation>nashi-cli : %1</translation>
+    </message>
+    <message>
         <source>Overlay: Wayland layer-shell.</source>
         <translation>Superposition&#xa0;: Wayland layer-shell.</translation>
     </message>
     <message>
         <source>Overlay: full-screen window fallback (no layer-shell).</source>
         <translation>Superposition&#xa0;: fenêtre plein écran de secours (pas de layer-shell).</translation>
-    </message>
-    <message>
-        <source>Nashi %1 · nashi-cli: %2</source>
-        <translation>Nashi %1 · nashi-cli&#xa0;: %2</translation>
     </message>
     <message>
         <source>not found</source>
@@ -3050,7 +3186,7 @@
     </message>
     <message>
         <source>Half a second back or forward (Shift: a tenth)</source>
-        <translation>Une demi-seconde en arrière ou en avant (Maj : un dixième)</translation>
+        <translation>Une demi-seconde en arrière ou en avant (Maj&#xa0;: un dixième)</translation>
     </message>
     <message>
         <source>Set the start or end of the range</source>

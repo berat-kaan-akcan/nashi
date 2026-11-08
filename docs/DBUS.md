@@ -56,7 +56,7 @@ Touchpad tap-and-drag: the compositor (libinput) turns "tap, then touch again an
 - Object `/io/github/beratkaanakcan/Nashi`, interface `io.github.beratkaanakcan.Nashi1`
 - `ShowWheel(as paths, s mode)` — show the wheel at the cursor for these files (`mode` may be empty → `convert`). Used by `nashi --wheel FILE…`, the Dolphin service menu and the global shortcut.
 - `ShowWheelFromClipboard(s mode)` — files from the clipboard `text/uri-list`.
-- `Activate()` — raise the Home window.
+- `Activate()` — raise the Home window on its Home page (the same for `org.freedesktop.Application.Activate`).
 - The same object also implements the standard `org.freedesktop.Application` interface (`Activate(a{sv})`, `Open(as uris, a{sv})`, `ActivateAction`). `nashi FILE…` forwards to `Open` (opens Home with the files queued); both read the `activation-token` platform-data key so Wayland can raise the window. `Nashi1.Activate()` is kept for scripts but cannot pass a token.
 - `nashi --wheel [--mode m]` with no files maps to `ShowWheelFromClipboard(mode)`.
 - On Wayland the cursor position is unknown to clients, so `ShowWheel` centres the wheel on the primary screen.

@@ -30,7 +30,7 @@ void NashiAdaptor::ShowWheelFromClipboard(const QString &mode)
 
 void NashiAdaptor::Activate()
 {
-    m_app->showHome();
+    m_app->showHomePage();
 }
 
 void NashiAdaptor::Download(const QString &url)
@@ -68,7 +68,7 @@ FdoApplicationAdaptor::FdoApplicationAdaptor(App *app)
 void FdoApplicationAdaptor::Activate(const QVariantMap &platformData)
 {
     applyActivationToken(platformData);
-    m_app->showHome();
+    m_app->showHomePage();
 }
 
 void FdoApplicationAdaptor::Open(const QStringList &uris, const QVariantMap &platformData)

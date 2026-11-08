@@ -250,6 +250,16 @@ void App::showHome()
     presentWindow(m_homeWindow);
 }
 
+void App::showHomePage()
+{
+    showHome();
+    if (m_homeWindow) {
+        if (QObject *tabs = m_homeWindow->findChild<QObject *>(QStringLiteral("mainTabs")))
+            tabs->setProperty("currentIndex", 0);
+    }
+    Q_EMIT homeTabRequested();
+}
+
 void App::showWelcome()
 {
     if (!m_engine || !m_options.windows)
@@ -299,7 +309,7 @@ void App::openFiles(const QStringList &files)
     }
     if (!existing.isEmpty())
         m_home->setFiles(existing);
-    showHome();
+    showHomePage();
 }
 
 void App::showWheel(const QStringList &files, const QString &mode)
@@ -626,12 +636,7 @@ void App::reuseFiles(const QStringList &files)
         return;
     }
     m_home->setFiles(existing);
-    showHome();
-    if (m_homeWindow) {
-        if (QObject *tabs = m_homeWindow->findChild<QObject *>(QStringLiteral("mainTabs")))
-            tabs->setProperty("currentIndex", 0);
-    }
-    Q_EMIT homeTabRequested();
+    showHomePage();
 }
 
 void App::showPreview(const QString &path, const QStringList &siblings)
