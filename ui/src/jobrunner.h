@@ -36,6 +36,8 @@ class JobRunner : public QObject
     Q_PROPERTY(int failedCount READ failedCount NOTIFY stateChanged)
     Q_PROPERTY(QString errorSummary READ errorSummary NOTIFY errorsChanged)
     Q_PROPERTY(qint64 elapsedMs READ elapsedMs NOTIFY stateChanged)
+    // Failed because an archive or PDF needs a password (code password_required).
+    Q_PROPERTY(bool needsPassword READ needsPassword NOTIFY stateChanged)
 
 public:
     enum State { Idle, Running, Succeeded, Failed, Cancelled };
@@ -44,8 +46,10 @@ public:
     explicit JobRunner(const QString &title, QObject *parent = nullptr);
     ~JobRunner() override;
 
-    // Starts `program args…`. No shell is involved.
-    void start(const QString &program, const QStringList &args);
+    // Starts `program args…`. No shell is involved. A non-empty `secret` is
+    // given to the process as its stdin (for `--password-stdin`) through a
+    // pipe of its own, never through QProcess's buffers, and is wiped here.
+    void start(const QString &program, const QStringList &args, QByteArray secret = QByteArray());
     Q_INVOKABLE void cancel();
     // Last resort: SIGKILL a process that did not stop after cancel().
     void kill();
@@ -75,6 +79,7 @@ public:
     QString errorSummary() const;
     qint64 elapsedMs() const;
     QStringList arguments() const { return m_args; }
+    bool needsPassword() const;
 
     void setKillTimeout(int ms) { m_killTimer.setInterval(ms); }
 

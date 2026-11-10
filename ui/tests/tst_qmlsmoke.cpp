@@ -10,6 +10,8 @@
 #include "wheelmodel.h"
 
 #include <QDirIterator>
+#include <QGuiApplication>
+#include <QPointer>
 #include <QMimeData>
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -338,6 +340,47 @@ private Q_SLOTS:
         app->toast()->dismiss();
         QVERIFY(!app->toast()->shown());
         QCOMPARE(app->recent()->rowCount() >= 1, true);
+        QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
+    }
+
+    // A protected archive: the card offers a password box, which reruns the
+    // job with the password and forgets the typed text.
+    void archivePassword()
+    {
+        g_messages.clear();
+        JobRunner *locked = app->jobs()->start(QStringLiteral("tool"), QStringLiteral("locked"),
+                                               QStringLiteral("Extract"), {QStringLiteral("/tmp/s.zip")});
+        QVERIFY(locked);
+        QTRY_VERIFY_WITH_TIMEOUT(locked->finished(), 10000);
+        QVERIFY(locked->needsPassword());
+        QQuickWindow *toast = app->toast()->window();
+        QVERIFY(toast);
+        QQuickItem *button = nullptr;
+        QTRY_VERIFY((button = findItem(toast->contentItem(), QStringLiteral("jobPasswordButton"))));
+        QTRY_VERIFY(button->isVisible());
+
+        app->askPassword(locked);
+        QQuickWindow *box = nullptr;
+        for (QWindow *w : QGuiApplication::topLevelWindows())
+            if (w->objectName() == QLatin1String("passwordWindow"))
+                box = qobject_cast<QQuickWindow *>(w);
+        QVERIFY(box);
+        box->show();
+        QVERIFY(QTest::qWaitForWindowExposed(box));
+        shot(box, QStringLiteral("file-password"));
+        QQuickItem *field = findItem(box->contentItem(), QStringLiteral("filePasswordField"));
+        QVERIFY(field);
+        QCOMPARE(field->property("echoMode").toInt(), 2); // TextInput.Password
+        field->setProperty("text", QStringLiteral("open sesame"));
+        QPointer<JobRunner> old = locked;
+        QVERIFY(QMetaObject::invokeMethod(box, "submit"));
+        QCOMPARE(field->property("text").toString(), QString());
+        QVERIFY(!box->isVisible());
+        QTRY_VERIFY(old.isNull());
+        JobRunner *retry = app->jobs()->jobs().constFirst();
+        QTRY_VERIFY_WITH_TIMEOUT(retry->finished(), 10000);
+        QCOMPARE(retry->state(), JobRunner::Succeeded);
+        app->toast()->dismiss();
         QVERIFY2(g_messages.isEmpty(), qPrintable(g_messages.join(QLatin1Char('\n'))));
     }
 

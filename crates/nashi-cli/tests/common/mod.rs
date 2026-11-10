@@ -131,12 +131,30 @@ impl Run {
 }
 
 pub fn run_env(args: &[&str], env: &[(&str, &str)]) -> Run {
+    run_full(args, env, None)
+}
+
+/// Runs nashi-cli with `stdin` (or an empty stdin) as its standard input.
+pub fn run_full(args: &[&str], env: &[(&str, &str)], stdin: Option<&[u8]>) -> Run {
+    use std::io::Write;
     let mut c = Command::new(BIN);
-    c.args(args).stdin(Stdio::null());
+    c.args(args)
+        .stdin(if stdin.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
     for (k, v) in env {
         c.env(k, v);
     }
-    let out = c.output().expect("run nashi-cli");
+    let mut child = c.spawn().expect("run nashi-cli");
+    if let Some(bytes) = stdin {
+        let mut pipe = child.stdin.take().unwrap();
+        pipe.write_all(bytes).unwrap();
+    }
+    let out = child.wait_with_output().expect("run nashi-cli");
     let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
     let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
     let mut events = Vec::new();
@@ -213,6 +231,7 @@ pub fn check_event(v: &Value) {
                 "invalid_options",
                 "io",
                 "cancelled",
+                "password_required",
             ];
             assert!(codes.contains(&v["code"].as_str().unwrap()), "{v}");
             assert!(v["message"].is_string());

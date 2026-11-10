@@ -153,6 +153,7 @@ App::~App()
     delete m_optionsWindow.data();
     delete m_welcomeWindow.data();
     delete m_downloadWindow.data();
+    delete m_passwordWindow.data();
     delete m_previewWindow.data();
     delete m_shelfWindow.data();
     delete m_shareWindow.data();
@@ -465,6 +466,10 @@ QString App::mimeIcon(const QString &path) const
 void App::onJobFinished(JobRunner *job)
 {
     m_recent->add(job->outputs());
+    // The password just typed did not open it: ask again right away. A first
+    // refusal only shows a button on the job card, so focus is not taken.
+    if (job->needsPassword() && job->arguments().contains(QStringLiteral("--password-stdin")))
+        askPassword(job);
     if (!m_settings->notifications() || job->state() == JobRunner::Cancelled)
         return;
     // Policy: the toast is the primary feedback. A desktop notification is
@@ -582,6 +587,36 @@ void App::showDownload(const QString &url, bool fromClipboard)
                               Q_ARG(QVariant, QVariant(fromClipboard)));
     if (m_options.windows)
         presentWindow(m_downloadWindow);
+}
+
+void App::askPassword(JobRunner *job)
+{
+    if (!m_engine || !job || !job->needsPassword())
+        return;
+    if (!m_passwordWindow) {
+        QQmlComponent component(m_engine);
+        component.loadFromModule("NashiApp", "PasswordWindow");
+        QObject *obj = component.create();
+        m_passwordWindow = qobject_cast<QQuickWindow *>(obj);
+        if (!m_passwordWindow) {
+            qCWarning(lcApp) << "PasswordWindow failed to load:" << component.errorString();
+            delete obj;
+            return;
+        }
+    }
+    QString name;
+    for (const QVariant &e : job->errors()) {
+        const QString input = e.toMap().value(QStringLiteral("input")).toString();
+        if (!input.isEmpty()) {
+            name = QFileInfo(input).fileName();
+            break;
+        }
+    }
+    const bool retried = job->arguments().contains(QStringLiteral("--password-stdin"));
+    QMetaObject::invokeMethod(m_passwordWindow, "openFor", Q_ARG(QVariant, QVariant::fromValue<QObject *>(job)),
+                              Q_ARG(QVariant, QVariant(name)), Q_ARG(QVariant, QVariant(retried)));
+    if (m_options.windows)
+        presentWindow(m_passwordWindow);
 }
 
 void App::showDownloadFromClipboard()

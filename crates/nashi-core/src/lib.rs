@@ -12,6 +12,7 @@ pub mod job;
 pub mod options;
 pub mod preview;
 pub mod process;
+pub mod secret;
 pub mod suggest;
 
 pub use catalog::Category;

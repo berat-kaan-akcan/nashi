@@ -15,6 +15,8 @@ pub enum ErrorCode {
     InvalidOptions,
     Io,
     Cancelled,
+    /// The archive needs a password, or the one given did not open it.
+    PasswordRequired,
 }
 
 /// Failure of one job item.

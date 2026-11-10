@@ -41,7 +41,7 @@ QStringList JobManager::buildDownloadArgs(const QString &url, const QString &kin
     return args;
 }
 
-JobRunner *JobManager::launch(const QString &title, const QStringList &args)
+JobRunner *JobManager::launch(const QString &title, const QStringList &args, QByteArray secret)
 {
     auto *job = new JobRunner(title, this);
     beginInsertRows({}, 0, 0);
@@ -59,7 +59,7 @@ JobRunner *JobManager::launch(const QString &title, const QStringList &args)
     });
     Q_EMIT countChanged();
     Q_EMIT jobStarted(job);
-    job->start(m_program, args);
+    job->start(m_program, args, std::move(secret));
     Q_EMIT activeCountChanged();
     return job;
 }
@@ -84,6 +84,20 @@ JobRunner *JobManager::startDownload(const QString &url, const QString &kind, co
     }
     const QString jobTitle = title.isEmpty() ? tr("Download") : title;
     return launch(jobTitle, buildDownloadArgs(trimmed, k, outDir));
+}
+
+JobRunner *JobManager::retryWithPassword(JobRunner *job, const QString &password)
+{
+    if (!job || !m_jobs.contains(job) || !job->needsPassword() || password.isEmpty())
+        return nullptr;
+    QStringList args = job->arguments();
+    if (!args.contains(QStringLiteral("--password-stdin")))
+        args << QStringLiteral("--password-stdin");
+    QByteArray line = password.toUtf8();
+    line.append('\n');
+    JobRunner *retry = launch(job->title(), args, std::move(line));
+    remove(job);
+    return retry;
 }
 
 void JobManager::cancelAll()

@@ -93,6 +93,9 @@ enum Cmd {
         out_dir: Option<PathBuf>,
         #[arg(long)]
         options: Option<String>,
+        /// Read an archive password from the first line of stdin (never an argument).
+        #[arg(long)]
+        password_stdin: bool,
     },
     /// Run a tool.
     Tool {
@@ -103,6 +106,9 @@ enum Cmd {
         out_dir: Option<PathBuf>,
         #[arg(long)]
         options: Option<String>,
+        /// Read an archive password from the first line of stdin (never an argument).
+        #[arg(long)]
+        password_stdin: bool,
     },
     /// List the metadata fields of a file.
     Metadata { file: PathBuf },
@@ -257,18 +263,28 @@ fn run_job(
     files: Vec<PathBuf>,
     out_dir: Option<PathBuf>,
     options: Option<String>,
+    password_stdin: bool,
 ) -> ExitCode {
     if let Err(e) = job::validate(&kind, &files) {
         eprintln!("nashi-cli: {e}");
         return ExitCode::from(2);
     }
-    let opts = match Options::parse(options.as_deref()) {
+    let mut opts = match Options::parse(options.as_deref()) {
         Ok(o) => o,
         Err(e) => {
             eprintln!("nashi-cli: {e}");
             return ExitCode::from(2);
         }
     };
+    if password_stdin {
+        match nashi_core::secret::Secret::read_stdin() {
+            Ok(password) => opts.password = password,
+            Err(e) => {
+                eprintln!("nashi-cli: {e}");
+                return ExitCode::from(2);
+            }
+        }
+    }
     if let Err(e) = process::install_signal_handlers() {
         eprintln!("nashi-cli: cannot install signal handlers: {e}");
     }
@@ -413,6 +429,7 @@ fn real_main() -> ExitCode {
             files,
             out_dir,
             options,
+            password_stdin,
         } => {
             return run_job(
                 json,
@@ -420,6 +437,7 @@ fn real_main() -> ExitCode {
                 files,
                 out_dir,
                 options,
+                password_stdin,
             )
         }
         Cmd::Tool {
@@ -427,7 +445,17 @@ fn real_main() -> ExitCode {
             files,
             out_dir,
             options,
-        } => return run_job(json, JobKind::Tool(tool_id), files, out_dir, options),
+            password_stdin,
+        } => {
+            return run_job(
+                json,
+                JobKind::Tool(tool_id),
+                files,
+                out_dir,
+                options,
+                password_stdin,
+            )
+        }
         Cmd::Metadata { file } => {
             let abs = std::path::absolute(&file).unwrap_or(file);
             match nashi_core::engines::metadata::read(Deps::global(), &abs) {

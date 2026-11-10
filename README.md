@@ -33,6 +33,8 @@ The keys can be changed in Settings, and **Meta** works too.
 - Spreadsheets and slides: XLSX, XLS, ODS, CSV, TSV, PPT, PPTX
 - Subtitles and archives: SRT, VTT, ZIP, TAR, GZ, RAR
 
+Password-protected archives and PDFs ask for their password; it is passed on standard input, never on a command line.
+
 **27 tools:** compression (by target size or percentage), metadata removal and editing, photo adjustments (exposure, contrast, color…), crop, annotate, background and frame, collage, redaction (black box, blur or pixelate, with OCR suggestions for personal data and faces), audio loudness matching, audio trim and bleep-out, video trim / crop / split / merge / speed-up, frame grabs, audio-to-video, PDF merge / split / page organizer, archive extraction, QR reading.
 
 Crop, redact, annotate and timeline tools open an editor first:

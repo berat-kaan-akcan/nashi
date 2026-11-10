@@ -40,6 +40,9 @@ public:
                                  const QString &options = QString());
     Q_INVOKABLE JobRunner *startDownload(const QString &url, const QString &kind = QStringLiteral("auto"),
                                          const QString &outDir = QString(), const QString &title = QString());
+    // Runs a job that failed with password_required again, giving `password`
+    // to nashi-cli on stdin (`--password-stdin`), and replaces the old card.
+    Q_INVOKABLE JobRunner *retryWithPassword(JobRunner *job, const QString &password);
     Q_INVOKABLE void cancelAll();
     Q_INVOKABLE void clearFinished();
     Q_INVOKABLE void remove(JobRunner *job);
@@ -60,7 +63,7 @@ Q_SIGNALS:
     void jobFinished(JobRunner *job);
 
 private:
-    JobRunner *launch(const QString &title, const QStringList &args);
+    JobRunner *launch(const QString &title, const QStringList &args, QByteArray secret = QByteArray());
     void prune();
 
     Settings *m_settings;

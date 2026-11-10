@@ -947,6 +947,18 @@
         <translation>Bu arşiv parola korumalı.</translation>
     </message>
     <message>
+        <source>The password is incorrect, or the archive is damaged.</source>
+        <translation>Parola yanlış ya da arşiv bozuk.</translation>
+    </message>
+    <message>
+        <source>This PDF is password protected.</source>
+        <translation>Bu PDF parola korumalı.</translation>
+    </message>
+    <message>
+        <source>The password is incorrect.</source>
+        <translation>Parola yanlış.</translation>
+    </message>
+    <message>
         <source>not a valid EPUB file</source>
         <translation>Geçerli bir EPUB dosyası değil</translation>
     </message>
@@ -1260,6 +1272,10 @@
         <translation>Kopyala</translation>
     </message>
     <message>
+        <source>Enter password</source>
+        <translation>Parolayı gir</translation>
+    </message>
+    <message>
         <source>Cancel</source>
         <translation>İptal</translation>
     </message>
@@ -1292,6 +1308,10 @@
     <message>
         <source>nashi-cli was not found</source>
         <translation>nashi-cli bulunamadı</translation>
+    </message>
+    <message>
+        <source>Could not pass the password to nashi-cli</source>
+        <translation>Parola nashi-cli’ye iletilemedi</translation>
     </message>
     <message numerus="yes">
         <source> (+%n more)</source>
@@ -2073,6 +2093,41 @@
     <message>
         <source>Nashi overlay</source>
         <translation>Nashi katmanı</translation>
+    </message>
+</context>
+<context>
+    <name>PasswordWindow</name>
+    <message>
+        <source>That password did not open it. Check it and try again.</source>
+        <translation>Bu parola arşivi açmadı. Kontrol edip yeniden dene.</translation>
+    </message>
+    <message>
+        <source>Password</source>
+        <translation>Parola</translation>
+    </message>
+    <message>
+        <source>Password Required</source>
+        <translation>Parola Gerekli</translation>
+    </message>
+    <message>
+        <source>PROTECTED FILE</source>
+        <translation>KORUMALI DOSYA</translation>
+    </message>
+    <message>
+        <source>Enter the password to open this file. Nashi does not save it.</source>
+        <translation>Bu dosyayı açmak için parolasını gir. Nashi parolayı kaydetmez.</translation>
+    </message>
+    <message>
+        <source>File password</source>
+        <translation>Dosya parolası</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>İptal</translation>
+    </message>
+    <message>
+        <source>Continue</source>
+        <translation>Devam</translation>
     </message>
 </context>
 <context>

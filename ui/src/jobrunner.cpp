@@ -6,10 +6,49 @@
 #include <QJsonArray>
 #include <QJsonObject>
 
+#include <algorithm>
+#include <cerrno>
+#include <fcntl.h>
+#include <unistd.h>
+
 namespace {
 constexpr int kDefaultKillTimeoutMs = 5000; // the CLI's own grace is ~1.5 s
 constexpr int kDestructorGraceMs = 5000;
 constexpr qsizetype kStderrTailBytes = 2048;
+
+// Overwrites the bytes so the password does not linger in freed memory.
+void wipe(QByteArray &bytes)
+{
+    volatile char *p = bytes.data(); // `bytes` is not shared, so this does not detach
+    for (qsizetype i = 0; i < bytes.size(); ++i)
+        p[i] = 0;
+    bytes.clear();
+}
+
+// The read end of a pipe that already holds all of `secret`, or -1.
+int secretPipe(const QByteArray &secret)
+{
+    int fds[2] = {-1, -1};
+    if (::pipe2(fds, O_CLOEXEC) != 0)
+        return -1;
+    const char *p = secret.constData();
+    qsizetype left = secret.size();
+    while (left > 0) {
+        const ssize_t n = ::write(fds[1], p, size_t(left));
+        if (n < 0 && errno == EINTR)
+            continue;
+        if (n <= 0)
+            break;
+        p += n;
+        left -= n;
+    }
+    ::close(fds[1]);
+    if (left > 0) {
+        ::close(fds[0]);
+        return -1;
+    }
+    return fds[0];
+}
 } // namespace
 
 JobRunner::JobRunner(const QString &title, QObject *parent)
@@ -37,19 +76,34 @@ JobRunner::~JobRunner()
     }
 }
 
-void JobRunner::start(const QString &program, const QStringList &args)
+void JobRunner::start(const QString &program, const QStringList &args, QByteArray secret)
 {
-    if (m_state != Idle)
+    if (m_state != Idle) {
+        wipe(secret);
         return;
+    }
     m_args = args;
     m_state = Running;
     m_clock.start();
     Q_EMIT stateChanged();
 
     if (program.isEmpty()) {
+        wipe(secret);
         addError(QString(), QStringLiteral("missing_cli"), tr("nashi-cli was not found"));
         finish(Failed);
         return;
+    }
+
+    // The kernel's pipe buffer holds the password, not a Qt buffer we cannot wipe.
+    int secretFd = -1;
+    if (!secret.isEmpty()) {
+        secretFd = secretPipe(secret);
+        wipe(secret);
+        if (secretFd < 0) {
+            addError(QString(), QStringLiteral("protocol"), tr("Could not pass the password to nashi-cli"));
+            finish(Failed);
+            return;
+        }
     }
 
     m_process = new QProcess(this);
@@ -65,7 +119,22 @@ void JobRunner::start(const QString &program, const QStringList &args)
     });
     connect(m_process, &QProcess::finished, this, &JobRunner::onFinished);
     connect(m_process, &QProcess::errorOccurred, this, &JobRunner::onErrorOccurred);
+    if (secretFd >= 0) {
+        // Runs in the child between fork and exec: only async-signal-safe calls.
+        m_process->setChildProcessModifier([secretFd] { ::dup2(secretFd, STDIN_FILENO); });
+    }
     m_process->start(QIODevice::ReadOnly);
+    if (secretFd >= 0)
+        ::close(secretFd); // the child has its own copy now
+}
+
+bool JobRunner::needsPassword() const
+{
+    if (m_state != Failed)
+        return false;
+    return std::any_of(m_errors.cbegin(), m_errors.cend(), [](const QVariant &e) {
+        return e.toMap().value(QStringLiteral("code")).toString() == QLatin1String("password_required");
+    });
 }
 
 void JobRunner::cancel()

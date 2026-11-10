@@ -283,6 +283,29 @@ impl WorkDir {
         Self::new_in(&std::env::temp_dir())
     }
 
+    /// A folder only this user can open (0700), for files that must not be
+    /// seen by others, such as a decrypted copy of a protected PDF. It lives in
+    /// `$XDG_RUNTIME_DIR` (memory-backed, per user) when there is one.
+    pub fn private() -> io::Result<WorkDir> {
+        use std::os::unix::fs::DirBuilderExt;
+        let parent = std::env::var_os("XDG_RUNTIME_DIR")
+            .map(PathBuf::from)
+            .filter(|d| d.is_absolute() && d.is_dir())
+            .unwrap_or_else(std::env::temp_dir);
+        loop {
+            let p = parent.join(format!(
+                ".nashi-private-{}-{}{TMP_SUFFIX}",
+                std::process::id(),
+                next_id()
+            ));
+            match fs::DirBuilder::new().mode(0o700).create(&p) {
+                Ok(()) => return Ok(WorkDir { path: p }),
+                Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
+                Err(e) => return Err(e),
+            }
+        }
+    }
+
     pub fn path(&self) -> &Path {
         &self.path
     }

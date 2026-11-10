@@ -12,6 +12,83 @@ use crate::fsops::{files_in, rename_noreplace, unique_path, Staged, WorkDir};
 use crate::options::parse_pages;
 use crate::process::Cmd;
 
+/// Asked for the password of a PDF that cannot be opened without one.
+pub const PDF_PROTECTED: &str = "This PDF is password protected.";
+/// The password given did not open the PDF.
+pub const PDF_WRONG_PASSWORD: &str = "The password is incorrect.";
+
+/// Whether the PDF needs a password to open (an owner password alone, which
+/// only limits printing or editing, does not count).
+fn needs_password(deps: &crate::deps::Deps, pdf: &Path) -> bool {
+    if let Some(qpdf) = deps.path("qpdf") {
+        // Exit 0: a password is required; 2: not encrypted; 3: no password needed.
+        return Cmd::new(qpdf)
+            .arg("--requires-password")
+            .arg(pdf)
+            .run()
+            .is_ok_and(|o| o.status.code() == Some(0));
+    }
+    if let Some(pdfinfo) = deps.path("pdfinfo") {
+        return Cmd::new(pdfinfo)
+            .arg(pdf)
+            .run()
+            .is_ok_and(|o| !o.status.success() && o.stderr.contains("Incorrect password"));
+    }
+    false
+}
+
+/// A PDF that needs a password is decrypted first, so every PDF tool works on
+/// it unchanged. The copy goes to a folder only this user can open
+/// ([`WorkDir::private`]), which the caller keeps until the job is done; the
+/// password reaches qpdf on its stdin, never as an argument. Outputs made from
+/// it are not password protected.
+pub fn unlock(
+    deps: &crate::deps::Deps,
+    opts: &crate::options::Options,
+    input: Input,
+) -> JobResult<(Input, Option<WorkDir>)> {
+    if input.category() != crate::catalog::Category::Pdf || !needs_password(deps, &input.path) {
+        return Ok((input, None));
+    }
+    let Some(password) = &opts.password else {
+        return Err(JobError::new(
+            crate::events::ErrorCode::PasswordRequired,
+            PDF_PROTECTED,
+        ));
+    };
+    let qpdf = require(deps, "qpdf")?;
+    let work = WorkDir::private()?;
+    let name = input
+        .path
+        .file_name()
+        .map(|n| n.to_os_string())
+        .unwrap_or_else(|| "document.pdf".into());
+    let unlocked = work.path().join(name);
+    let out = Cmd::new(qpdf)
+        .args(["--password-file=-", "--decrypt"])
+        .arg(&input.path)
+        .arg(&unlocked)
+        .secret_stdin(password)
+        .run()?;
+    if out.stderr.contains("invalid password") {
+        return Err(JobError::new(
+            crate::events::ErrorCode::PasswordRequired,
+            PDF_WRONG_PASSWORD,
+        ));
+    }
+    // Exit 3: written, with warnings about the file.
+    if !matches!(out.status.code(), Some(0 | 3)) || !unlocked.is_file() {
+        return Err(crate::process::failure("qpdf", &out));
+    }
+    Ok((
+        Input {
+            path: unlocked,
+            ..input
+        },
+        Some(work),
+    ))
+}
+
 /// Render a PDF to images: one page → `stem.ext`, several → `stem-pages/`.
 pub fn to_images(
     ctx: &Ctx,

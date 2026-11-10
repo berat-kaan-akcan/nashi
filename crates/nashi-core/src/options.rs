@@ -182,6 +182,10 @@ pub struct Adjust {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct Options {
+    /// Archive password, from `nashi-cli --password-stdin` only: never
+    /// read from `--options` JSON, which is a command-line argument.
+    #[serde(skip)]
+    pub password: Option<crate::secret::Secret>,
     /// `frameImage`: canvas, background and placement.
     pub frame: Option<Frame>,
     /// `createCollage`: layout and appearance.

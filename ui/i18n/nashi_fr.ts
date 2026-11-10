@@ -950,6 +950,18 @@
         <translation>Cette archive est protégée par un mot de passe.</translation>
     </message>
     <message>
+        <source>The password is incorrect, or the archive is damaged.</source>
+        <translation>Le mot de passe est incorrect, ou l’archive est endommagée.</translation>
+    </message>
+    <message>
+        <source>This PDF is password protected.</source>
+        <translation>Ce PDF est protégé par un mot de passe.</translation>
+    </message>
+    <message>
+        <source>The password is incorrect.</source>
+        <translation>Le mot de passe est incorrect.</translation>
+    </message>
+    <message>
         <source>not a valid EPUB file</source>
         <translation>Ce n’est pas un fichier EPUB valide</translation>
     </message>
@@ -1266,6 +1278,10 @@
         <translation>Copier</translation>
     </message>
     <message>
+        <source>Enter password</source>
+        <translation>Saisir le mot de passe</translation>
+    </message>
+    <message>
         <source>Cancel</source>
         <translation>Annuler</translation>
     </message>
@@ -1298,6 +1314,10 @@
     <message>
         <source>nashi-cli was not found</source>
         <translation>nashi-cli est introuvable</translation>
+    </message>
+    <message>
+        <source>Could not pass the password to nashi-cli</source>
+        <translation>Impossible de transmettre le mot de passe à nashi-cli</translation>
     </message>
     <message numerus="yes">
         <source> (+%n more)</source>
@@ -2081,6 +2101,41 @@
     <message>
         <source>Nashi overlay</source>
         <translation>Superposition Nashi</translation>
+    </message>
+</context>
+<context>
+    <name>PasswordWindow</name>
+    <message>
+        <source>That password did not open it. Check it and try again.</source>
+        <translation>Ce mot de passe ne l’a pas ouverte. Vérifiez-le et réessayez.</translation>
+    </message>
+    <message>
+        <source>Password</source>
+        <translation>Mot de passe</translation>
+    </message>
+    <message>
+        <source>Password Required</source>
+        <translation>Mot de passe requis</translation>
+    </message>
+    <message>
+        <source>PROTECTED FILE</source>
+        <translation>FICHIER PROTÉGÉ</translation>
+    </message>
+    <message>
+        <source>Enter the password to open this file. Nashi does not save it.</source>
+        <translation>Saisissez le mot de passe pour ouvrir ce fichier. Nashi ne l’enregistre pas.</translation>
+    </message>
+    <message>
+        <source>File password</source>
+        <translation>Mot de passe du fichier</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Annuler</translation>
+    </message>
+    <message>
+        <source>Continue</source>
+        <translation>Continuer</translation>
     </message>
 </context>
 <context>
@@ -3054,7 +3109,7 @@
     </message>
     <message>
         <source>Half a second back or forward (Shift: a tenth)</source>
-        <translation>Une demi-seconde en arrière ou en avant (Maj : un dixième)</translation>
+        <translation>Une demi-seconde en arrière ou en avant (Maj&#xa0;: un dixième)</translation>
     </message>
     <message>
         <source>Set the start or end of the range</source>

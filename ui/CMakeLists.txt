@@ -103,6 +103,7 @@ set(NASHI_QML_FILES
     qml/AnnotateEditor.qml
     qml/WelcomeWindow.qml
     qml/DownloadWindow.qml
+    qml/PasswordWindow.qml
     qml/PreviewWindow.qml
     qml/ShelfWindow.qml
     qml/ShareSheet.qml

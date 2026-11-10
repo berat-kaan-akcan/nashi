@@ -33,6 +33,8 @@ Tuşların karşılığı Ayarlar'dan değiştirilebilir; **Meta** da kullanıla
 - Tablo ve sunum: XLSX, XLS, ODS, CSV, TSV, PPT, PPTX
 - Altyazı ve arşiv: SRT, VTT, ZIP, TAR, GZ, RAR
 
+Parolalı arşivler ve PDF'ler parolasını sorar; parola komut satırından değil, standart girdiden iletilir.
+
 **27 araç:** sıkıştırma (hedef boyut veya yüzde ile), meta verileri silme ve düzenleme, fotoğraf düzenleme (pozlama, kontrast, renk…), kırpma, not ekleme, arka plan/çerçeve, kolaj, karartma (siyah kutu, bulanık, piksel; OCR ile kişisel veri ve yüz önerisi), ses seviyesi eşitleme, ses kesme ve sansürleme, video kesme/kırpma/bölme/birleştirme/hızlandırma, kare alma, sesten video, PDF birleştirme/bölme/sayfa düzenleme, arşiv açma, QR okuma.
 
 Kırpma, karartma, not ekleme ve zaman çizelgesi gibi araçlar önce bir editör açar:

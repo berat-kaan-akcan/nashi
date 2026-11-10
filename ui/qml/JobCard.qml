@@ -152,7 +152,17 @@ Rectangle {
             Layout.fillWidth: true
             spacing: 6
             visible: card.running || (card.runner !== null && card.runner.finished && card.runner.outputs.length > 0)
+                     || (card.runner !== null && card.runner.needsPassword)
             Item { Layout.fillWidth: true }
+            NButton {
+                objectName: "jobPasswordButton"
+                visible: card.runner !== null && card.runner.needsPassword
+                compact: true
+                kind: "primary"
+                iconName: "dialog-password"
+                text: qsTr("Enter password")
+                onClicked: App.askPassword(card.runner)
+            }
             NButton {
                 visible: card.running
                 compact: true

@@ -4,14 +4,26 @@ use std::path::{Path, PathBuf};
 
 use super::{Ctx, Input};
 use crate::detect::split_name;
-use crate::events::{JobError, JobResult};
+use crate::events::{ErrorCode, JobError, JobResult};
 use crate::fsops::WorkDir;
 use crate::process::Cmd;
 
-/// Nashi has no password box for archives, so a protected one gets a plain
-/// answer instead of the extractor's own words ("Break signaled", "Enter passphrase").
+/// A protected archive gets a plain answer instead of the extractor's own
+/// words ("Break signaled", "Enter passphrase"), and a code the app answers
+/// with a password box.
 fn password_protected() -> JobError {
-    JobError::invalid_input("This archive is password protected.")
+    JobError::new(
+        ErrorCode::PasswordRequired,
+        "This archive is password protected.",
+    )
+}
+
+/// Encrypted data cannot tell a wrong key from damage, so the message names both.
+fn wrong_password() -> JobError {
+    JobError::new(
+        ErrorCode::PasswordRequired,
+        "The password is incorrect, or the archive is damaged.",
+    )
 }
 
 /// Whether an extractor failed because the archive asked for a password.
@@ -40,9 +52,13 @@ fn asked_for_password(tool: &str, out: &crate::process::RunOut) -> bool {
     }
 }
 
-fn extractor_failed(tool: &str, out: &crate::process::RunOut) -> JobError {
+fn extractor_failed(tool: &str, out: &crate::process::RunOut, password: bool) -> JobError {
     if asked_for_password(tool, out) {
-        password_protected()
+        if password {
+            wrong_password()
+        } else {
+            password_protected()
+        }
     } else {
         crate::process::failure(tool, out)
     }
@@ -106,11 +122,12 @@ fn gunzip(ctx: &Ctx, src: &Path, out: &Path) -> JobResult<()> {
 fn listed_size(ctx: &Ctx, archive: &Path) -> Option<u64> {
     let d = ctx.deps;
     if let Some(z) = d.path("7z") {
-        let out = Cmd::new(z)
-            .args(["l", "-slt", "--"])
-            .arg(archive)
-            .run_ok()
-            .ok()?;
+        let mut list = Cmd::new(z).args(["l", "-slt", "--"]).arg(archive);
+        // Encrypted names cannot be listed without the password.
+        if let Some(pw) = &ctx.opts.password {
+            list = list.secret_stdin(pw);
+        }
+        let out = list.run_ok().ok()?;
         return Some(
             out.stdout
                 .lines()
@@ -235,6 +252,7 @@ pub fn extract_into(
 
 fn extract_raw(ctx: &Ctx, archive: &Path, ext: &str, dest: &Path) -> JobResult<()> {
     let d = ctx.deps;
+    let password = ctx.opts.password.as_ref();
     let limit = expansion_limit();
     if ext == "gz" {
         let work = WorkDir::new_in(dest.parent().unwrap_or(dest))?;
@@ -258,29 +276,35 @@ fn extract_raw(ctx: &Ctx, archive: &Path, ext: &str, dest: &Path) -> JobResult<(
     if let Some(z) = d.path("7z") {
         // 7z goes by the content, so what was found to be a tar stays one.
         let format: &[&str] = if ext == "tar" { &["-ttar"] } else { &[] };
-        let out = watched(Cmd::new(z), dest, limit)
+        let mut cmd = watched(Cmd::new(z), dest, limit)
             .args(["x", "-y", "-bso0", "-bsp0"])
             .args(format)
             .arg_cat("-o", dest)
-            .arg(archive)
-            .run()?;
+            .arg(archive);
+        if let Some(pw) = password {
+            cmd = cmd.secret_stdin(pw);
+        }
+        let out = cmd.run()?;
         // Exit 2 only because 7z refused unsafe links: that is what we want.
         let only_unsafe_links = out.status.code() == Some(2) && {
             let errs: Vec<&str> = out.stderr.lines().filter(|l| l.contains("ERROR")).collect();
             !errs.is_empty() && errs.iter().all(|l| l.contains("Dangerous link path"))
         };
         if !out.status.success() && !only_unsafe_links {
-            return Err(extractor_failed("7z", &out));
+            return Err(extractor_failed("7z", &out, password.is_some()));
         }
     } else if let Some(b) = d.path("bsdtar") {
-        let out = watched(Cmd::new(b), dest, limit)
+        let mut cmd = watched(Cmd::new(b), dest, limit)
             .arg("-xf")
             .arg(archive)
             .arg("-C")
-            .arg(dest)
-            .run()?;
+            .arg(dest);
+        if let Some(pw) = password {
+            cmd = cmd.secret_stdin(pw);
+        }
+        let out = cmd.run()?;
         if !out.status.success() {
-            return Err(extractor_failed("bsdtar", &out));
+            return Err(extractor_failed("bsdtar", &out, password.is_some()));
         }
     } else if let (Some(t), "tar") = (d.path("tar"), ext) {
         watched(Cmd::new(t), dest, limit)
@@ -290,6 +314,11 @@ fn extract_raw(ctx: &Ctx, archive: &Path, ext: &str, dest: &Path) -> JobResult<(
             .arg(dest)
             .run_ok()?;
     } else if let (Some(u), "zip") = (d.path("unzip"), ext) {
+        // unzip takes a password only as an argument (-P), which every user
+        // on the machine can read, so a protected zip needs 7z or bsdtar.
+        if password.is_some() {
+            return Err(JobError::missing("7z", "7zip"));
+        }
         let out = watched(Cmd::new(u), dest, limit)
             .args(["-q", "-o"])
             .arg(archive)
@@ -297,7 +326,7 @@ fn extract_raw(ctx: &Ctx, archive: &Path, ext: &str, dest: &Path) -> JobResult<(
             .arg(dest)
             .run()?;
         if !out.status.success() {
-            return Err(extractor_failed("unzip", &out));
+            return Err(extractor_failed("unzip", &out, false));
         }
     } else {
         return Err(missing_extractor());

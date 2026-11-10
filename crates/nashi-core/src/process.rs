@@ -3,7 +3,7 @@
 
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
@@ -55,6 +55,7 @@ pub struct Cmd {
     cwd: Option<PathBuf>,
     file_limit: Option<u64>,
     watch: Option<Watch>,
+    secret: Option<crate::secret::Secret>,
 }
 
 /// Called while a process runs; an error stops the process and is returned.
@@ -77,6 +78,7 @@ impl Cmd {
             cwd: None,
             file_limit: None,
             watch: None,
+            secret: None,
         }
     }
 
@@ -125,6 +127,14 @@ impl Cmd {
         self
     }
 
+    /// Write `secret` and a newline to the process's stdin, which 7z and bsdtar
+    /// read a password from. It runs in a session of its own, so with no
+    /// controlling terminal neither can ask for the password there instead.
+    pub fn secret_stdin(mut self, secret: &crate::secret::Secret) -> Cmd {
+        self.secret = Some(secret.clone());
+        self
+    }
+
     pub fn stdout_to(mut self, f: File) -> Cmd {
         self.stdout_file = Some(f);
         self
@@ -156,10 +166,22 @@ impl Cmd {
         let name = self.name();
         let mut watch = self.watch.take();
         let mut c = Command::new(&self.prog);
-        c.args(&self.args)
-            .stdin(Stdio::null())
-            .stderr(Stdio::piped())
-            .process_group(0);
+        c.args(&self.args).stderr(Stdio::piped());
+        if self.secret.is_some() {
+            c.stdin(Stdio::piped());
+            // SAFETY: setsid is async-signal-safe. A new session is also a new
+            // process group led by the child, so cancellation still reaches it.
+            unsafe {
+                c.pre_exec(|| {
+                    if libc::setsid() == -1 {
+                        return Err(std::io::Error::last_os_error());
+                    }
+                    Ok(())
+                });
+            }
+        } else {
+            c.stdin(Stdio::null()).process_group(0);
+        }
         die_with_parent(&mut c);
         if let Some(bytes) = self.file_limit {
             let limit = libc::rlimit {
@@ -198,6 +220,13 @@ impl Cmd {
             .spawn()
             .map_err(|e| JobError::tool_failed(format!("could not start {name}: {e}")))?;
         let pid = child.id() as i32;
+        if let (Some(secret), Some(mut stdin)) = (self.secret.take(), child.stdin.take()) {
+            // Far below the pipe buffer, so this cannot block. A tool that exits
+            // without reading it only makes the write fail, which is fine.
+            let _ = stdin
+                .write_all(secret.expose())
+                .and_then(|()| stdin.write_all(b"\n"));
+        }
 
         let (tx, rx) = mpsc::channel::<Chunk>();
         let err_tx = tx.clone();

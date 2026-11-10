@@ -154,9 +154,15 @@ pub fn run(
             input: None,
             index: None,
         };
+        // Decrypted copies of protected PDFs live until the tool is done.
+        let mut unlocked = Vec::new();
         let result = files
             .iter()
-            .map(|f| make_input(f, out_dir))
+            .map(|f| {
+                let (input, copy) = engines::pdf::unlock(deps, opts, make_input(f, out_dir)?)?;
+                unlocked.extend(copy);
+                Ok(input)
+            })
             .collect::<JobResult<Vec<Input>>>()
             .and_then(|inputs| {
                 let dir = out_dir
@@ -164,6 +170,7 @@ pub fn run(
                     .unwrap_or_else(|| inputs[0].out_dir.clone());
                 engines::tool_multi(&ctx, tool, &inputs, &dir)
             });
+        drop(unlocked);
         report(sink, &mut sum, None, None, result, files.len());
     } else {
         for (i, f) in files.iter().enumerate() {
@@ -178,10 +185,12 @@ pub fn run(
                 input: Some(shown.clone()),
                 index: Some(i),
             };
-            let result = make_input(f, out_dir).and_then(|input| match kind {
-                JobKind::Convert(t) => engines::convert(&ctx, &input, t),
-                JobKind::Tool(t) => engines::tool_single(&ctx, t, &input),
-            });
+            let result = make_input(f, out_dir)
+                .and_then(|input| engines::pdf::unlock(deps, opts, input))
+                .and_then(|(input, _unlocked)| match kind {
+                    JobKind::Convert(t) => engines::convert(&ctx, &input, t),
+                    JobKind::Tool(t) => engines::tool_single(&ctx, t, &input),
+                });
             report(sink, &mut sum, Some(shown), Some(i), result, 1);
         }
     }

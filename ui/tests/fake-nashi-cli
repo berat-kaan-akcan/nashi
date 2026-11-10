@@ -14,6 +14,9 @@ Behaviour is selected by the arguments:
                        touches $FAKE_CLI_CLEANUP_MARK, then done(cancelled)
       ID "merge"    -> multi-input: progress/output with index:null
       ID "qr"       -> output event carrying a decoded-text message
+      ID "locked"   -> password_required unless --password-stdin gives
+                       "open sesame" on stdin; the line read is written to
+                       $FAKE_CLI_STDIN_LOG when set
       otherwise     -> start, progress written in split chunks, output, done
 If $FAKE_CLI_ARGV_LOG is set, argv (one per line) is written there.
 """
@@ -291,6 +294,21 @@ def run_job(op, ident, files):
         emit({"event": "output", "input": files[0], "index": 0, "path": out, "message": "https://example.org/42"})
         emit({"event": "done", "outputs": [out], "failed": 0, "cancelled": False})
         return 0
+    if ident == "locked":
+        password = sys.stdin.readline().rstrip("\n") if "--password-stdin" in sys.argv else ""
+        stdin_log = os.environ.get("FAKE_CLI_STDIN_LOG")
+        if stdin_log:
+            with open(stdin_log, "w", encoding="utf-8") as fh:
+                fh.write(password)
+        if password == "open sesame":
+            out = files[0] + "-extracted"
+            emit({"event": "output", "input": files[0], "index": 0, "path": out})
+            emit({"event": "done", "outputs": [out], "failed": 0, "cancelled": False})
+            return 0
+        message = "The password is incorrect, or the archive is damaged." if password else "This archive is password protected."
+        emit({"event": "error", "input": files[0], "index": 0, "code": "password_required", "message": message})
+        emit({"event": "done", "outputs": [], "failed": 1, "cancelled": False})
+        return 1
     if ident == "nodone":
         print("nashi-cli: something went wrong", file=sys.stderr)
         return 3
@@ -319,7 +337,7 @@ def main(argv):
     if log:
         with open(log, "w", encoding="utf-8") as fh:
             fh.write("\n".join(argv))
-    args = [a for a in argv if a != "--json"]
+    args = [a for a in argv if a not in ("--json", "--password-stdin")]
     if not args:
         print("usage", file=sys.stderr)
         return 2

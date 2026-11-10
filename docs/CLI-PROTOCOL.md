@@ -10,8 +10,8 @@ Stable contract. Changing it requires updating `ui/` and this file in the same c
 | `nashi-cli wheel FILE... --json` | Items to show on the wheel for exactly these files |
 | `nashi-cli inspect FILE... --json` | Per-file category, extension, size; media duration/size; pdf pages |
 | `nashi-cli deps --json` | External tool availability, version, and Arch package name |
-| `nashi-cli convert TARGET FILE... [--out-dir DIR] [--options JSON] --json` | Convert each file to `TARGET` extension |
-| `nashi-cli tool TOOL_ID FILE... [--out-dir DIR] [--options JSON] --json` | Run a tool (single-input tools run per file; multi-input tools take all files) |
+| `nashi-cli convert TARGET FILE... [--out-dir DIR] [--options JSON] [--password-stdin] --json` | Convert each file to `TARGET` extension |
+| `nashi-cli tool TOOL_ID FILE... [--out-dir DIR] [--options JSON] [--password-stdin] --json` | Run a tool (single-input tools run per file; multi-input tools take all files) |
 | `nashi-cli preview FILE --kind frame\|waveform\|pages --out-dir DIR [...] --json` | Render editor preview PNGs (frame, waveform, PDF pages) into `DIR` |
 | `nashi-cli suggest FILE [--at SEC] [--kinds LIST] [--lang LANGS] --json` | Find places in a picture or video frame that look like personal data (OCR) |
 | `nashi-cli download URL [--kind auto\|video\|audio\|thumbnail\|image] [--out-dir DIR] --json` | Download an `http`/`https` URL via `yt-dlp` or `curl` |
@@ -85,9 +85,17 @@ One JSON object per line on **stdout**; nothing else is printed to stdout. Diagn
 
 - `fraction` is 0..1 for the current input, or `null` when unknown (indeterminate).
 - Multi-input tools (merge, join, collage, createPDF) use `index: null` and `input: null` for the combined output.
-- Error codes: `unsupported_route`, `missing_dependency`, `tool_failed`, `invalid_input`, `invalid_options`, `io`, `cancelled`.
+- Error codes: `unsupported_route`, `missing_dependency`, `tool_failed`, `invalid_input`, `invalid_options`, `io`, `cancelled`, `password_required`.
 - A PDF with no extractable text (a scan) converted to `txt`, `md` or `epub` is `invalid_input`; no output file is produced.
 - On SIGTERM/SIGINT: kill child processes, delete temp files, emit `done` with `"cancelled": true`, exit 130.
+
+## Passwords (archives and PDFs)
+
+- `password_required` means an archive needs a password (`This archive is password protected.`) or the one given did not open it (`The password is incorrect, or the archive is damaged.`; encrypted data cannot tell the two apart). No output is produced. It applies to `extractArchive` and to converting an archive to another archive format.
+- A PDF that needs a password to open gives `password_required` too (`This PDF is password protected.` / `The password is incorrect.`) for every conversion and tool, merge included (one password for the whole job). With the right password, `qpdf` decrypts it into a folder only this user can open (mode 0700, in `$XDG_RUNTIME_DIR` when set, which is memory-backed) and the job runs on that copy, which is deleted when it ends. Outputs are named after the original and are **not** password protected. A PDF with only an owner password (printing or editing limits) opens without one. Decrypting needs `qpdf` (`missing_dependency` otherwise). `preview` does not take a password, so editors cannot show the pages of a protected PDF.
+- `--password-stdin` reads the password from the first line of stdin (without its `\n` or `\r\n`, at most 4096 bytes, no NUL byte; otherwise exit 2). An empty line means no password. Without the flag stdin is never read.
+- The password is never accepted on the command line: `--options` is an argument, which any user can read in `/proc/PID/cmdline`, so a `password` key there is ignored. The engine passes it to `7z`, `bsdtar` or `qpdf` (`--password-file=-`) on their stdin, in a session of their own (no controlling terminal, so they cannot prompt there), never as `-p`. `unzip` only takes `-P PASSWORD`, so a password with only `unzip` installed returns `missing_dependency` (`7zip`).
+- The engine keeps the password out of debug output and overwrites it in memory when done (best effort). The app writes it to nashi-cli through a pipe of its own, not through Qt's buffers, and clears the text field once it is sent.
 
 ## Output naming
 

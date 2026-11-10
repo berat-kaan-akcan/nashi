@@ -34,6 +34,7 @@ class WheelQuery;
 class App : public QObject
 {
     Q_OBJECT
+    Q_MOC_INCLUDE("jobrunner.h")
     Q_MOC_INCLUDE("actions.h")
     Q_MOC_INCLUDE("clipboardimport.h")
     Q_MOC_INCLUDE("depsmodel.h")
@@ -146,6 +147,9 @@ public:
     Q_INVOKABLE void showDownloadFromClipboard();
     Q_INVOKABLE bool startDownload(const QString &url, const QString &kind, const QString &outDir);
 
+    // Password box for a job that failed with password_required (PasswordWindow.qml).
+    Q_INVOKABLE void askPassword(JobRunner *job);
+
     // Library preview & reuse (PreviewWindow.qml, RecentPage.qml).
     Q_INVOKABLE void reuseFiles(const QStringList &files);
     Q_INVOKABLE void showPreview(const QString &path, const QStringList &siblings = QStringList());
@@ -216,6 +220,7 @@ private:
     QPointer<QQuickWindow> m_optionsWindow;
     QPointer<QQuickWindow> m_welcomeWindow;
     QPointer<QQuickWindow> m_downloadWindow;
+    QPointer<QQuickWindow> m_passwordWindow;
     QPointer<QQuickWindow> m_previewWindow;
     QPointer<QQuickWindow> m_shelfWindow;
     QPointer<QQuickWindow> m_placerWindow;

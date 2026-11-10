@@ -2,6 +2,7 @@
 #include "jobrunner.h"
 
 #include <QElapsedTimer>
+#include <QFile>
 #include <QPointer>
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -261,6 +262,67 @@ private Q_SLOTS:
         QCOMPARE(dl, QStringList({QStringLiteral("download"), QStringLiteral("--kind"), QStringLiteral("audio"),
                                   QStringLiteral("--out-dir"), QStringLiteral("/tmp/dl"), QStringLiteral("--json"),
                                   QStringLiteral("--"), QStringLiteral("https://example.com/v?a=1")}));
+    }
+
+    void passwordRequiredOffersRetry()
+    {
+        JobRunner job(QStringLiteral("Extract"));
+        job.start(QStringLiteral(FAKE_CLI), JobManager::buildArgs(QStringLiteral("tool"), QStringLiteral("locked"),
+                                                                  {QStringLiteral("/tmp/s.zip")}, QString()));
+        QVERIFY(waitFinished(job));
+        QCOMPARE(job.state(), JobRunner::Failed);
+        QVERIFY(job.needsPassword());
+
+        // Other failures do not ask for a password.
+        JobRunner other(QStringLiteral("x"));
+        other.start(QStringLiteral(FAKE_CLI), JobManager::buildArgs(QStringLiteral("tool"), QStringLiteral("fail"),
+                                                                    {QStringLiteral("/tmp/b.mov")}, QString()));
+        QVERIFY(waitFinished(other));
+        QVERIFY(!other.needsPassword());
+    }
+
+    void retryGivesThePasswordOnStdinOnly()
+    {
+        QTemporaryDir dir;
+        const QString argvLog = dir.filePath(QStringLiteral("argv"));
+        const QString stdinLog = dir.filePath(QStringLiteral("stdin"));
+        qputenv("FAKE_CLI_ARGV_LOG", argvLog.toLocal8Bit());
+        qputenv("FAKE_CLI_STDIN_LOG", stdinLog.toLocal8Bit());
+        const auto readLog = [](const QString &path) {
+            QFile f(path);
+            return f.open(QIODevice::ReadOnly) ? QString::fromUtf8(f.readAll()) : QString();
+        };
+
+        JobManager mgr(nullptr);
+        mgr.setProgram(QStringLiteral(FAKE_CLI));
+        JobRunner *locked = mgr.start(QStringLiteral("tool"), QStringLiteral("locked"), QStringLiteral("Extract"),
+                                      {QStringLiteral("/tmp/s.zip")});
+        QVERIFY(locked && waitFinished(*locked));
+        QVERIFY(locked->needsPassword());
+        QVERIFY(!mgr.retryWithPassword(locked, QString())); // nothing typed: nothing to try
+
+        // A wrong password fails the same way and can be retried again.
+        QPointer<JobRunner> old = locked;
+        JobRunner *wrong = mgr.retryWithPassword(locked, QStringLiteral("nope"));
+        QVERIFY(wrong && waitFinished(*wrong));
+        QVERIFY(wrong->needsPassword());
+        QCOMPARE(readLog(stdinLog), QStringLiteral("nope"));
+        QTRY_VERIFY(old.isNull()); // the failed card is replaced, not kept twice
+        QCOMPARE(mgr.rowCount(), 1);
+
+        const QString password = QStringLiteral("open sesame");
+        JobRunner *right = mgr.retryWithPassword(wrong, password);
+        QVERIFY(right && waitFinished(*right));
+        QCOMPARE(right->state(), JobRunner::Succeeded);
+        QCOMPARE(right->outputs(), QStringList{QStringLiteral("/tmp/s.zip-extracted")});
+        QCOMPARE(readLog(stdinLog), password);
+        const QString argv = readLog(argvLog);
+        QVERIFY(argv.contains(QStringLiteral("--password-stdin")));
+        QVERIFY2(!argv.contains(QStringLiteral("sesame")), qPrintable(argv));
+        QCOMPARE(right->arguments().count(QStringLiteral("--password-stdin")), 1);
+
+        qunsetenv("FAKE_CLI_ARGV_LOG");
+        qunsetenv("FAKE_CLI_STDIN_LOG");
     }
 
     void managerRunsAndLists()
