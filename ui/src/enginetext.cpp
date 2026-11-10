@@ -74,6 +74,7 @@ const char *const kMessages[] = {
     QT_TRANSLATE_NOOP("EngineMessages", "the file has no audio stream"),
     QT_TRANSLATE_NOOP("EngineMessages", "the file has no video stream"),
     QT_TRANSLATE_NOOP("EngineMessages", "the archive is empty"),
+    QT_TRANSLATE_NOOP("EngineMessages", "This archive is password protected."),
     QT_TRANSLATE_NOOP("EngineMessages", "not a valid EPUB file"),
     QT_TRANSLATE_NOOP("EngineMessages", "not an RTFD bundle"),
     QT_TRANSLATE_NOOP("EngineMessages", "no QR code or barcode found"),

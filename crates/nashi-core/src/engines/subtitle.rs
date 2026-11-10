@@ -114,6 +114,34 @@ pub fn to_srt(cues: &[Cue]) -> String {
     o
 }
 
+/// SRT files from VLC, mpv and Aegisub move a caption with the SSA-style
+/// `{\an1}`…`{\an9}` override, which WebVTT players show as text. A line that
+/// held only tags goes too: a blank line would end the WebVTT cue.
+fn without_position_tags(lines: &[String]) -> Vec<String> {
+    let mut kept = Vec::with_capacity(lines.len());
+    for line in lines {
+        let mut out = String::with_capacity(line.len());
+        let mut rest = line.as_str();
+        let mut tagged = false;
+        while let Some(at) = rest.find("{\\an") {
+            let tail = &rest.as_bytes()[at + 4..];
+            if tail.len() >= 2 && (b'1'..=b'9').contains(&tail[0]) && tail[1] == b'}' {
+                out.push_str(&rest[..at]);
+                rest = &rest[at + 6..];
+                tagged = true;
+            } else {
+                out.push_str(&rest[..at + 4]);
+                rest = &rest[at + 4..];
+            }
+        }
+        out.push_str(rest);
+        if !(tagged && out.trim().is_empty()) {
+            kept.push(out);
+        }
+    }
+    kept
+}
+
 pub fn to_vtt(cues: &[Cue]) -> String {
     let mut o = String::from("WEBVTT\n\n");
     for c in cues {
@@ -121,7 +149,7 @@ pub fn to_vtt(cues: &[Cue]) -> String {
             "{} --> {}\n{}\n\n",
             fmt_ts(c.start_ms, '.'),
             fmt_ts(c.end_ms, '.'),
-            c.text.join("\n")
+            without_position_tags(&c.text).join("\n")
         ));
     }
     o
@@ -191,6 +219,21 @@ mod tests {
 
     const SRT: &str = "1\r\n00:00:01,000 --> 00:00:02,500\r\nHello <i>world</i>\r\n\r\n2\r\n00:01:02,003 --> 01:00:00,000\r\nLine one\r\nLine two\r\n";
     const VTT: &str = "WEBVTT\n\nNOTE a comment\n\nintro\n00:01.000 --> 00:02.500 align:start\nHello <i>world</i>\n\n01:02.003 --> 1:00:00.000\nLine one\nLine two\n";
+
+    #[test]
+    fn position_tags() {
+        let lines = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(
+            without_position_tags(&lines(&[
+                "{\\an8}Top",
+                "{\\an2} {\\an8} ",
+                "a {\\an0} {\\b1}b"
+            ])),
+            lines(&["Top", "a {\\an0} {\\b1}b"])
+        );
+        // A line that was already blank is not a tag line.
+        assert_eq!(without_position_tags(&lines(&["x", ""])), lines(&["x", ""]));
+    }
 
     #[test]
     fn roundtrip() {

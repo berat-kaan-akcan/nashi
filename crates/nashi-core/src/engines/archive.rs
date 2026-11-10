@@ -8,6 +8,46 @@ use crate::events::{JobError, JobResult};
 use crate::fsops::WorkDir;
 use crate::process::Cmd;
 
+/// Nashi has no password box for archives, so a protected one gets a plain
+/// answer instead of the extractor's own words ("Break signaled", "Enter passphrase").
+fn password_protected() -> JobError {
+    JobError::invalid_input("This archive is password protected.")
+}
+
+/// Whether an extractor failed because the archive asked for a password.
+fn asked_for_password(tool: &str, out: &crate::process::RunOut) -> bool {
+    let err = &out.stderr;
+    match tool {
+        // Its password prompt reads the closed stdin and gives up with exit 255.
+        "7z" => {
+            (out.status.code() == Some(255) && err.contains("Break signaled"))
+                || err.contains("Wrong password")
+                || err.contains("Cannot open encrypted archive")
+        }
+        "bsdtar" => {
+            err.contains("Enter passphrase")
+                || err.contains("Encryption is not supported")
+                || err.contains("Passphrase required")
+        }
+        // 82: nothing extracted for a bad password. Without a terminal it cannot
+        // ask and says "unable to get password".
+        "unzip" => {
+            out.status.code() == Some(82)
+                || err.contains("incorrect password")
+                || err.contains("unable to get password")
+        }
+        _ => false,
+    }
+}
+
+fn extractor_failed(tool: &str, out: &crate::process::RunOut) -> JobError {
+    if asked_for_password(tool, out) {
+        password_protected()
+    } else {
+        crate::process::failure(tool, out)
+    }
+}
+
 fn missing_extractor() -> JobError {
     JobError::missing("7z", "7zip")
 }
@@ -230,15 +270,18 @@ fn extract_raw(ctx: &Ctx, archive: &Path, ext: &str, dest: &Path) -> JobResult<(
             !errs.is_empty() && errs.iter().all(|l| l.contains("Dangerous link path"))
         };
         if !out.status.success() && !only_unsafe_links {
-            return Err(crate::process::failure("7z", &out));
+            return Err(extractor_failed("7z", &out));
         }
     } else if let Some(b) = d.path("bsdtar") {
-        watched(Cmd::new(b), dest, limit)
+        let out = watched(Cmd::new(b), dest, limit)
             .arg("-xf")
             .arg(archive)
             .arg("-C")
             .arg(dest)
-            .run_ok()?;
+            .run()?;
+        if !out.status.success() {
+            return Err(extractor_failed("bsdtar", &out));
+        }
     } else if let (Some(t), "tar") = (d.path("tar"), ext) {
         watched(Cmd::new(t), dest, limit)
             .arg("-xf")
@@ -247,12 +290,15 @@ fn extract_raw(ctx: &Ctx, archive: &Path, ext: &str, dest: &Path) -> JobResult<(
             .arg(dest)
             .run_ok()?;
     } else if let (Some(u), "zip") = (d.path("unzip"), ext) {
-        watched(Cmd::new(u), dest, limit)
+        let out = watched(Cmd::new(u), dest, limit)
             .args(["-q", "-o"])
             .arg(archive)
             .arg("-d")
             .arg(dest)
-            .run_ok()?;
+            .run()?;
+        if !out.status.success() {
+            return Err(extractor_failed("unzip", &out));
+        }
     } else {
         return Err(missing_extractor());
     }

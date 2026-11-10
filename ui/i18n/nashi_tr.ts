@@ -943,6 +943,10 @@
         <translation>Arşiv boş</translation>
     </message>
     <message>
+        <source>This archive is password protected.</source>
+        <translation>Bu arşiv parola korumalı.</translation>
+    </message>
+    <message>
         <source>not a valid EPUB file</source>
         <translation>Geçerli bir EPUB dosyası değil</translation>
     </message>

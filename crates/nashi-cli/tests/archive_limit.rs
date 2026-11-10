@@ -143,3 +143,52 @@ fn repacking_stores_links_instead_of_multiplying_their_target() {
         .sum();
     assert!(total < 100_000, "links were followed: {total} bytes");
 }
+
+#[test]
+fn a_password_protected_archive_says_so() {
+    need!("7z");
+    let d = tempfile::tempdir().unwrap();
+    let secret = d.path().join("secret.txt");
+    std::fs::write(&secret, "hidden").unwrap();
+    let zip_crypto = d.path().join("zipcrypto.zip");
+    let aes = d.path().join("aes.zip");
+    for (archive, method) in [(&zip_crypto, "-mem=ZipCrypto"), (&aes, "-mem=AES256")] {
+        tool(
+            "7z",
+            &["a", "-bso0", "-pnashi", method, s(archive), s(&secret)],
+        );
+    }
+    std::fs::remove_file(&secret).unwrap();
+    // Each extractor in turn: 7z, then bsdtar, then unzip.
+    let extractors = [("7z", ""), ("bsdtar", "7z"), ("unzip", "7z,bsdtar")];
+    for archive in [&zip_crypto, &aes] {
+        for (extractor, disabled) in extractors {
+            if !which(extractor) {
+                skipped(&format!("{extractor} on a protected zip"));
+                continue;
+            }
+            // Info-ZIP's unzip cannot read AES at all, so it reports that instead.
+            if extractor == "unzip" && archive == &aes {
+                continue;
+            }
+            let r = tool_run_env(
+                "extractArchive",
+                &[archive],
+                None,
+                &[("NASHI_DISABLE_TOOLS", disabled)],
+            );
+            let errors = r.errors();
+            assert_eq!(
+                errors
+                    .iter()
+                    .map(|e| e["message"].as_str().unwrap())
+                    .collect::<Vec<_>>(),
+                ["This archive is password protected."],
+                "{extractor} {archive:?}: {:?}",
+                r.events
+            );
+            assert_eq!(r.outputs().len(), 0);
+            assert_no_temp(d.path());
+        }
+    }
+}

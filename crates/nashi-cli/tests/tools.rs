@@ -111,6 +111,66 @@ fn image_multi_tools() {
     );
 }
 
+fn page_sizes(pdf: &Path) -> Vec<String> {
+    let out = Command::new("pdfinfo")
+        .args(["-f", "1", "-l", "99", s(pdf)])
+        .output()
+        .unwrap();
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .filter(|l| l.starts_with("Page") && l.contains("size:"))
+        .map(|l| l.split("size:").nth(1).unwrap().trim().to_string())
+        .collect()
+}
+
+#[test]
+fn create_pdf_sizes_pages_from_the_image_resolution() {
+    need!("magick", "pdfinfo");
+    let d = tempfile::tempdir().unwrap();
+    let image = |name: &str, size: &str, args: &[&str]| {
+        let p = d.path().join(name);
+        tool(
+            "magick",
+            &[&["-size", size, "xc:gray"], args, &[s(&p)]].concat(),
+        );
+        p
+    };
+    let scan = image(
+        "scan.jpg",
+        "2480x3508",
+        &["-units", "PixelsPerInch", "-density", "300"],
+    );
+    let bogus = image(
+        "bogus.jpg",
+        "800x600",
+        &["-units", "PixelsPerInch", "-density", "1"],
+    );
+    let skewed = image(
+        "skewed.jpg",
+        "800x600",
+        &["-units", "PixelsPerInch", "-density", "300x150"],
+    );
+    let metric = image(
+        "metric.png",
+        "1000x1000",
+        &["-units", "PixelsPerCentimeter", "-density", "118.11"],
+    );
+    let plain = image("plain.png", "800x600", &[]);
+    let r = tool_run(
+        "createPDF",
+        &[&scan, &bogus, &skewed, &metric, &plain],
+        None,
+    );
+    r.ok();
+    let sizes = page_sizes(&r.one());
+    // A 300 DPI A4 scan is an A4 page; 1 DPI would be 57,600 pt wide.
+    assert!(sizes[0].starts_with("595.2 x 841.92"), "{sizes:?}");
+    assert!(sizes[1].starts_with("800 x 600"), "{sizes:?}");
+    assert!(sizes[2].starts_with("800 x 600"), "{sizes:?}");
+    assert!(sizes[3].starts_with("240 x 240"), "{sizes:?}");
+    assert!(sizes[4].starts_with("800 x 600"), "{sizes:?}");
+}
+
 #[test]
 fn remove_metadata_image_exiftool() {
     need!("magick", "exiftool");

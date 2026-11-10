@@ -220,6 +220,25 @@ pub fn video_codec(ext: &str, crf: Option<u32>) -> Vec<String> {
     v
 }
 
+/// Album art is an attached picture stream, not a tag: map it from `input` where
+/// the container stores JPEG/PNG art, otherwise drop video with `-vn`.
+fn cover_args(p: &Probe, ext: &str, strip: bool, input: u8) -> Vec<String> {
+    match p
+        .art_stream
+        .filter(|_| !strip && matches!(ext, "mp3" | "m4a" | "flac"))
+    {
+        Some(art) => vec![
+            "-map".into(),
+            format!("{input}:{art}"),
+            "-c:v".into(),
+            "copy".into(),
+            "-disposition:v:0".into(),
+            "attached_pic".into(),
+        ],
+        None => vec!["-vn".into()],
+    }
+}
+
 /// Base ffmpeg command with progress on stdout.
 fn ffmpeg(ctx: &Ctx) -> JobResult<Cmd> {
     Ok(Cmd::new(require(ctx.deps, "ffmpeg")?).args([
@@ -322,19 +341,7 @@ pub fn convert(ctx: &Ctx, input: &Input, target: &str) -> JobResult<PathBuf> {
             if !strip {
                 cmd = cmd.args(["-map_metadata", "0"]);
             }
-            // Album art is an attached picture stream, not a tag.
-            cmd = match p
-                .art_stream
-                .filter(|_| !strip && matches!(target, "mp3" | "m4a" | "flac"))
-            {
-                Some(art) => cmd.arg("-map").arg(format!("0:{art}")).args([
-                    "-c:v",
-                    "copy",
-                    "-disposition:v:0",
-                    "attached_pic",
-                ]),
-                None => cmd.arg("-vn"),
-            };
+            cmd = cmd.args(cover_args(&p, target, strip, 0));
             // Other containers write file-level tags, so copy Ogg's stream tags there.
             if p.ogg_stream_tags && !strip {
                 cmd = cmd.args(["-map_metadata", "0:s:a:0"]);
@@ -663,9 +670,10 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
     let ext = input.ext().to_string();
     let p = probe(ctx, input);
     let is_video = input.category() == Category::Video;
+    let cover = |input: u8| cover_args(&p, &ext, o.strip_metadata == Some(true), input);
     let ffin = |c: Cmd| c.arg("-i").arg_cat("file:", &input.path);
     // Encoder args to re-encode into the same container.
-    let reencode = |vf: Option<String>, af: Option<String>| -> Vec<String> {
+    let reencode = |vf: Option<String>, af: Option<String>, cover_input: u8| -> Vec<String> {
         let mut a: Vec<String> = Vec::new();
         if is_video {
             let mut v = video_codec(&ext, o.crf);
@@ -680,7 +688,8 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
                 a.extend(["-map".into(), "0:a:0".into()]);
             }
         } else {
-            a.extend(["-vn".into(), "-map".into(), "0:a:0".into()]);
+            a.extend(["-map".into(), "0:a:0".into()]);
+            a.extend(cover(cover_input));
         }
         if p.has_audio {
             a.extend(audio_for(&ext, &p, o));
@@ -761,7 +770,9 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
             }
             let rate = p.sample_rate.unwrap_or(48000).to_string();
             let cmd = ffin(ffmpeg(ctx)?)
-                .args(["-vn", "-map", "0:a:0", "-af", &filter, "-ar", &rate])
+                .args(["-map", "0:a:0"])
+                .args(cover(0))
+                .args(["-af", &filter, "-ar", &rate])
                 .args(audio_for(&ext, &p, o))
                 .args(audio_fit(&ext, p.channels, p.sample_rate));
             finish(cmd, staged, p.duration, "Normalizing")
@@ -771,7 +782,9 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
             let staged = input.stage(&format!("-{ch}"), &ext)?;
             let n = if ch == "mono" { "1" } else { "2" };
             let cmd = ffin(ffmpeg(ctx)?)
-                .args(["-vn", "-map", "0:a:0", "-ac", n])
+                .args(["-map", "0:a:0"])
+                .args(cover(0))
+                .args(["-ac", n])
                 .args(audio_for(&ext, &p, o))
                 .args(audio_fit(&ext, None, p.sample_rate));
             finish(cmd, staged, p.duration, "Converting channels")
@@ -797,7 +810,7 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
             let dur = if silence.is_some() { None } else { dur };
             // -ss and -to sit before -i, so the filter only ever sees the selection.
             let cmd = ffmpeg(ctx)?.args(targs);
-            let cmd = ffin(cmd).args(reencode(None, silence));
+            let cmd = ffin(cmd).args(reencode(None, silence, 0));
             finish(cmd, staged, dur, "Trimming")
         }
         "changeVideoSpeed" => {
@@ -808,6 +821,7 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
             let cmd = ffin(ffmpeg(ctx)?).args(reencode(
                 Some(format!("setpts=PTS/{s}")),
                 Some(atempo_chain(s)),
+                0,
             ));
             finish(cmd, staged, p.duration.map(|d| d / s), "Changing speed")
         }
@@ -824,7 +838,7 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
                 r.x.round(),
                 r.y.round()
             );
-            let cmd = ffin(ffmpeg(ctx)?).args(reencode(Some(f), None));
+            let cmd = ffin(ffmpeg(ctx)?).args(reencode(Some(f), None, 0));
             finish(cmd, staged, p.duration, "Cropping")
         }
         "redactVideo" => {
@@ -902,7 +916,7 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
                 steps.join(",")
             };
             let staged = input.stage("-redacted", &ext)?;
-            let cmd = ffin(ffmpeg(ctx)?).args(reencode(Some(f), None));
+            let cmd = ffin(ffmpeg(ctx)?).args(reencode(Some(f), None, 0));
             finish(cmd, staged, p.duration, "Redacting")
         }
         "redactAudio" => {
@@ -937,7 +951,9 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
             };
             let staged = input.stage("-bleeped", &ext)?;
             let cmd = ffin(ffmpeg(ctx)?)
-                .args(["-vn", "-map", "0:a:0", "-af", &f])
+                .args(["-map", "0:a:0"])
+                .args(cover(0))
+                .args(["-af", &f])
                 .args(audio_for(&ext, &p, o))
                 .args(audio_fit(&ext, p.channels, p.sample_rate));
             finish(cmd, staged, p.duration, "Bleeping")
@@ -1080,7 +1096,7 @@ pub fn tool(ctx: &Ctx, tool: &str, input: &Input) -> JobResult<Produced> {
                 let cmd =
                     ffmpeg(ctx)?.args(["-ss", &format!("{a:.3}"), "-t", &format!("{:.3}", b - a)]);
                 let cmd = ffin(cmd)
-                    .args(reencode(None, None))
+                    .args(reencode(None, None, 0))
                     .args(["-f", muxer(&ext)])
                     .arg(out(target));
                 let message = format!("Saving clip {} of {}", position + 1, kept.len());

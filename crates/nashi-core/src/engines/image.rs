@@ -952,6 +952,11 @@ pub fn remove_metadata(ctx: &Ctx, input: &Input) -> JobResult<Produced> {
     process(ctx, input, "-clean", vec!["-strip".into()])
 }
 
+/// Evaluated per image by ImageMagick: its own DPI when it gives a sane page, else 72.
+const PDF_PAGE_DENSITY: &str = "%[fx:resolution.x>0&&resolution.x==resolution.y\
+&&w*72/resolution.x>=3&&w*72/resolution.x<=14400\
+&&h*72/resolution.y>=3&&h*72/resolution.y<=14400?resolution.x:72]";
+
 /// All images into one PDF (`images.pdf`).
 pub fn create_pdf(ctx: &Ctx, inputs: &[Input], out_dir: &Path) -> JobResult<PathBuf> {
     ctx.progress(None, "Creating PDF");
@@ -962,7 +967,17 @@ pub fn create_pdf(ctx: &Ctx, inputs: &[Input], out_dir: &Path) -> JobResult<Path
         let (src, ext) = readable_source(ctx, i, &work)?;
         cmd = cmd.arg(ispec(&work, &src, &ext, true)?);
     }
+    // One pixel is one point unless the image states a square resolution, so a
+    // 300 DPI A4 scan becomes an A4 page. A resolution that would give a page
+    // under 3 pt or over Acrobat's 14,400 pt limit is wrong metadata, not a scan.
     cmd.args([
+        "-units",
+        "PixelsPerInch",
+        "-set",
+        "density",
+        PDF_PAGE_DENSITY,
+    ])
+    .args([
         "-auto-orient",
         "-background",
         "white",

@@ -685,59 +685,134 @@ fn subtitles_without_blank_lines_keep_cues_separate() {
     );
 }
 
+#[test]
+fn subtitle_position_tags_are_dropped() {
+    let d = tempfile::tempdir().unwrap();
+    // VLC, mpv and Aegisub write {\an8} to move a caption up; WebVTT players show it as text.
+    let srt = text(
+        d.path(),
+        "top.srt",
+        "1\n00:00:01,000 --> 00:00:02,000\n{\\an8}Top line\n\n2\n00:00:03,000 --> 00:00:04,000\n{\\an8}\nAlone\n\n3\n00:00:05,000 --> 00:00:06,000\nLast\n{\\an2} {\\an8}\n\n",
+    );
+    let r = convert("vtt", &[&srt]);
+    r.ok();
+    assert_eq!(
+        std::fs::read_to_string(r.one()).unwrap(),
+        "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nTop line\n\n00:00:03.000 --> 00:00:04.000\nAlone\n\n00:00:05.000 --> 00:00:06.000\nLast\n\n"
+    );
+    let r = convert("txt", &[&srt]);
+    r.ok();
+    assert_eq!(
+        std::fs::read_to_string(r.one()).unwrap(),
+        "Top line\nAlone\nLast\n"
+    );
+}
+
 fn format_tag(p: &Path, tag: &str) -> Option<String> {
     ffprobe_json(p)["format"]["tags"][tag]
         .as_str()
         .map(String::from)
 }
 
+/// A three-second MP3 with a 64×64 JPEG cover.
+fn song_with_cover(dir: &Path) -> PathBuf {
+    // Made in two steps: with a one-frame picture input, -frames:v would end the audio too.
+    let plain = dir.join("plain.mp3");
+    let cover = dir.join("cover.jpg");
+    let song = dir.join("song.mp3");
+    let ff = |args: &[&str]| tool("ffmpeg", &[&["-v", "error", "-y"], args].concat());
+    ff(&[
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=d=3",
+        "-c:a",
+        "libmp3lame",
+        s(&plain),
+    ]);
+    ff(&[
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc=s=64x64",
+        "-frames:v",
+        "1",
+        s(&cover),
+    ]);
+    ff(&[
+        "-i",
+        s(&plain),
+        "-i",
+        s(&cover),
+        "-map",
+        "0:a",
+        "-map",
+        "1:v",
+        "-c",
+        "copy",
+        "-disposition:v",
+        "attached_pic",
+        "-id3v2_version",
+        "3",
+        s(&song),
+    ]);
+    std::fs::remove_file(plain).unwrap();
+    std::fs::remove_file(cover).unwrap();
+    song
+}
+
+fn has_album_art(p: &Path) -> bool {
+    ffprobe_json(p)["streams"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|s| s["disposition"]["attached_pic"] == 1)
+}
+
 #[test]
 fn audio_conversion_keeps_album_art() {
     need!("ffmpeg", "ffprobe");
     let d = tempfile::tempdir().unwrap();
-    let song = d.path().join("song.mp3");
-    tool(
-        "ffmpeg",
-        &[
-            "-v",
-            "error",
-            "-y",
-            "-f",
-            "lavfi",
-            "-i",
-            "sine=d=1",
-            "-f",
-            "lavfi",
-            "-i",
-            "testsrc=d=1:s=64x64",
-            "-frames:v",
-            "1",
-            "-map",
-            "0:a",
-            "-map",
-            "1:v",
-            "-c:a",
-            "libmp3lame",
-            "-c:v",
-            "mjpeg",
-            "-disposition:v",
-            "attached_pic",
-            s(&song),
-        ],
-    );
+    let song = song_with_cover(d.path());
     for target in ["m4a", "flac"] {
         let r = convert(target, &[&song]);
         r.ok();
-        let j = ffprobe_json(&r.one());
-        let art = j["streams"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|s| s["disposition"]["attached_pic"] == 1);
-        assert!(art, "{target}: no album art: {j}");
+        assert!(has_album_art(&r.one()), "{target}: no album art");
     }
     // A format with nowhere to store art still converts.
     convert("wav", &[&song]).ok();
+}
+
+#[test]
+fn audio_tools_keep_album_art() {
+    need!("ffmpeg", "ffprobe");
+    let d = tempfile::tempdir().unwrap();
+    let song = song_with_cover(d.path());
+    for (id, options) in [
+        ("normalizeAudio", None),
+        ("audioChannels", Some(r#"{"channels":"mono"}"#)),
+        ("trimAudio", Some(r#"{"start":0.5,"end":2}"#)),
+        ("trimAudio", Some(r#"{"start":0.5,"trim_silence":true}"#)),
+        ("redactAudio", Some(r#"{"ranges":[[0.5,1]]}"#)),
+        (
+            "redactAudio",
+            Some(r#"{"ranges":[[0.5,1]],"audio_mode":"bleep"}"#),
+        ),
+    ] {
+        let r = tool_run(id, &[&song], options);
+        r.ok();
+        let out = r.one();
+        assert!(has_album_art(&out), "{id} {options:?}: no album art");
+        std::fs::remove_file(out).unwrap();
+    }
+    // Removing metadata still removes the cover.
+    let r = tool_run(
+        "normalizeAudio",
+        &[&song],
+        Some(r#"{"strip_metadata":true}"#),
+    );
+    r.ok();
+    assert!(!has_album_art(&r.one()), "strip_metadata kept the cover");
 }
 
 #[test]

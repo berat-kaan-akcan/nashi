@@ -946,6 +946,10 @@
         <translation>L’archive est vide</translation>
     </message>
     <message>
+        <source>This archive is password protected.</source>
+        <translation>Cette archive est protégée par un mot de passe.</translation>
+    </message>
+    <message>
         <source>not a valid EPUB file</source>
         <translation>Ce n’est pas un fichier EPUB valide</translation>
     </message>
