@@ -563,3 +563,48 @@ fn hostile_file_names() {
     // Nothing unexpected was created outside the temp dir's known outputs.
     assert_no_temp(d.path());
 }
+
+#[test]
+fn seven_zip_archives_open_and_convert() {
+    need!("7z");
+    let d = tempfile::tempdir().unwrap();
+    let folder = d.path().join("box");
+    std::fs::create_dir(&folder).unwrap();
+    std::fs::write(folder.join("note.txt"), "inside").unwrap();
+    let archive = d.path().join("box.7z");
+    tool("7z", &["a", "-bso0", s(&archive), s(&folder)]);
+    std::fs::remove_dir_all(&folder).unwrap();
+    // Each extractor that reads 7z: 7z itself, then bsdtar.
+    for (extractor, disabled) in [("7z", ""), ("bsdtar", "7z")] {
+        if !which(extractor) {
+            skipped(&format!("{extractor} on a 7z archive"));
+            continue;
+        }
+        let r = tool_run_env(
+            "extractArchive",
+            &[&archive],
+            None,
+            &[("NASHI_DISABLE_TOOLS", disabled)],
+        );
+        r.ok();
+        let out = r.one();
+        let note = walk(&out)
+            .into_iter()
+            .find(|p| p.ends_with("note.txt"))
+            .unwrap();
+        assert_eq!(
+            std::fs::read_to_string(note).unwrap(),
+            "inside",
+            "{extractor}"
+        );
+        std::fs::remove_dir_all(out).unwrap();
+    }
+    let r = convert("zip", &[&archive]);
+    r.ok();
+    assert_eq!(head(&r.one())[..4], *b"PK\x03\x04");
+    // Recognised by its content, whatever the name says.
+    let renamed = d.path().join("box.bin");
+    std::fs::copy(&archive, &renamed).unwrap();
+    let r = run(&["inspect", s(&renamed), "--json"]);
+    assert!(r.stdout.contains(r#""ext":"7z""#), "{}", r.stdout);
+}

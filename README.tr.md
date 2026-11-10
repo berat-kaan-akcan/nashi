@@ -24,14 +24,14 @@ Orkun Işıtmak'ın macOS ve Windows için yazdığı açık kaynaklı [Nashi](h
 
 Tuşların karşılığı Ayarlar'dan değiştirilebilir; **Meta** da kullanılabilir.
 
-**46 format:**
+**47 format** (upstream Nashi'nin 46 formatı ve 7Z):
 
 - Görsel: JPG, PNG, WebP, HEIC, TIFF, SVG, AVIF, BMP, GIF
 - Ses: MP3, M4A, WAV, FLAC, OGG, Opus, AIFF, WMA
 - Video: MP4, MOV, MKV, WebM, AVI, WMV
 - Belge: PDF, DOCX, Pages, RTF, RTFD, HTML, EPUB, Markdown, TXT
 - Tablo ve sunum: XLSX, XLS, ODS, CSV, TSV, PPT, PPTX
-- Altyazı ve arşiv: SRT, VTT, ZIP, TAR, GZ, RAR
+- Altyazı ve arşiv: SRT, VTT, ZIP, TAR, GZ, RAR, 7Z
 
 Parolalı arşivler ve PDF'ler parolasını sorar; parola komut satırından değil, standart girdiden iletilir.
 

@@ -91,6 +91,9 @@ pub fn sniff_bytes(b: &[u8]) -> Option<&'static str> {
     if starts(b"Rar!\x1a\x07") {
         return Some("rar");
     }
+    if starts(b"7z\xBC\xAF\x27\x1C") {
+        return Some("7z");
+    }
     if at(257, b"ustar") {
         return Some("tar");
     }

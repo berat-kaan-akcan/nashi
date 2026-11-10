@@ -120,12 +120,32 @@ pub const FORMATS: &[(&str, Category)] = &[
     ("rar", Category::Archive),
 ];
 
-/// Category of a canonical extension (`Unknown` when not in the catalog).
-pub fn category_of(ext: &str) -> Category {
+/// Formats added on Linux on top of upstream, each offering the routes and
+/// tools of an upstream format: 7z is opened by the same 7z/bsdtar as rar.
+const LINUX_FORMATS: &[(&str, Category, &str)] = &[("7z", Category::Archive, "rar")];
+
+/// Upstream formats, then the Linux additions.
+pub fn all_formats() -> impl Iterator<Item = (&'static str, Category)> {
     FORMATS
         .iter()
+        .copied()
+        .chain(LINUX_FORMATS.iter().map(|(e, c, _)| (*e, *c)))
+}
+
+/// The upstream format whose routes and tools `ext` offers.
+fn routes_of(ext: &str) -> &str {
+    LINUX_FORMATS
+        .iter()
+        .find(|(e, _, _)| *e == ext)
+        .map(|(_, _, like)| *like)
+        .unwrap_or(ext)
+}
+
+/// Category of a canonical extension (`Unknown` when not in the catalog).
+pub fn category_of(ext: &str) -> Category {
+    all_formats()
         .find(|(e, _)| *e == ext)
-        .map(|(_, c)| *c)
+        .map(|(_, c)| c)
         .unwrap_or(Category::Unknown)
 }
 
@@ -517,7 +537,7 @@ const EXTRA_SINGLE_TOOLS: &[(&str, &str)] = &[
 pub fn targets(ext: &str) -> &'static [String] {
     upstream()
         .conversion_matrix
-        .get(ext)
+        .get(routes_of(ext))
         .map(|v| v.as_slice())
         .unwrap_or(&[])
 }
@@ -526,7 +546,7 @@ pub fn targets(ext: &str) -> &'static [String] {
 pub fn single_tools(ext: &str) -> Vec<&'static str> {
     let mut v: Vec<&'static str> = upstream()
         .single_tools
-        .get(ext)
+        .get(routes_of(ext))
         .map(|v| v.iter().map(|s| s.as_str()).collect())
         .unwrap_or_default();
     for (e, tool) in EXTRA_SINGLE_TOOLS {
@@ -541,7 +561,7 @@ pub fn single_tools(ext: &str) -> Vec<&'static str> {
 pub fn multiple_tools(ext: &str) -> Vec<&'static str> {
     upstream()
         .multiple_tools
-        .get(ext)
+        .get(routes_of(ext))
         .map(|v| v.iter().map(|s| s.as_str()).collect())
         .unwrap_or_default()
 }
@@ -619,7 +639,7 @@ pub fn route_requirements(src: &str, dst: &str) -> Result<Vec<AnyOf>, String> {
         },
         Category::Subtitle => {}
         Category::Archive => {
-            req.push(EXTRACTOR);
+            req.push(if src == "7z" { ARCHIVER } else { EXTRACTOR });
             req.push(ARCHIVER);
         }
         Category::Document | Category::Presentation | Category::Spreadsheet | Category::Text => {
@@ -683,6 +703,8 @@ pub fn tool_requirements(tool: &str, cat: Category, ext: &str) -> Option<Vec<Any
         ("splitPDF", C::Pdf) => Some(vec![PDF_SPLIT]),
         ("organizePDF", C::Pdf) => Some(vec![PDF_ORGANIZE]),
         ("mergePDF", C::Pdf) => Some(vec![PDF_MERGE]),
+        // tar and unzip cannot read 7z.
+        ("extractArchive", C::Archive) if ext == "7z" => Some(vec![ARCHIVER]),
         ("extractArchive", C::Archive) => Some(vec![EXTRACTOR]),
         _ => None,
     }
@@ -737,11 +759,10 @@ pub struct CatalogView {
 
 /// Full catalog with availability.
 pub fn catalog(deps: &Deps) -> CatalogView {
-    let formats = FORMATS
-        .iter()
+    let formats = all_formats()
         .map(|(ext, cat)| FormatView {
             ext,
-            category: *cat,
+            category: cat,
             title: ext.to_uppercase(),
             targets: targets(ext).to_vec(),
             unsupported_targets: targets(ext)
@@ -759,11 +780,11 @@ pub fn catalog(deps: &Deps) -> CatalogView {
             // Available when at least one applicable format is fully served.
             let mut any_ok = false;
             let mut miss: Vec<String> = Vec::new();
-            for (ext, cat) in FORMATS {
+            for (ext, cat) in all_formats() {
                 if !tool_applies(d.id, ext) {
                     continue;
                 }
-                if let Some(req) = tool_requirements(d.id, *cat, ext) {
+                if let Some(req) = tool_requirements(d.id, cat, ext) {
                     let m = missing(&req, deps);
                     if m.is_empty() {
                         any_ok = true;
@@ -959,6 +980,21 @@ mod tests {
     }
 
     #[test]
+    fn linux_formats_offer_the_routes_of_their_upstream_twin() {
+        assert_eq!(category_of("7z"), Category::Archive);
+        assert_eq!(targets("7z"), targets("rar"));
+        assert_eq!(single_tools("7z"), ["extractArchive"]);
+        assert!(all_formats().any(|(e, _)| e == "7z"));
+        // Not part of the upstream list, which the sync tests compare.
+        assert!(!FORMATS.iter().any(|(e, _)| *e == "7z"));
+        // tar and unzip cannot read it.
+        assert_eq!(
+            tool_requirements("extractArchive", Category::Archive, "7z"),
+            Some(vec![ARCHIVER])
+        );
+    }
+
+    #[test]
     fn every_upstream_tool_is_covered() {
         let u = upstream();
         for (id, name) in &u.tool_names {
@@ -981,10 +1017,10 @@ mod tests {
 
     #[test]
     fn every_tool_listed_for_an_ext_has_requirements() {
-        for (ext, cat) in FORMATS {
+        for (ext, cat) in all_formats() {
             for tool in single_tools(ext).into_iter().chain(multiple_tools(ext)) {
                 assert!(
-                    tool_requirements(tool, *cat, ext).is_some(),
+                    tool_requirements(tool, cat, ext).is_some(),
                     "{tool} listed for {ext} but has no requirements"
                 );
             }
@@ -993,7 +1029,7 @@ mod tests {
 
     #[test]
     fn every_route_is_planned_or_explicitly_unsupported() {
-        for (src, _) in FORMATS {
+        for (src, _) in all_formats() {
             for dst in targets(src) {
                 match route_requirements(src, dst) {
                     Ok(_) => {}

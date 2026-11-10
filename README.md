@@ -24,14 +24,14 @@ Nashi for Linux is an independent port of [Nashi](https://github.com/orkunisitma
 
 The keys can be changed in Settings, and **Meta** works too.
 
-**46 formats:**
+**47 formats** (the 46 of upstream Nashi, plus 7Z):
 
 - Images: JPG, PNG, WebP, HEIC, TIFF, SVG, AVIF, BMP, GIF
 - Audio: MP3, M4A, WAV, FLAC, OGG, Opus, AIFF, WMA
 - Video: MP4, MOV, MKV, WebM, AVI, WMV
 - Documents: PDF, DOCX, Pages, RTF, RTFD, HTML, EPUB, Markdown, TXT
 - Spreadsheets and slides: XLSX, XLS, ODS, CSV, TSV, PPT, PPTX
-- Subtitles and archives: SRT, VTT, ZIP, TAR, GZ, RAR
+- Subtitles and archives: SRT, VTT, ZIP, TAR, GZ, RAR, 7Z
 
 Password-protected archives and PDFs ask for their password; it is passed on standard input, never on a command line.
 

@@ -210,6 +210,12 @@ fn sample(ext: &str, dir: &Path) -> Result<PathBuf, String> {
             std::fs::write(&p, rar_bytes("hello.txt", b"hello rar\n")).map_err(|e| e.to_string())?;
             Ok(p)
         }
+        "7z" => {
+            needs(&["7z"])?;
+            sample("txt", dir)?;
+            ran("7z", &["a", "-bso0", s(&p), s(&dir.join("sample.txt"))])?;
+            Ok(p)
+        }
         "pages" => {
             pages_document(&p, &["Sample text", "Second paragraph"]).map_err(|e| e.to_string())?;
             Ok(p)
@@ -427,7 +433,7 @@ const DOCUMENTS: &[&str] = &["pdf", "docx", "pages", "epub", "html"];
 const OFFICE: &[&str] = &["ppt", "pptx"];
 const SHEETS: &[&str] = &["xlsx", "xls", "ods", "csv", "tsv"];
 const TEXTS: &[&str] = &["md", "rtf", "rtfd", "textclipping", "txt", "srt", "vtt"];
-const ARCHIVES: &[&str] = &["zip", "tar", "gz", "rar"];
+const ARCHIVES: &[&str] = &["zip", "tar", "gz", "rar", "7z"];
 
 #[test]
 fn image_routes() {

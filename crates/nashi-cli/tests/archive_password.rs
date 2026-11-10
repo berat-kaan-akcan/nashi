@@ -212,6 +212,29 @@ fn unzip_alone_cannot_take_a_password_safely() {
     assert_eq!(r.error_codes(), ["missing_dependency"], "{:?}", r.events);
 }
 
+#[test]
+fn a_7z_with_encrypted_names_takes_the_password() {
+    need!("7z");
+    let d = tempfile::tempdir().unwrap();
+    let secret = d.path().join("secret.txt");
+    std::fs::write(&secret, "hidden").unwrap();
+    let archive = d.path().join("names.7z");
+    let pw = format!("-p{PASSWORD}");
+    tool(
+        "7z",
+        &["a", "-bso0", &pw, "-mhe=on", s(&archive), s(&secret)],
+    );
+    std::fs::remove_file(secret).unwrap();
+    assert_eq!(messages(&extract(&archive, None, "")), [PROTECTED]);
+    assert_eq!(messages(&extract(&archive, Some("wrong"), "")), [WRONG]);
+    let r = extract(&archive, Some(PASSWORD), "");
+    r.ok();
+    assert_eq!(
+        std::fs::read_to_string(r.one().join("secret.txt")).unwrap(),
+        "hidden"
+    );
+}
+
 const PDF_PROTECTED: &str = "This PDF is password protected.";
 const PDF_WRONG: &str = "The password is incorrect.";
 

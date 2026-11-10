@@ -11,7 +11,9 @@ fn catalog_shape() {
     assert_eq!(r.code, 0);
     let v: Value = serde_json::from_str(r.stdout.trim()).unwrap();
     let formats = v["formats"].as_array().unwrap();
-    assert_eq!(formats.len(), 46);
+    // The 46 upstream formats, then the Linux additions (7z).
+    assert_eq!(formats.len(), 47);
+    assert_eq!(formats.last().unwrap()["ext"], "7z");
     for f in formats {
         for k in [
             "ext",
